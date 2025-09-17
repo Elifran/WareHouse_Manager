@@ -1,0 +1,58 @@
+version: "3.8"
+
+services:
+  backend:
+    build:
+      context: ./beverage_management_system/backend
+      dockerfile: Dockerfile
+    container_name: beverage_backend
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./beverage_management_system/backend:/app
+      - backend_static:/app/staticfiles
+    environment:
+      - DEBUG=1
+      - DJANGO_SETTINGS_MODULE=config.settings
+    command: >
+      sh -c "pip install -r requirements.txt &&
+             python manage.py makemigrations &&
+             python manage.py migrate &&
+             python manage.py collectstatic --noinput &&
+             python manage.py runserver 0.0.0.0:8000"
+    networks:
+      - beverage_network
+
+  frontend:
+    build:
+      context: ./beverage_management_system
+      dockerfile: Dockerfile
+    container_name: beverage_frontend
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+    networks:
+      - beverage_network
+
+  db:
+    image: postgres:15
+    container_name: beverage_db
+    environment:
+      - POSTGRES_DB=beverage_db
+      - POSTGRES_USER=beverage_user
+      - POSTGRES_PASSWORD=beverage_password
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    networks:
+      - beverage_network
+
+volumes:
+  postgres_data:
+  backend_static:
+
+networks:
+  beverage_network:
+    driver: bridge
