@@ -90,8 +90,8 @@ const PurchaseOrderModal = ({ suppliers, onClose, onSubmit }) => {
                 if (unitId) {
                   updatedItem.unit_id = unitId;
                   
-                  // Calculate unit price based on conversion factor
-                  let unitPrice = selectedProduct?.price || 0;
+                  // Calculate unit cost based on conversion factor
+                  let unitCost = selectedProduct?.cost_price || 0;
                   
                   // If this is not the base unit, calculate converted price
                   if (!defaultUnit.unit_is_base) {
@@ -102,17 +102,17 @@ const PurchaseOrderModal = ({ suppliers, onClose, onSubmit }) => {
                       const baseQuantity = selectedProduct.stock_quantity || 1;
                       const convertedQuantity = stockInfo.quantity || 1;
                       const conversionFactor = baseQuantity / convertedQuantity;
-                      unitPrice = parseFloat(selectedProduct.price) * conversionFactor;
+                      unitCost = parseFloat(selectedProduct.cost_price) * conversionFactor;
                     } else {
                       // Fallback: try to find conversion in available_units
                       const availableUnit = selectedProduct?.available_units?.find(au => au.id === unitId);
                       if (availableUnit?.conversion_factor) {
-                        unitPrice = parseFloat(selectedProduct.price) * availableUnit.conversion_factor;
+                        unitCost = parseFloat(selectedProduct.cost_price) * availableUnit.conversion_factor;
                       }
                     }
                   }
                   
-                  updatedItem.unit_cost = parseFloat(unitPrice).toFixed(2);
+                  updatedItem.unit_cost = parseFloat(unitCost).toFixed(2);
                 }
               }
             }
@@ -302,8 +302,8 @@ const PurchaseOrderModal = ({ suppliers, onClose, onSubmit }) => {
                               return unitIdFromData === parseInt(unitId);
                             });
                             if (selectedUnit) {
-                              // Calculate unit price based on conversion factor
-                              let unitPrice = selectedProduct?.price || 0;
+                              // Calculate unit cost based on conversion factor
+                              let unitCost = selectedProduct?.cost_price || 0;
                               
                               // If this is not the base unit, calculate converted price
                               const unit = selectedUnit.unit || selectedUnit;
@@ -317,17 +317,17 @@ const PurchaseOrderModal = ({ suppliers, onClose, onSubmit }) => {
                                   const baseQuantity = selectedProduct.stock_quantity || 1;
                                   const convertedQuantity = stockInfo.quantity || 1;
                                   const conversionFactor = baseQuantity / convertedQuantity;
-                                  unitPrice = parseFloat(selectedProduct.price) * conversionFactor;
+                                  unitCost = parseFloat(selectedProduct.cost_price) * conversionFactor;
                                 } else {
                                   // Fallback: try to find conversion in available_units
                                   const availableUnit = selectedProduct?.available_units?.find(au => au.id === parseInt(unitId));
                                   if (availableUnit?.conversion_factor) {
-                                    unitPrice = parseFloat(selectedProduct.price) * availableUnit.conversion_factor;
+                                    unitCost = parseFloat(selectedProduct.cost_price) * availableUnit.conversion_factor;
                                   }
                                 }
                               }
                               
-                              handleItemChange(index, 'unit_cost', parseFloat(unitPrice).toFixed(2));
+                              handleItemChange(index, 'unit_cost', parseFloat(unitCost).toFixed(2));
                             }
                           }
                         }}
@@ -352,8 +352,8 @@ const PurchaseOrderModal = ({ suppliers, onClose, onSubmit }) => {
                               return null;
                             }
                             
-                            // Calculate unit price based on conversion factor
-                            let unitPrice = selectedProduct?.price || 0;
+                            // Calculate unit cost based on conversion factor
+                            let unitCost = selectedProduct?.cost_price || 0;
                             
                             // If this is not the base unit, calculate converted price
                             if (!compatibleUnit.unit_is_base) {
@@ -364,19 +364,19 @@ const PurchaseOrderModal = ({ suppliers, onClose, onSubmit }) => {
                                 const baseQuantity = selectedProduct.stock_quantity || 1;
                                 const convertedQuantity = stockInfo.quantity || 1;
                                 const conversionFactor = baseQuantity / convertedQuantity;
-                                unitPrice = parseFloat(selectedProduct.price) * conversionFactor;
+                                unitCost = parseFloat(selectedProduct.cost_price) * conversionFactor;
                               } else {
                                 // Fallback: try to find conversion in available_units
                                 const availableUnit = selectedProduct?.available_units?.find(au => au.id === unitId);
                                 if (availableUnit?.conversion_factor) {
-                                  unitPrice = parseFloat(selectedProduct.price) * availableUnit.conversion_factor;
+                                  unitCost = parseFloat(selectedProduct.cost_price) * availableUnit.conversion_factor;
                                 }
                               }
                             }
                             
                             return (
                               <option key={unitId} value={unitId}>
-                                {unitName} ({unitSymbol}) - ${parseFloat(unitPrice).toFixed(2)}
+                                {unitName} ({unitSymbol}) - {parseFloat(unitCost).toFixed(2)} MGA
                               </option>
                             );
                           }).filter(Boolean);
@@ -411,10 +411,10 @@ const PurchaseOrderModal = ({ suppliers, onClose, onSubmit }) => {
                     <div className="item-total">
                       <label>Line Total</label>
                       <div className="total-display">
-                        ${calculateItemTotal(item).toFixed(2)}
+                        {calculateItemTotal(item).toFixed(2)} MGA
                         {item.tax_class_id && (
                           <span className="tax-amount">
-                            + ${calculateTaxAmount(item).toFixed(2)} tax
+                            + {calculateTaxAmount(item).toFixed(2)} MGA tax
                           </span>
                         )}
                       </div>
@@ -438,15 +438,15 @@ const PurchaseOrderModal = ({ suppliers, onClose, onSubmit }) => {
             <div className="totals-section">
               <div className="totals-row">
                 <span>Subtotal:</span>
-                <span>${totals.subtotal.toFixed(2)}</span>
+                <span>{totals.subtotal.toFixed(2)} MGA</span>
               </div>
               <div className="totals-row">
                 <span>Tax Amount:</span>
-                <span>${totals.taxAmount.toFixed(2)}</span>
+                <span>{totals.taxAmount.toFixed(2)} MGA</span>
               </div>
               <div className="totals-row total-row">
                 <span>Total Amount:</span>
-                <span>${totals.total.toFixed(2)}</span>
+                <span>{totals.total.toFixed(2)} MGA</span>
               </div>
             </div>
           )}

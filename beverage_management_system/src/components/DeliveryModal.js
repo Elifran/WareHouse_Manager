@@ -264,7 +264,7 @@ const DeliveryModal = ({ purchaseOrder, action = 'create', onClose, onSubmit }) 
                             
                             return (
                               <option key={unitId} value={unitId}>
-                                {unitName} ({unitSymbol}) - ${parseFloat(unitPrice).toFixed(2)}
+                                {unitName} ({unitSymbol}) - {parseFloat(unitPrice).toFixed(2)} MGA
                               </option>
                             );
                           }).filter(Boolean);
@@ -285,10 +285,10 @@ const DeliveryModal = ({ purchaseOrder, action = 'create', onClose, onSubmit }) 
                     <div className="item-total">
                       <label>Line Total</label>
                       <div className="total-display">
-                        ${calculateItemTotal(item).toFixed(2)}
+                        {calculateItemTotal(item).toFixed(2)} MGA
                         {originalItem.tax_class && (
                           <span className="tax-amount">
-                            + ${calculateTaxAmount(item).toFixed(2)} tax
+                            + {calculateTaxAmount(item).toFixed(2)} MGA tax
                           </span>
                         )}
                       </div>
@@ -312,15 +312,15 @@ const DeliveryModal = ({ purchaseOrder, action = 'create', onClose, onSubmit }) 
             <div className="totals-section">
               <div className="totals-row">
                 <span>Subtotal:</span>
-                <span>${totals.subtotal.toFixed(2)}</span>
+                <span>{totals.subtotal.toFixed(2)} MGA</span>
               </div>
               <div className="totals-row">
                 <span>Tax Amount:</span>
-                <span>${totals.taxAmount.toFixed(2)}</span>
+                <span>{totals.taxAmount.toFixed(2)} MGA</span>
               </div>
               <div className="totals-row total-row">
                 <span>Total Amount:</span>
-                <span>${totals.total.toFixed(2)}</span>
+                <span>{totals.total.toFixed(2)} MGA</span>
               </div>
             </div>
           )}

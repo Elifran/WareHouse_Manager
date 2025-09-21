@@ -134,7 +134,7 @@ class Delivery(models.Model):
             self.received_by = user
             self.save()
             
-            # Update stock for each delivered item
+            # Update stock and cost price for each delivered item
             for item in self.items.all():
                 if item.quantity_received > 0:
                     # Create stock movement
@@ -148,6 +148,49 @@ class Delivery(models.Model):
                         notes=f"Delivery from {self.purchase_order.supplier.name}",
                         created_by=user
                     )
+                    
+                    # Update product cost price based on the unit used
+                    self._update_product_cost_price(item, user)
+    
+    def _update_product_cost_price(self, delivery_item, user):
+        """Update product cost price based on the unit used in delivery"""
+        from products.utils import get_unit_conversion_factor
+        from decimal import Decimal
+        
+        product = delivery_item.product
+        delivery_unit = delivery_item.unit or product.base_unit
+        unit_cost = delivery_item.unit_cost
+        
+        # If the delivery unit is the same as the product's base unit, use the cost directly
+        if delivery_unit.id == product.base_unit.id:
+            new_cost_price = unit_cost
+        else:
+            # Convert the unit cost to base unit cost
+            # Get conversion factor from delivery unit to base unit
+            conversion_factor = get_unit_conversion_factor(delivery_unit.id, product.base_unit.id)
+            
+            if conversion_factor:
+                # If 1 delivery unit = X base units, then cost per base unit = unit_cost / X
+                new_cost_price = unit_cost / conversion_factor
+            else:
+                # If no conversion factor found, use the unit cost as is
+                new_cost_price = unit_cost
+        
+        # Update the product's cost price
+        product.cost_price = new_cost_price
+        product.save()
+        
+        # Create a stock movement to track the cost price update
+        from products.models import StockMovement
+        StockMovement.objects.create(
+            product=product,
+            movement_type='cost_update',
+            quantity=0,  # No quantity change, just cost update
+            unit=product.base_unit,
+            reference_number=f"DEL-{self.delivery_number}",
+            notes=f"Cost price updated to {new_cost_price} MGA per {product.base_unit.name} (from {unit_cost} MGA per {delivery_unit.name})",
+            created_by=user
+        )
     
     class Meta:
         ordering = ['-created_at']

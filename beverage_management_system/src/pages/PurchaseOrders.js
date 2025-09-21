@@ -181,17 +181,17 @@ const EditDeliveryModal = ({ delivery, onClose, onSubmit }) => {
                     value={item.condition_notes}
                     onChange={(e) => handleItemChange(index, 'condition_notes', e.target.value)}
                   />
-                  <span>${calculateItemTotal(item).toFixed(2)}</span>
-                  <span>${calculateTaxAmount(item).toFixed(2)}</span>
+                  <span>{calculateItemTotal(item).toFixed(2)} MGA</span>
+                  <span>{calculateTaxAmount(item).toFixed(2)} MGA</span>
                 </div>
               );
             })}
           </div>
 
           <div className="order-summary">
-            <div>Subtotal: ${totals.subtotal.toFixed(2)}</div>
-            <div>Tax: ${totals.taxAmount.toFixed(2)}</div>
-            <div className="total-amount">Total: ${totals.total.toFixed(2)}</div>
+            <div>Subtotal: {totals.subtotal.toFixed(2)} MGA</div>
+            <div>Tax: {totals.taxAmount.toFixed(2)} MGA</div>
+            <div className="total-amount">Total: {totals.total.toFixed(2)} MGA</div>
           </div>
 
           <div className="modal-actions">
@@ -389,7 +389,7 @@ const PurchaseOrders = () => {
     {
       key: 'total_amount',
       label: 'Total Amount',
-      render: (value) => `$${parseFloat(value).toFixed(2)}`
+      render: (value) => `${parseFloat(value).toFixed(2)} MGA`
     },
     {
       key: 'actions',
@@ -471,7 +471,7 @@ const PurchaseOrders = () => {
     {
       key: 'total_amount',
       label: 'Total Amount',
-      render: (value) => `$${parseFloat(value).toFixed(2)}`
+      render: (value) => `${parseFloat(value).toFixed(2)} MGA`
     },
     {
       key: 'actions',
@@ -550,7 +550,7 @@ const PurchaseOrders = () => {
     {
       key: 'total_amount',
       label: 'Total Amount',
-      render: (value) => `$${parseFloat(value).toFixed(2)}`
+      render: (value) => `${parseFloat(value).toFixed(2)} MGA`
     },
     {
       key: 'received_by',
@@ -798,9 +798,9 @@ const ViewOrderModal = ({ order, onClose }) => {
                     <span>{item.product?.name}</span>
                     <span>{item.product?.sku}</span>
                     <span>{item.quantity_ordered}</span>
-                    <span>${parseFloat(item.unit_cost).toFixed(2)}</span>
+                    <span>{parseFloat(item.unit_cost).toFixed(2)} MGA</span>
                     <span>{item.tax_class ? `${item.tax_class.name} (${item.tax_class.tax_rate}%)` : 'No Tax'}</span>
-                    <span>${parseFloat(item.line_total).toFixed(2)}</span>
+                    <span>{parseFloat(item.line_total).toFixed(2)} MGA</span>
                   </div>
                 ))}
               </div>
@@ -811,15 +811,15 @@ const ViewOrderModal = ({ order, onClose }) => {
               <div className="summary-grid">
                 <div className="summary-item">
                   <label>Subtotal:</label>
-                  <span>${parseFloat(order.subtotal).toFixed(2)}</span>
+                  <span>{parseFloat(order.subtotal).toFixed(2)} MGA</span>
                 </div>
                 <div className="summary-item">
                   <label>Tax Amount:</label>
-                  <span>${parseFloat(order.tax_amount).toFixed(2)}</span>
+                  <span>{parseFloat(order.tax_amount).toFixed(2)} MGA</span>
                 </div>
                 <div className="summary-item total">
                   <label>Total Amount:</label>
-                  <span>${parseFloat(order.total_amount).toFixed(2)}</span>
+                  <span>{parseFloat(order.total_amount).toFixed(2)} MGA</span>
                 </div>
               </div>
             </div>

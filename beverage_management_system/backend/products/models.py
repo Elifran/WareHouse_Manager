@@ -6,6 +6,7 @@ from django.utils import timezone
 class Category(models.Model):
     name = models.CharField(max_length=100, unique=True)
     description = models.TextField(blank=True)
+    is_sellable = models.BooleanField(default=True, help_text="Whether products in this category can be sold at POS")
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -91,7 +92,8 @@ class Product(models.Model):
     category = models.ForeignKey(Category, on_delete=models.CASCADE, related_name='products')
     tax_class = models.ForeignKey(TaxClass, on_delete=models.SET_NULL, null=True, blank=True, related_name='products')
     sku = models.CharField(max_length=50, unique=True)
-    price = models.DecimalField(max_digits=10, decimal_places=2, validators=[MinValueValidator(Decimal('0.01'))])
+    price = models.DecimalField(max_digits=10, decimal_places=2, validators=[MinValueValidator(Decimal('0.01'))], help_text="Standard retail price")
+    wholesale_price = models.DecimalField(max_digits=10, decimal_places=2, validators=[MinValueValidator(Decimal('0.01'))], null=True, blank=True, help_text="Wholesale price (optional)")
     cost_price = models.DecimalField(max_digits=10, decimal_places=2, validators=[MinValueValidator(Decimal('0.00'))])
     stock_quantity = models.PositiveIntegerField(default=0)
     min_stock_level = models.PositiveIntegerField(default=10)
@@ -202,6 +204,7 @@ class StockMovement(models.Model):
         ('in', 'Stock In'),
         ('out', 'Stock Out'),
         ('adjustment', 'Stock Adjustment'),
+        ('cost_update', 'Cost Price Update'),
     ]
 
     product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name='stock_movements')
@@ -253,3 +256,7 @@ class StockMovement(models.Model):
                 # Fallback to direct subtraction if no unit conversion
                 self.product.stock_quantity = max(0, self.product.stock_quantity - self.quantity)
                 self.product.save(update_fields=['stock_quantity'])
+        elif self.movement_type == 'cost_update':
+            # Cost update movements don't change stock quantity, just track the cost change
+            # The actual cost price update is handled in the delivery confirmation
+            pass

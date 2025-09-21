@@ -7,7 +7,7 @@ class CategorySerializer(serializers.ModelSerializer):
     
     class Meta:
         model = Category
-        fields = ['id', 'name', 'description', 'products_count', 'created_at', 'updated_at']
+        fields = ['id', 'name', 'description', 'is_sellable', 'products_count', 'created_at', 'updated_at']
         read_only_fields = ['id', 'created_at', 'updated_at']
     
     def get_products_count(self, obj):
@@ -179,9 +179,28 @@ class ProductUnitSerializer(serializers.ModelSerializer):
                 is_active=True
             ).exclude(id=self.instance.id if self.instance else None)
             if existing_default.exists():
-                raise serializers.ValidationError("Only one unit can be set as default per product.")
+                # If this is an update operation and we're setting a new default,
+                # we need to clear the old default first
+                if self.instance:
+                    # This will be handled in the update method
+                    pass
+                else:
+                    raise serializers.ValidationError("Only one unit can be set as default per product.")
         
         return data
+    
+    def update(self, instance, validated_data):
+        # If we're setting this unit as default, first clear any existing default
+        if validated_data.get('is_default', False):
+            product = instance.product
+            # Clear existing default units for this product
+            ProductUnit.objects.filter(
+                product=product,
+                is_default=True,
+                is_active=True
+            ).exclude(id=instance.id).update(is_default=False)
+        
+        return super().update(instance, validated_data)
 
 class ProductSerializer(serializers.ModelSerializer):
     category_name = serializers.CharField(source='category.name', read_only=True)
@@ -200,7 +219,7 @@ class ProductSerializer(serializers.ModelSerializer):
         model = Product
         fields = [
             'id', 'name', 'description', 'category', 'category_name', 'tax_class', 'tax_class_name', 'tax_rate',
-            'sku', 'price', 'cost_price', 'stock_quantity', 'min_stock_level', 
+            'sku', 'price', 'wholesale_price', 'cost_price', 'stock_quantity', 'min_stock_level', 
             'max_stock_level', 'unit', 'base_unit', 'base_unit_name', 'base_unit_symbol', 
             'available_units', 'compatible_units', 'stock_in_units', 'is_active', 'profit_margin', 
             'is_low_stock', 'is_out_of_stock', 'created_at', 'updated_at'
@@ -350,14 +369,18 @@ class ProductListSerializer(serializers.ModelSerializer):
     tax_rate = serializers.ReadOnlyField()
     is_low_stock = serializers.SerializerMethodField()
     is_out_of_stock = serializers.SerializerMethodField()
+    base_unit_name = serializers.CharField(source='base_unit.name', read_only=True)
+    base_unit_symbol = serializers.CharField(source='base_unit.symbol', read_only=True)
     available_units = serializers.SerializerMethodField()
     compatible_units = ProductUnitSerializer(many=True, read_only=True)
     
     class Meta:
         model = Product
         fields = [
-            'id', 'name', 'category_name', 'tax_class', 'tax_class_name', 'tax_rate', 'sku', 'price', 'stock_quantity', 
-            'unit', 'base_unit', 'is_active', 'is_low_stock', 'is_out_of_stock', 'available_units', 'compatible_units'
+            'id', 'name', 'description', 'category', 'category_name', 'tax_class', 'tax_class_name', 'tax_rate', 
+            'sku', 'price', 'wholesale_price', 'cost_price', 'stock_quantity', 'min_stock_level', 'max_stock_level',
+            'unit', 'base_unit', 'base_unit_name', 'base_unit_symbol', 'is_active', 'is_low_stock', 'is_out_of_stock', 
+            'available_units', 'compatible_units'
         ]
     
     def get_is_low_stock(self, obj):

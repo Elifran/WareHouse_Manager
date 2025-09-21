@@ -6,6 +6,8 @@ def convert_price_between_units(price, from_unit_id, to_unit_id):
     """
     Convert price between units based on conversion factors.
     
+    NEW SYSTEM: Base units are ALWAYS the destination (to_unit).
+    
     Args:
         price: The price to convert
         from_unit_id: ID of the unit the price is currently in
@@ -23,40 +25,21 @@ def convert_price_between_units(price, from_unit_id, to_unit_id):
     except Unit.DoesNotExist:
         return price
     
-    # Try direct conversion from_unit -> to_unit
-    conversion = UnitConversion.objects.filter(
-        from_unit=from_unit,
-        to_unit=to_unit,
-        is_active=True
-    ).first()
-    
-    if conversion:
-        # If converting to a larger unit, divide by conversion factor
-        # If converting to a smaller unit, multiply by conversion factor
-        return price / conversion.conversion_factor
-    
-    # Try reverse conversion to_unit -> from_unit
-    reverse_conversion = UnitConversion.objects.filter(
-        from_unit=to_unit,
-        to_unit=from_unit,
-        is_active=True
-    ).first()
-    
-    if reverse_conversion:
-        # If converting from a larger unit, multiply by conversion factor
-        # If converting from a smaller unit, divide by conversion factor
-        return price * reverse_conversion.conversion_factor
-    
-    return price
+    # Use the new price conversion factor function
+    conversion_factor = get_price_conversion_factor(from_unit_id, to_unit_id)
+    return price * conversion_factor
 
 
 def get_unit_conversion_factor(from_unit_id, to_unit_id):
     """
     Get the conversion factor between two units.
     
+    NEW SYSTEM: Base units are ALWAYS the destination (to_unit).
+    Example: 10dL → 1L (where L is base unit)
+    
     Args:
         from_unit_id: ID of the source unit
-        to_unit_id: ID of the target unit
+        to_unit_id: ID of the target unit (should be base unit)
     
     Returns:
         Conversion factor or 1 if no conversion found
@@ -70,7 +53,25 @@ def get_unit_conversion_factor(from_unit_id, to_unit_id):
     except Unit.DoesNotExist:
         return Decimal('1')
     
-    # Try direct conversion (from_unit -> to_unit)
+    # Check if to_unit is a base unit
+    if not to_unit.is_base_unit:
+        print(f"Warning: to_unit {to_unit.name} is not a base unit. Converting to base unit first.")
+        # Find the base unit for this to_unit
+        base_conversion = UnitConversion.objects.filter(
+            from_unit=to_unit,
+            to_unit__is_base_unit=True,
+            is_active=True
+        ).first()
+        
+        if base_conversion:
+            # Convert: from_unit -> base_unit, then base_unit -> to_unit
+            from_to_base = get_unit_conversion_factor(from_unit_id, base_conversion.to_unit.id)
+            base_to_target = Decimal('1') / base_conversion.conversion_factor
+            return from_to_base * base_to_target
+        else:
+            return Decimal('1')
+    
+    # Direct conversion from non-base unit to base unit
     conversion = UnitConversion.objects.filter(
         from_unit=from_unit,
         to_unit=to_unit,
@@ -78,10 +79,10 @@ def get_unit_conversion_factor(from_unit_id, to_unit_id):
     ).first()
     
     if conversion:
-        # If 1 from_unit = X to_units, then factor is X
+        # If 10dL = 1L, then factor is 10 (multiply dL by 10 to get L equivalent)
         return conversion.conversion_factor
     
-    # Try reverse conversion (to_unit -> from_unit)
+    # Try reverse conversion (base unit -> non-base unit)
     reverse_conversion = UnitConversion.objects.filter(
         from_unit=to_unit,
         to_unit=from_unit,
@@ -89,7 +90,7 @@ def get_unit_conversion_factor(from_unit_id, to_unit_id):
     ).first()
     
     if reverse_conversion:
-        # If 1 to_unit = X from_units, then 1 from_unit = 1/X to_units
+        # If 1L = 10dL, then 1dL = 1/10 L
         factor = Decimal('1') / reverse_conversion.conversion_factor
         return factor
     
@@ -99,11 +100,13 @@ def get_unit_conversion_factor(from_unit_id, to_unit_id):
 def get_price_conversion_factor(from_unit_id, to_unit_id):
     """
     Get the conversion factor for price calculation between two units.
-    This is different from quantity conversion - for prices, we need the factor to multiply.
+    
+    NEW SYSTEM: Base units are ALWAYS the destination (to_unit).
+    For pricing: if we have base unit price, multiply by conversion factor to get larger unit price
     
     Args:
-        from_unit_id: ID of the source unit
-        to_unit_id: ID of the target unit
+        from_unit_id: ID of the source unit (usually base unit)
+        to_unit_id: ID of the target unit (usually larger unit)
     
     Returns:
         Conversion factor for price calculation
@@ -117,27 +120,54 @@ def get_price_conversion_factor(from_unit_id, to_unit_id):
     except Unit.DoesNotExist:
         return Decimal('1')
     
-    # Try direct conversion (from_unit -> to_unit)
-    conversion = UnitConversion.objects.filter(
-        from_unit=from_unit,
-        to_unit=to_unit,
-        is_active=True
-    ).first()
+    # If converting from base unit to larger unit (e.g., L to 10L bottle)
+    if from_unit.is_base_unit and not to_unit.is_base_unit:
+        # Find conversion: to_unit -> from_unit (e.g., 10L bottle -> 1L)
+        conversion = UnitConversion.objects.filter(
+            from_unit=to_unit,
+            to_unit=from_unit,
+            is_active=True
+        ).first()
+        
+        if conversion:
+            # If 10L bottle = 1L, then price factor is 10 (multiply L price by 10)
+            return conversion.conversion_factor
     
-    if conversion:
-        # If 1 from_unit = X to_units, then price factor is X
-        return conversion.conversion_factor
+    # If converting from larger unit to base unit (e.g., 10L bottle to L)
+    elif not from_unit.is_base_unit and to_unit.is_base_unit:
+        # Find conversion: from_unit -> to_unit (e.g., 10L bottle -> 1L)
+        conversion = UnitConversion.objects.filter(
+            from_unit=from_unit,
+            to_unit=to_unit,
+            is_active=True
+        ).first()
+        
+        if conversion:
+            # If 10L bottle = 1L, then price factor is 1/10 (divide bottle price by 10)
+            return Decimal('1') / conversion.conversion_factor
     
-    # Try reverse conversion (to_unit -> from_unit)
-    reverse_conversion = UnitConversion.objects.filter(
-        from_unit=to_unit,
-        to_unit=from_unit,
-        is_active=True
-    ).first()
-    
-    if reverse_conversion:
-        # If 1 to_unit = X from_units, then price factor is X (not 1/X)
-        return reverse_conversion.conversion_factor
+    # If both are non-base units, convert through base unit
+    elif not from_unit.is_base_unit and not to_unit.is_base_unit:
+        # Find base unit for from_unit
+        from_base_conv = UnitConversion.objects.filter(
+            from_unit=from_unit,
+            to_unit__is_base_unit=True,
+            is_active=True
+        ).first()
+        
+        # Find base unit for to_unit
+        to_base_conv = UnitConversion.objects.filter(
+            from_unit=to_unit,
+            to_unit__is_base_unit=True,
+            is_active=True
+        ).first()
+        
+        if from_base_conv and to_base_conv and from_base_conv.to_unit.id == to_base_conv.to_unit.id:
+            # Both convert to same base unit
+            # Price factor = (from_unit_to_base_factor) * (1/to_unit_to_base_factor)
+            from_factor = Decimal('1') / from_base_conv.conversion_factor  # from_unit to base
+            to_factor = to_base_conv.conversion_factor  # to_unit to base (inverse for price)
+            return from_factor * to_factor
     
     return Decimal('1')
 

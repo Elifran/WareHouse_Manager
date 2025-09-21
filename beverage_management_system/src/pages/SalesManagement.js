@@ -552,7 +552,7 @@ const SalesManagement = () => {
                           const selectedProduct = products.find(p => p.id === parseInt(item.product));
                           return selectedProduct?.available_units?.map(unit => (
                             <option key={unit.id} value={unit.id}>
-                              {unit.name} ({unit.symbol}) - ${unit.price?.toFixed(2) || 'N/A'}
+                              {unit.name} ({unit.symbol}) - {unit.price?.toFixed(2) || 'N/A'} MGA
                             </option>
                           )) || [];
                         })()}

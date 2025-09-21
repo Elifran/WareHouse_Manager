@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import api from '../services/api';
 import Button from '../components/Button';
@@ -24,14 +24,99 @@ const PointOfSale = () => {
     category: '',
     search: ''
   });
+  const [searchInput, setSearchInput] = useState(''); // Separate state for search input
   const [editingQuantity, setEditingQuantity] = useState(null);
   const [tempQuantity, setTempQuantity] = useState('');
   const [selectedUnits, setSelectedUnits] = useState({}); // Track selected unit for each product
+  const searchInputRef = useRef(null); // Ref for search input
+  const searchTimeoutRef = useRef(null); // Ref for search timeout
+  const [showSellableToggle, setShowSellableToggle] = useState(false); // Show/hide sellable toggle
+  const [priceMode, setPriceMode] = useState('standard'); // 'standard' or 'wholesale'
+
+  // Function to get the current price based on price mode
+  const getCurrentPrice = (product) => {
+    if (priceMode === 'wholesale' && product.wholesale_price) {
+      return parseFloat(product.wholesale_price);
+    }
+    return parseFloat(product.price);
+  };
+
+  // Function to get the current price for a specific unit
+  const getCurrentUnitPrice = (product, unitStockInfo) => {
+    if (!unitStockInfo?.price) return 0;
+    
+    // If we're in standard mode, return the standard unit price
+    if (priceMode === 'standard') {
+      return unitStockInfo.price;
+    }
+    
+    // If we're in wholesale mode, we need to calculate the wholesale price for this unit
+    if (priceMode === 'wholesale' && product.wholesale_price) {
+      const standardBasePrice = parseFloat(product.price);
+      const wholesaleBasePrice = parseFloat(product.wholesale_price);
+      
+      // Handle edge cases
+      if (!standardBasePrice || standardBasePrice <= 0) {
+        console.warn('Invalid standard base price:', standardBasePrice);
+        return unitStockInfo.price;
+      }
+      
+      // Calculate the conversion factor from standard to wholesale
+      const wholesaleConversionFactor = wholesaleBasePrice / standardBasePrice;
+      
+      // Apply the conversion factor to the unit price
+      const wholesaleUnitPrice = unitStockInfo.price * wholesaleConversionFactor;
+      
+      // Round to 2 decimal places to avoid floating point precision issues
+      const roundedPrice = Math.round(wholesaleUnitPrice * 100) / 100;
+      
+      // Ensure we return a valid number
+      return isNaN(roundedPrice) || roundedPrice < 0 ? unitStockInfo.price : roundedPrice;
+    }
+    
+    // Fallback to standard price
+    return unitStockInfo.price;
+  };
 
   useEffect(() => {
-    fetchProducts();
-    fetchCategories();
+    const initializeData = async () => {
+      await fetchCategories();
+      await fetchProducts(); // Wait for categories to be loaded before fetching products
+    };
+    initializeData();
   }, []);
+
+  // Re-filter products when categories are loaded (to apply sellable filtering)
+  useEffect(() => {
+    if (categories.length > 0 && products.length > 0) {
+      console.log('Categories loaded, re-filtering products to apply sellable filtering');
+      fetchProducts(filters); // Re-fetch with current filters to apply sellable filtering
+    }
+  }, [categories.length]); // Only when categories are loaded
+
+  // Debounced search effect - completely rewritten for stability
+  useEffect(() => {
+    // Clear existing timeout
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current);
+    }
+
+    // Set new timeout
+    searchTimeoutRef.current = setTimeout(() => {
+      if (searchInput !== filters.search) {
+        const newFilters = { ...filters, search: searchInput };
+        setFilters(newFilters);
+        fetchProducts(newFilters);
+      }
+    }, 500);
+
+    // Cleanup function
+    return () => {
+      if (searchTimeoutRef.current) {
+        clearTimeout(searchTimeoutRef.current);
+      }
+    };
+  }, [searchInput, filters]); // Depend on searchInput and filters
 
   useEffect(() => {
     // Fetch stock availability for ALL products in bulk to improve performance
@@ -58,7 +143,7 @@ const PointOfSale = () => {
         }
         
         if (selectedUnit) {
-          defaultUnits[product.id] = selectedUnit.unit;
+          defaultUnits[product.id] = selectedUnit.unit?.id || selectedUnit.unit;
         }
       }
     });
@@ -165,9 +250,63 @@ const PointOfSale = () => {
       
       const url = `/products/${params.toString() ? '?' + params.toString() : ''}`;
       const response = await api.get(url);
-      const newProducts = response.data.results || response.data;
+      const allProducts = response.data.results || response.data;
       
-      setProducts(newProducts);
+      // Debug: Log the first product to see its structure
+      if (allProducts.length > 0) {
+        console.log('First product structure:', allProducts[0]);
+        console.log('Categories loaded:', categories.length);
+      }
+      
+      // If categories are not loaded yet, show all products but log a warning
+      if (categories.length === 0) {
+        console.warn('Categories not loaded yet, showing all products (filtering will be applied once categories load)');
+        setProducts(allProducts);
+        return;
+      }
+      
+      // ALWAYS filter out products from non-sellable categories
+      const sellableProducts = allProducts.filter(product => {
+        let isSellable = false;
+        
+        // If product has category information, check if category is sellable
+        if (product.category && product.category.is_sellable !== undefined) {
+          isSellable = product.category.is_sellable;
+        }
+        // If product has category_name, find the category in our categories list
+        else if (product.category_name) {
+          const category = categories.find(cat => cat.name === product.category_name);
+          isSellable = category ? category.is_sellable : false; // Default to false if category not found (safer)
+        }
+        // If product has category ID, find the category in our categories list
+        else if (product.category && typeof product.category === 'number') {
+          const category = categories.find(cat => cat.id === product.category);
+          isSellable = category ? category.is_sellable : false; // Default to false if category not found (safer)
+        }
+        // If no category information, exclude the product (safer approach)
+        else {
+          isSellable = false;
+        }
+        
+        // Debug: Log filtering decision
+        if (!isSellable) {
+          console.log(`Filtering out product: ${product.name} (category: ${product.category_name || product.category})`);
+        }
+        
+        return isSellable;
+      });
+
+      // Additional check: if a specific category is selected, ensure it's sellable
+      if (filterParams.category) {
+        const selectedCategory = categories.find(cat => cat.id === parseInt(filterParams.category));
+        if (selectedCategory && !selectedCategory.is_sellable) {
+          // If selected category is not sellable, return empty array
+          setProducts([]);
+          return;
+        }
+      }
+      
+      setProducts(sellableProducts);
     } catch (err) {
       setError('Failed to load products');
       console.error('Products error:', err);
@@ -200,7 +339,18 @@ const PointOfSale = () => {
   const addToCart = (product, selectedUnit = null) => {
     
     // Use the first compatible unit if none selected
-    const unit = selectedUnit || (product.compatible_units && product.compatible_units[0]) || { id: product.base_unit, name: 'Piece', symbol: 'piece' };
+    let unit = selectedUnit;
+    if (!unit && product.compatible_units && product.compatible_units[0]) {
+      const compatibleUnit = product.compatible_units[0];
+      unit = {
+        id: compatibleUnit.unit?.id || compatibleUnit.unit,
+        name: compatibleUnit.unit_name || compatibleUnit.unit?.name || 'Piece',
+        symbol: compatibleUnit.unit_symbol || compatibleUnit.unit?.symbol || 'piece'
+      };
+    }
+    if (!unit) {
+      unit = { id: product.base_unit?.id || product.base_unit, name: 'Piece', symbol: 'piece' };
+    }
     
     // Check if stock availability data is loaded
     if (!stockAvailability[product.id]) {
@@ -253,7 +403,7 @@ const PointOfSale = () => {
         unit_id: unit.id,
         unit_name: unit.name,
         unit_symbol: unit.symbol,
-        unit_price: unit.price || product.price
+        unit_price: getCurrentUnitPrice(product, unitStockInfo) || getCurrentPrice(product)
       };
       setCart([...cart, newCartItem]);
     }
@@ -350,9 +500,9 @@ const PointOfSale = () => {
           product_name: item.name,
           product_sku: item.sku,
           quantity: item.quantity,
-          unit_name: item.unit?.name || 'piece',
-          unit_price: item.price,
-          total_price: item.price * item.quantity
+          unit_name: item.unit_name || item.unit?.name || 'piece',
+          unit_price: item.unit_price,
+          total_price: item.unit_price * item.quantity
         }))
       };
 
@@ -389,19 +539,27 @@ const PointOfSale = () => {
     setProcessing(true);
     setError('');
 
-    try {
-      const saleData = {
-        customer_name: customerInfo.name,
-        customer_phone: customerInfo.phone,
-        customer_email: customerInfo.email,
-        payment_method: paymentMethod,
-        items: cart.map(item => ({
-          product: item.id,
-          quantity: item.quantity,
-          unit: item.unit_id,
-          unit_price: item.unit_price
-        }))
-      };
+      try {
+        const saleData = {
+          customer_name: customerInfo.name,
+          customer_phone: customerInfo.phone,
+          customer_email: customerInfo.email,
+          payment_method: paymentMethod,
+          items: cart.map(item => {
+            // More robust unit ID extraction
+            let unitId = item.unit_id;
+            if (typeof unitId === 'object' && unitId !== null) {
+              unitId = unitId.id || unitId;
+            }
+            
+            return {
+              product: item.id,
+              quantity: item.quantity,
+              unit: parseInt(unitId),
+              unit_price: parseFloat(item.unit_price)
+            };
+          })
+        };
 
       // Create the sale
       const response = await api.post('/sales/', saleData);
@@ -418,6 +576,9 @@ const PointOfSale = () => {
         // Clear cart and customer info
         setCart([]);
         setCustomerInfo({ name: '', phone: '', email: '' });
+        
+        // Reset price mode to standard after sale
+        setPriceMode('standard');
         
         // Wait a moment for the backend to process stock movements
         await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second
@@ -463,15 +624,37 @@ const PointOfSale = () => {
   };
 
   const handleFilterChange = (filterType, value) => {
-    const newFilters = { ...filters, [filterType]: value };
-    setFilters(newFilters);
-    fetchProducts(newFilters);
+    if (filterType === 'search') {
+      // For search, update the input state immediately (no API call)
+      setSearchInput(value);
+    } else {
+      // For other filters (like category), update immediately
+      const newFilters = { ...filters, [filterType]: value };
+      setFilters(newFilters);
+      fetchProducts(newFilters);
+    }
   };
 
   const clearFilters = () => {
     const clearedFilters = { category: '', search: '' };
     setFilters(clearedFilters);
+    setSearchInput(''); // Clear the search input state
     fetchProducts(clearedFilters);
+  };
+
+  const toggleCategorySellable = async (categoryId, isSellable) => {
+    try {
+      await api.patch(`/products/categories/${categoryId}/`, {
+        is_sellable: !isSellable
+      });
+      // Refresh categories to show updated status
+      await fetchCategories();
+      // Refresh products to apply new sellable filter
+      fetchProducts(filters);
+    } catch (err) {
+      console.error('Error updating category sellable status:', err);
+      setError('Failed to update category status');
+    }
   };
 
   const handleQuantityClick = (item) => {
@@ -563,17 +746,17 @@ const PointOfSale = () => {
       const selectedUnitId = selectedUnits[product.id];
       
       if (selectedUnitId) {
-        const selectedCompatibleUnit = product.compatible_units.find(u => u.unit === selectedUnitId);
+        const selectedCompatibleUnit = product.compatible_units.find(u => (u.unit?.id || u.unit) === selectedUnitId);
         
         if (selectedCompatibleUnit) {
           // Get the price for this unit from stock availability
           const updatedStockInfo = getUpdatedStockAvailability(product.id);
-          const unitStockInfo = updatedStockInfo?.find(u => u.id === selectedCompatibleUnit.unit);
-          const unitPrice = unitStockInfo?.price || product.price;
+          const unitStockInfo = updatedStockInfo?.find(u => u.id === (selectedCompatibleUnit.unit?.id || selectedCompatibleUnit.unit));
+          const unitPrice = getCurrentUnitPrice(product, unitStockInfo) || getCurrentPrice(product);
           
           // Convert compatible unit to the format expected by addToCart
           const selectedUnit = {
-            id: selectedCompatibleUnit.unit,
+            id: selectedCompatibleUnit.unit?.id || selectedCompatibleUnit.unit,
             name: selectedCompatibleUnit.unit_name,
             symbol: selectedCompatibleUnit.unit_symbol,
             price: unitPrice
@@ -621,19 +804,47 @@ const PointOfSale = () => {
                 onChange={(e) => handleFilterChange('category', e.target.value)}
               >
                 <option value="">All Categories</option>
-                {categories.map(category => (
+                {categories.filter(cat => cat.is_sellable).map(category => (
                   <option key={category.id} value={category.id}>
                     {category.name}
                   </option>
                 ))}
               </select>
+              <Button 
+                variant="outline" 
+                size="small" 
+                onClick={() => setShowSellableToggle(!showSellableToggle)}
+                style={{ marginTop: '0.5rem' }}
+              >
+                {showSellableToggle ? 'Hide' : 'Manage'} Categories
+              </Button>
             </div>
+            
+            <div className="filter-group">
+              <label>Price Mode:</label>
+              <div className="price-mode-toggle">
+                <button 
+                  className={`price-mode-btn ${priceMode === 'standard' ? 'active' : ''}`}
+                  onClick={() => setPriceMode('standard')}
+                >
+                  Standard
+                </button>
+                <button 
+                  className={`price-mode-btn ${priceMode === 'wholesale' ? 'active' : ''}`}
+                  onClick={() => setPriceMode('wholesale')}
+                >
+                  Wholesale
+                </button>
+              </div>
+            </div>
+            
             <div className="filter-group">
               <label>Search:</label>
               <input
+                ref={searchInputRef}
                 type="text"
                 placeholder="Search products..."
-                value={filters.search}
+                value={searchInput}
                 onChange={(e) => handleFilterChange('search', e.target.value)}
               />
             </div>
@@ -643,6 +854,57 @@ const PointOfSale = () => {
               </Button>
             </div>
           </div>
+
+          {/* Category Management Section */}
+          {showSellableToggle && (
+            <div className="category-management" style={{ 
+              marginBottom: '1rem', 
+              padding: '1rem', 
+              backgroundColor: '#f9fafb', 
+              borderRadius: '0.5rem',
+              border: '1px solid #e5e7eb'
+            }}>
+              <h3 style={{ margin: '0 0 1rem 0', fontSize: '1rem', fontWeight: '600' }}>
+                Manage Sellable Categories
+              </h3>
+              <div style={{ 
+                display: 'grid', 
+                gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', 
+                gap: '0.5rem' 
+              }}>
+                {categories.map(category => (
+                  <div key={category.id} style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    padding: '0.5rem',
+                    backgroundColor: 'white',
+                    borderRadius: '0.375rem',
+                    border: '1px solid #e5e7eb'
+                  }}>
+                    <span style={{ fontSize: '0.875rem', fontWeight: '500' }}>
+                      {category.name}
+                    </span>
+                    <button
+                      onClick={() => toggleCategorySellable(category.id, category.is_sellable)}
+                      style={{
+                        padding: '0.25rem 0.5rem',
+                        fontSize: '0.75rem',
+                        borderRadius: '0.25rem',
+                        border: '1px solid',
+                        cursor: 'pointer',
+                        backgroundColor: category.is_sellable ? '#dcfce7' : '#fee2e2',
+                        borderColor: category.is_sellable ? '#16a34a' : '#dc2626',
+                        color: category.is_sellable ? '#15803d' : '#dc2626'
+                      }}
+                    >
+                      {category.is_sellable ? 'Sellable' : 'Not Sellable'}
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           <div className="products-info">
             <p className="products-count">
@@ -661,7 +923,7 @@ const PointOfSale = () => {
                   <h3>{product.name}</h3>
                   <p className="product-sku">{product.sku}</p>
                   <p className="product-price">
-                    ${parseFloat(product.price).toFixed(2)}
+                    {getCurrentPrice(product).toFixed(2)} MGA
                     {product.compatible_units && product.compatible_units.length > 1 && 
                       ` (base unit: ${product.compatible_units.find(u => u.unit.is_base_unit)?.unit.symbol || 'piece'})`
                     }
@@ -673,14 +935,14 @@ const PointOfSale = () => {
                         {(() => {
                           const updatedStockInfo = getUpdatedStockAvailability(product.id);
                           return product.compatible_units.map(compatibleUnit => {
-                            const unitStockInfo = updatedStockInfo?.find(u => u.id === compatibleUnit.unit);
+                            const unitStockInfo = updatedStockInfo?.find(u => u.id === (compatibleUnit.unit?.id || compatibleUnit.unit));
                             if (!unitStockInfo) return null;
                             
                             // Use unit info from stock availability if available, otherwise fallback to compatible unit
-                            const unitName = unitStockInfo?.name || compatibleUnit.unit.name;
+                            const unitName = unitStockInfo?.name || compatibleUnit.unit?.name || compatibleUnit.unit_name;
                             
                             return (
-                              <span key={compatibleUnit.unit} className={`unit-stock ${unitStockInfo.is_available ? 'available' : 'unavailable'}`}>
+                              <span key={compatibleUnit.unit?.id || compatibleUnit.unit} className={`unit-stock ${unitStockInfo.is_available ? 'available' : 'unavailable'}`}>
                                 {unitName}: {unitStockInfo.available_quantity}
                               </span>
                             );
@@ -707,22 +969,22 @@ const PointOfSale = () => {
                         {product.compatible_units.map((compatibleUnit, index) => {
                           // Use updated stock availability that considers cart contents
                           const updatedStockInfo = getUpdatedStockAvailability(product.id);
-                          const unitStockInfo = updatedStockInfo?.find(u => u.id === compatibleUnit.unit);
+                          const unitStockInfo = updatedStockInfo?.find(u => u.id === (compatibleUnit.unit?.id || compatibleUnit.unit));
                           const isAvailable = unitStockInfo ? unitStockInfo.is_available : false;
                           const availableQty = unitStockInfo ? unitStockInfo.available_quantity : 0;
                           
                           // Use unit info from stock availability if available, otherwise fallback to compatible unit
-                          const unitName = unitStockInfo?.name || compatibleUnit.unit.name;
-                          const unitSymbol = unitStockInfo?.symbol || compatibleUnit.unit.symbol;
+                          const unitName = unitStockInfo?.name || compatibleUnit.unit?.name || compatibleUnit.unit_name;
+                          const unitSymbol = unitStockInfo?.symbol || compatibleUnit.unit?.symbol || compatibleUnit.unit_symbol;
                           
                           
                           return (
                             <option 
-                              key={compatibleUnit.unit} 
-                              value={compatibleUnit.unit}
+                              key={compatibleUnit.unit?.id || compatibleUnit.unit} 
+                              value={compatibleUnit.unit?.id || compatibleUnit.unit}
                               disabled={!isAvailable}
                             >
-                              {unitName} ({unitSymbol}) - ${unitStockInfo?.price?.toFixed(2) || 'N/A'} 
+                              {unitName} ({unitSymbol}) - {getCurrentUnitPrice(product, unitStockInfo).toFixed(2)} MGA
                               {!isAvailable ? ' - OUT OF STOCK' : 
                                ` - ${availableQty} available`}
                             </option>
@@ -811,7 +1073,7 @@ const PointOfSale = () => {
                       {item.unit_symbol || 'piece'}
                     </div>
                     <div className="item-price">
-                      ${parseFloat(item.unit_price).toFixed(2)}
+                      {parseFloat(item.unit_price).toFixed(2)} MGA
                     </div>
                     <div className="item-quantity">
                       <div className="quantity-controls">
@@ -864,7 +1126,7 @@ const PointOfSale = () => {
                       </div>
                     </div>
                     <div className="item-total">
-                      ${(item.quantity * item.unit_price).toFixed(2)}
+                      {(item.quantity * item.unit_price).toFixed(2)} MGA
                     </div>
                     <div className="item-actions">
                       <Button
@@ -887,19 +1149,19 @@ const PointOfSale = () => {
               <div className="cart-summary">
                 <div className="summary-row">
                   <span>Total Amount:</span>
-                  <span>${calculateSubtotal().toFixed(2)}</span>
+                  <span>{calculateSubtotal().toFixed(2)} MGA</span>
                 </div>
                 <div className="summary-row cost-breakdown">
                   <span>Cost (excl. tax):</span>
-                  <span>${calculateCost().toFixed(2)}</span>
+                  <span>{calculateCost().toFixed(2)} MGA</span>
                 </div>
                 <div className="summary-row tax-breakdown">
                   <span>Tax included:</span>
-                  <span>${calculateTax().toFixed(2)}</span>
+                  <span>{calculateTax().toFixed(2)} MGA</span>
                 </div>
                 <div className="summary-row total">
                   <span>Total:</span>
-                  <span>${calculateSubtotal().toFixed(2)}</span>
+                  <span>{calculateSubtotal().toFixed(2)} MGA</span>
                 </div>
               </div>
 

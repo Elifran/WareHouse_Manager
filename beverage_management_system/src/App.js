@@ -2,6 +2,7 @@ import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import Navbar from './components/Navbar';
+import ConnectionStatus from './components/ConnectionStatus';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import Inventory from './pages/Inventory';
@@ -67,6 +68,7 @@ const AppRoutes = () => {
   return (
     <Router>
       <div className="app">
+        <ConnectionStatus />
         {isAuthenticated && <Navbar />}
         <main className="app-main">
           <Routes>

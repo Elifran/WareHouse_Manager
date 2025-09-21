@@ -80,6 +80,46 @@
   min-width: 200px;
 }
 
+/* Price Mode Toggle */
+.price-mode-toggle {
+  display: flex;
+  border: 1px solid #d1d5db;
+  border-radius: 0.375rem;
+  overflow: hidden;
+  background: white;
+}
+
+.price-mode-btn {
+  flex: 1;
+  padding: 0.5rem 1rem;
+  border: none;
+  background: white;
+  color: #6b7280;
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border-right: 1px solid #d1d5db;
+}
+
+.price-mode-btn:last-child {
+  border-right: none;
+}
+
+.price-mode-btn:hover {
+  background: #f9fafb;
+  color: #374151;
+}
+
+.price-mode-btn.active {
+  background: #3b82f6;
+  color: white;
+}
+
+.price-mode-btn.active:hover {
+  background: #2563eb;
+}
+
 /* Responsive design for POS filters */
 @media (max-width: 768px) {
   .pos-filters {

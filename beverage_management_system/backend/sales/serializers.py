@@ -19,15 +19,30 @@ class SaleItemSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError("Quantity must be greater than 0.")
         return value
 
-class SaleItemCreateSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = SaleItem
-        fields = ['product', 'quantity', 'unit', 'unit_price']
+class SaleItemCreateSerializer(serializers.Serializer):
+    product = serializers.IntegerField()
+    quantity = serializers.IntegerField()
+    unit = serializers.IntegerField()
+    unit_price = serializers.DecimalField(max_digits=10, decimal_places=2)
     
     def validate_quantity(self, value):
         if value <= 0:
             raise serializers.ValidationError("Quantity must be greater than 0.")
         return value
+    
+    def validate_unit(self, value):
+        # Handle case where unit might be a Unit object instead of ID
+        if hasattr(value, 'id'):
+            return value.id
+        
+        # Ensure it's an integer
+        try:
+            return int(value)
+        except (ValueError, TypeError) as e:
+            raise serializers.ValidationError(f"Unit must be a valid integer ID, got: {value}")
+    
+    def validate(self, data):
+        return data
 
 class PaymentSerializer(serializers.ModelSerializer):
     class Meta:
@@ -65,7 +80,9 @@ class SaleCreateSerializer(serializers.ModelSerializer):
         ]
     
     def create(self, validated_data):
+        print(f"SaleCreateSerializer.create - validated_data: {validated_data}")
         items_data = validated_data.pop('items')
+        print(f"SaleCreateSerializer.create - items_data: {items_data}")
         sale = Sale.objects.create(**validated_data)
         
         # Generate sale number
@@ -78,17 +95,25 @@ class SaleCreateSerializer(serializers.ModelSerializer):
         total_tax = Decimal('0.00')
         
         for item_data in items_data:
+            # Convert product ID to Product object for the ForeignKey
+            from products.models import Product
+            product_id = item_data.pop('product')
+            product = Product.objects.get(id=product_id)
+            
             # Ensure unit_price is set from product if not provided
             if 'unit_price' not in item_data or not item_data['unit_price']:
-                from products.models import Product
-                product = Product.objects.get(id=item_data['product'].id)
                 item_data['unit_price'] = product.price
             
-            item = SaleItem.objects.create(sale=sale, **item_data)
+            # Convert unit ID to Unit object for the ForeignKey
+            from products.models import Unit
+            unit_id = item_data.pop('unit')
+            unit = Unit.objects.get(id=unit_id)
+            
+            item = SaleItem.objects.create(sale=sale, product=product, unit=unit, **item_data)
             subtotal += item.total_price
             
             # Calculate cost and tax for this item based on its product's tax class (tax-inclusive pricing)
-            if item.product.tax_class and item.product.tax_class.is_active:
+            if item.product.tax_class and item.product.tax_class.is_active and item.product.tax_class.tax_rate > 0:
                 # For tax-inclusive pricing: 
                 # tax = (price × tax_rate) / (100 + tax_rate)
                 # cost = (price × 100) / (100 + tax_rate)
@@ -97,7 +122,7 @@ class SaleCreateSerializer(serializers.ModelSerializer):
                 total_tax += item_tax
                 total_cost += item_cost
             else:
-                # No tax, full price is cost
+                # No tax or 0% tax rate, full price is cost
                 total_cost += item.total_price
         
         # Calculate totals (tax-inclusive pricing)

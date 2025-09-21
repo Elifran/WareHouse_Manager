@@ -62,7 +62,7 @@ const generateInventoryContent = (data) => {
             <td>${item.sku || 'N/A'}</td>
             <td>${item.stock_quantity || 0}</td>
             <td>${item.base_unit?.name || item.base_unit?.symbol || 'piece'}</td>
-            <td>$${parseFloat(item.price || 0).toFixed(2)}</td>
+            <td>${parseFloat(item.price || 0).toFixed(2)} MGA</td>
             <td>${item.category?.name || 'N/A'}</td>
           </tr>
         `).join('') : '<tr><td colspan="6">No products found</td></tr>'}
@@ -108,15 +108,15 @@ const generatePurchaseOrderContent = (data) => {
             <td>${item.product?.name || 'N/A'}</td>
             <td>${item.quantity_ordered || 0}</td>
             <td>${item.unit?.name || item.unit?.symbol || 'piece'}</td>
-            <td>$${parseFloat(item.unit_cost || 0).toFixed(2)}</td>
-            <td>$${parseFloat((item.quantity_ordered || 0) * (item.unit_cost || 0)).toFixed(2)}</td>
+            <td>${parseFloat(item.unit_cost || 0).toFixed(2)} MGA</td>
+            <td>${parseFloat((item.quantity_ordered || 0) * (item.unit_cost || 0)).toFixed(2)} MGA</td>
           </tr>
         `).join('') : ''}
       </tbody>
       <tfoot>
         <tr class="total-row">
           <td colspan="4">Total Amount:</td>
-          <td>$${parseFloat(data.total_amount || 0).toFixed(2)}</td>
+          <td>${parseFloat(data.total_amount || 0).toFixed(2)} MGA</td>
         </tr>
       </tfoot>
     </table>
@@ -160,15 +160,15 @@ const generateDeliveryContent = (data) => {
             <td>${item.product?.name || 'N/A'}</td>
             <td>${item.quantity_received || 0}</td>
             <td>${item.unit?.name || item.unit?.symbol || 'piece'}</td>
-            <td>$${parseFloat(item.unit_cost || 0).toFixed(2)}</td>
-            <td>$${parseFloat((item.quantity_received || 0) * (item.unit_cost || 0)).toFixed(2)}</td>
+            <td>${parseFloat(item.unit_cost || 0).toFixed(2)} MGA</td>
+            <td>${parseFloat((item.quantity_received || 0) * (item.unit_cost || 0)).toFixed(2)} MGA</td>
           </tr>
         `).join('') : ''}
       </tbody>
       <tfoot>
         <tr class="total-row">
           <td colspan="4">Total Amount:</td>
-          <td>$${parseFloat(data.total_amount || 0).toFixed(2)}</td>
+          <td>${parseFloat(data.total_amount || 0).toFixed(2)} MGA</td>
         </tr>
       </tfoot>
     </table>
@@ -236,15 +236,15 @@ const generateSaleContent = (data) => {
             <td>${item.product_name || 'N/A'}</td>
             <td>${item.quantity || 0}</td>
             <td>${item.unit_name || 'piece'}</td>
-            <td>$${parseFloat(item.unit_price || 0).toFixed(2)}</td>
-            <td>$${parseFloat(item.total_price || 0).toFixed(2)}</td>
+            <td>${parseFloat(item.unit_price || 0).toFixed(2)} MGA</td>
+            <td>${parseFloat(item.total_price || 0).toFixed(2)} MGA</td>
           </tr>
         `).join('') : '<tr><td colspan="5">No items found</td></tr>'}
       </tbody>
       <tfoot>
         <tr class="total-row">
           <td colspan="4">Total Amount:</td>
-          <td>$${parseFloat(data.total_amount || 0).toFixed(2)}</td>
+          <td>${parseFloat(data.total_amount || 0).toFixed(2)} MGA</td>
         </tr>
       </tfoot>
     </table>
@@ -294,7 +294,7 @@ const generateSalesHistoryContent = (data) => {
       </div>
       <div class="info-row">
         <span class="info-label">Total Revenue:</span>
-        <span class="info-value">$${Array.isArray(sales) ? sales.reduce((sum, sale) => sum + parseFloat(sale.total_amount || 0), 0).toFixed(2) : '0.00'}</span>
+        <span class="info-value">${Array.isArray(sales) ? sales.reduce((sum, sale) => sum + parseFloat(sale.total_amount || 0), 0).toFixed(2) : '0.00'} MGA</span>
       </div>
     </div>
     <table>
@@ -313,7 +313,7 @@ const generateSalesHistoryContent = (data) => {
             <td>${sale.sale_number || 'N/A'}</td>
             <td>${sale.customer_name || 'Walk-in Customer'}</td>
             <td>${sale.created_at ? new Date(sale.created_at).toLocaleDateString() : 'N/A'}</td>
-            <td>$${parseFloat(sale.total_amount || 0).toFixed(2)}</td>
+            <td>${parseFloat(sale.total_amount || 0).toFixed(2)} MGA</td>
             <td>${sale.status || 'N/A'}</td>
           </tr>
         `).join('') : ''}

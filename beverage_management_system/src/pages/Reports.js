@@ -223,17 +223,17 @@ const Reports = () => {
     switch (type) {
       case 'sales':
         content += `SUMMARY:\n`;
-        content += `Total Sales: $${data.summary?.total_sales?.toFixed(2) || '0.00'}\n`;
+        content += `Total Sales: ${data.summary?.total_sales?.toFixed(2) || '0.00'} MGA\n`;
         content += `Total Transactions: ${data.summary?.total_count || 0}\n`;
         content += `Total Items Sold: ${data.summary?.total_items || 0}\n`;
-        content += `Average Sale: $${data.summary?.total_sales && data.summary?.total_count ? (data.summary.total_sales / data.summary.total_count).toFixed(2) : '0.00'}\n\n`;
+        content += `Average Sale: ${data.summary?.total_sales && data.summary?.total_count ? (data.summary.total_sales / data.summary.total_count).toFixed(2) : '0.00'} MGA\n\n`;
         
         if (data.details && data.details.length > 0) {
           content += `SALES DETAILS:\n`;
           content += `Sale Number | Customer | Amount | Items | Sold By | Date\n`;
           content += `------------|----------|--------|-------|---------|-----\n`;
           data.details.forEach(sale => {
-            content += `${sale.sale_number} | ${sale.customer_name || 'Walk-in'} | $${sale.total_amount?.toFixed(2) || '0.00'} | ${sale.items_count} | ${sale.sold_by || '-'} | ${formatDate(sale.created_at)}\n`;
+            content += `${sale.sale_number} | ${sale.customer_name || 'Walk-in'} | ${sale.total_amount?.toFixed(2) || '0.00'} MGA | ${sale.items_count} | ${sale.sold_by || '-'} | ${formatDate(sale.created_at)}\n`;
           });
         }
         break;
@@ -241,7 +241,7 @@ const Reports = () => {
       case 'inventory':
         content += `SUMMARY:\n`;
         content += `Total Products: ${data.summary?.total_products || 0}\n`;
-        content += `Total Value: $${data.summary?.total_value?.toFixed(2) || '0.00'}\n`;
+        content += `Total Value: ${data.summary?.total_value?.toFixed(2) || '0.00'} MGA\n`;
         content += `Low Stock Items: ${data.summary?.low_stock_count || 0}\n`;
         content += `Out of Stock: ${data.summary?.out_of_stock_count || 0}\n\n`;
         
@@ -251,7 +251,7 @@ const Reports = () => {
           content += `--------|-----|----------|-------|------------|---------------|-------------|-------\n`;
           data.products.forEach(product => {
             const status = product.is_out_of_stock ? 'Out of Stock' : product.is_low_stock ? 'Low Stock' : 'In Stock';
-            content += `${product.name} | ${product.sku} | ${product.category} | ${product.stock_quantity} | $${product.cost_price?.toFixed(2) || '0.00'} | $${product.selling_price?.toFixed(2) || '0.00'} | $${product.stock_value?.toFixed(2) || '0.00'} | ${status}\n`;
+            content += `${product.name} | ${product.sku} | ${product.category} | ${product.stock_quantity} | ${product.cost_price?.toFixed(2) || '0.00'} MGA | ${product.selling_price?.toFixed(2) || '0.00'} MGA | ${product.stock_value?.toFixed(2) || '0.00'} MGA | ${status}\n`;
           });
         }
         break;
@@ -291,7 +291,7 @@ const Reports = () => {
         if (data.details && data.details.length > 0) {
           content += 'Sale Number,Customer,Amount,Items,Sold By,Date\n';
           data.details.forEach(sale => {
-            content += `"${sale.sale_number}","${sale.customer_name || 'Walk-in'}","${sale.total_amount?.toFixed(2) || '0.00'}","${sale.items_count}","${sale.sold_by || '-'}","${formatDate(sale.created_at)}"\n`;
+            content += `"${sale.sale_number}","${sale.customer_name || 'Walk-in'}","${sale.total_amount?.toFixed(2) || '0.00'} MGA","${sale.items_count}","${sale.sold_by || '-'}","${formatDate(sale.created_at)}"\n`;
           });
         }
         break;
@@ -301,7 +301,7 @@ const Reports = () => {
           content += 'Product,SKU,Category,Stock,Cost Price,Selling Price,Stock Value,Status\n';
           data.products.forEach(product => {
             const status = product.is_out_of_stock ? 'Out of Stock' : product.is_low_stock ? 'Low Stock' : 'In Stock';
-            content += `"${product.name}","${product.sku}","${product.category}","${product.stock_quantity}","${product.cost_price?.toFixed(2) || '0.00'}","${product.selling_price?.toFixed(2) || '0.00'}","${product.stock_value?.toFixed(2) || '0.00'}","${status}"\n`;
+            content += `"${product.name}","${product.sku}","${product.category}","${product.stock_quantity}","${product.cost_price?.toFixed(2) || '0.00'} MGA","${product.selling_price?.toFixed(2) || '0.00'} MGA","${product.stock_value?.toFixed(2) || '0.00'} MGA","${status}"\n`;
           });
         }
         break;
@@ -357,7 +357,7 @@ const Reports = () => {
             <div className="sales-summary">
               <div className="summary-card">
                 <h4>Total Sales</h4>
-                <p>${data.summary?.total_sales?.toFixed(2) || '0.00'}</p>
+                <p>{data.summary?.total_sales?.toFixed(2) || '0.00'} MGA</p>
               </div>
               <div className="summary-card">
                 <h4>Total Transactions</h4>
@@ -369,7 +369,7 @@ const Reports = () => {
               </div>
               <div className="summary-card">
                 <h4>Average Sale</h4>
-                <p>${data.summary?.total_sales && data.summary?.total_count ? (data.summary.total_sales / data.summary.total_count).toFixed(2) : '0.00'}</p>
+                <p>{data.summary?.total_sales && data.summary?.total_count ? (data.summary.total_sales / data.summary.total_count).toFixed(2) : '0.00'} MGA</p>
               </div>
             </div>
             
@@ -384,14 +384,14 @@ const Reports = () => {
                           <div 
                             className="bar sales-bar" 
                             style={{ height: `${Math.max(5, (day.total / Math.max(...data.chart_data.map(d => d.total))) * 100)}%` }}
-                            title={`Sales: $${day.total.toFixed(2)}`}
+                            title={`Sales: ${day.total.toFixed(2)} MGA`}
                           ></div>
                         </div>
                         <div className="bar-label">
                           {day.date}
                         </div>
                         <div className="bar-values">
-                          <div className="value sales">${day.total.toFixed(0)}</div>
+                          <div className="value sales">{day.total.toFixed(0)} MGA</div>
                         </div>
                       </div>
                     ))}
@@ -420,7 +420,7 @@ const Reports = () => {
                         <tr key={index}>
                           <td>{sale.sale_number}</td>
                           <td>{sale.customer_name || 'Walk-in'}</td>
-                          <td>${sale.total_amount?.toFixed(2) || '0.00'}</td>
+                          <td>{sale.total_amount?.toFixed(2) || '0.00'} MGA</td>
                           <td>{sale.items_count}</td>
                           <td>{sale.sold_by || '-'}</td>
                           <td>{formatDate(sale.created_at)}</td>
@@ -445,7 +445,7 @@ const Reports = () => {
               </div>
               <div className="summary-card">
                 <h4>Total Value</h4>
-                <p>${data.summary?.total_value?.toFixed(2) || '0.00'}</p>
+                <p>{data.summary?.total_value?.toFixed(2) || '0.00'} MGA</p>
               </div>
               <div className="summary-card">
                 <h4>Low Stock Items</h4>
@@ -483,9 +483,9 @@ const Reports = () => {
                           <td>{product.category}</td>
                           <td>{product.stock_quantity}</td>
                           <td>{product.min_stock_level}</td>
-                          <td>${product.cost_price?.toFixed(2) || '0.00'}</td>
-                          <td>${product.selling_price?.toFixed(2) || '0.00'}</td>
-                          <td>${product.stock_value?.toFixed(2) || '0.00'}</td>
+                          <td>{product.cost_price?.toFixed(2) || '0.00'} MGA</td>
+                          <td>{product.selling_price?.toFixed(2) || '0.00'} MGA</td>
+                          <td>{product.stock_value?.toFixed(2) || '0.00'} MGA</td>
                           <td>
                             <span className={`status ${product.is_out_of_stock ? 'out-of-stock' : product.is_low_stock ? 'low-stock' : 'in-stock'}`}>
                               {product.is_out_of_stock ? 'Out of Stock' : product.is_low_stock ? 'Low Stock' : 'In Stock'}

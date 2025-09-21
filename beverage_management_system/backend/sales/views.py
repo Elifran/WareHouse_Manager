@@ -386,13 +386,14 @@ def edit_sale(request, sale_id):
         subtotal += item_total
         
         # Calculate cost and tax for this item
-        if product.tax_class and product.tax_class.is_active:
+        if product.tax_class and product.tax_class.is_active and product.tax_class.tax_rate > 0:
             # Tax-inclusive pricing
             item_tax = (item_total * product.tax_class.tax_rate) / (100 + product.tax_class.tax_rate)
             item_cost = (item_total * 100) / (100 + product.tax_class.tax_rate)
             total_tax += item_tax
             total_cost += item_cost
         else:
+            # No tax or 0% tax rate, full price is cost
             total_cost += item_total
     
     # Update sale totals
