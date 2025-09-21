@@ -6,6 +6,9 @@ import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import Inventory from './pages/Inventory';
 import PointOfSale from './pages/PointOfSale';
+import Users from './pages/Users';
+import TaxManagement from './pages/TaxManagement';
+import SalesManagement from './pages/SalesManagement';
 import './App.css';
 
 const ProtectedRoute = ({ children }) => {
@@ -57,6 +60,30 @@ const AppRoutes = () => {
               element={
                 <ProtectedRoute>
                   <PointOfSale />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/users" 
+              element={
+                <ProtectedRoute>
+                  <Users />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/tax-management" 
+              element={
+                <ProtectedRoute>
+                  <TaxManagement />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/sales-management" 
+              element={
+                <ProtectedRoute>
+                  <SalesManagement />
                 </ProtectedRoute>
               } 
             />

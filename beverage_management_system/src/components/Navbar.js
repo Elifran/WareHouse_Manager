@@ -37,10 +37,23 @@ const Navbar = () => {
               <Link to="/pos" className="navbar-link">
                 Point of Sale
               </Link>
-              {user?.role === 'admin' && (
-                <Link to="/reports" className="navbar-link">
-                  Reports
-                </Link>
+              {(user?.role === 'admin' || user?.role === 'manager') && (
+                <>
+                  <Link to="/users" className="navbar-link">
+                    Users
+                  </Link>
+                  <Link to="/tax-management" className="navbar-link">
+                    Tax Management
+                  </Link>
+                  <Link to="/sales-management" className="navbar-link">
+                    Sales Management
+                  </Link>
+                  {user?.role === 'admin' && (
+                    <Link to="/reports" className="navbar-link">
+                      Reports
+                    </Link>
+                  )}
+                </>
               )}
             </div>
 

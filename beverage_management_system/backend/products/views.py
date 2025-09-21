@@ -4,10 +4,10 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
 from django.db.models import Q
-from .models import Category, Product, StockMovement
+from .models import Category, Product, StockMovement, TaxClass
 from .serializers import (
     CategorySerializer, ProductSerializer, ProductListSerializer, 
-    StockMovementSerializer
+    StockMovementSerializer, TaxClassSerializer
 )
 
 class CategoryListCreateView(generics.ListCreateAPIView):
@@ -28,7 +28,7 @@ class ProductListCreateView(generics.ListCreateAPIView):
     queryset = Product.objects.select_related('category').all()
     permission_classes = [IsAuthenticated]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
-    filterset_fields = ['category', 'is_active', 'is_low_stock']
+    filterset_fields = ['category', 'is_active', 'stock_quantity']
     search_fields = ['name', 'sku', 'description']
     ordering_fields = ['name', 'price', 'stock_quantity', 'created_at']
     ordering = ['name']
@@ -105,3 +105,40 @@ def adjust_stock(request, product_id):
     
     serializer = StockMovementSerializer(movement)
     return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+# Tax Class Views
+class TaxClassListCreateView(generics.ListCreateAPIView):
+    queryset = TaxClass.objects.all()
+    serializer_class = TaxClassSerializer
+    permission_classes = [IsAuthenticated]
+    filter_backends = [filters.SearchFilter, filters.OrderingFilter]
+    search_fields = ['name', 'description']
+    ordering_fields = ['name', 'tax_rate', 'created_at']
+    ordering = ['name']
+    
+    def get_permissions(self):
+        """
+        Only allow admin and manager roles to manage tax classes
+        """
+        from rest_framework.permissions import IsAuthenticated
+        from .permissions import IsManagerOrAdmin
+        
+        if self.request.method in ['POST', 'PUT', 'PATCH', 'DELETE']:
+            return [IsAuthenticated(), IsManagerOrAdmin()]
+        return [IsAuthenticated()]
+
+class TaxClassDetailView(generics.RetrieveUpdateDestroyAPIView):
+    queryset = TaxClass.objects.all()
+    serializer_class = TaxClassSerializer
+    permission_classes = [IsAuthenticated]
+    
+    def get_permissions(self):
+        """
+        Only allow admin and manager roles to manage tax classes
+        """
+        from rest_framework.permissions import IsAuthenticated
+        from .permissions import IsManagerOrAdmin
+        
+        if self.request.method in ['PUT', 'PATCH', 'DELETE']:
+            return [IsAuthenticated(), IsManagerOrAdmin()]
+        return [IsAuthenticated()]

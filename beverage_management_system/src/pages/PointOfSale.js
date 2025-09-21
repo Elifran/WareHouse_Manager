@@ -7,6 +7,7 @@ import './PointOfSale.css';
 const PointOfSale = () => {
   const { user } = useAuth();
   const [products, setProducts] = useState([]);
+  const [categories, setCategories] = useState([]);
   const [cart, setCart] = useState([]);
   const [customerInfo, setCustomerInfo] = useState({
     name: '',
@@ -17,21 +18,47 @@ const PointOfSale = () => {
   const [loading, setLoading] = useState(true);
   const [processing, setProcessing] = useState(false);
   const [error, setError] = useState('');
+  const [filters, setFilters] = useState({
+    category: '',
+    search: ''
+  });
+  const [editingQuantity, setEditingQuantity] = useState(null);
+  const [tempQuantity, setTempQuantity] = useState('');
 
   useEffect(() => {
     fetchProducts();
+    fetchCategories();
   }, []);
 
-  const fetchProducts = async () => {
+  const fetchProducts = async (filterParams = {}) => {
     try {
       setLoading(true);
-      const response = await api.get('/products/?is_active=true');
+      const params = new URLSearchParams();
+      
+      // Always filter for active products
+      params.append('is_active', 'true');
+      
+      // Add filters to params
+      if (filterParams.category) params.append('category', filterParams.category);
+      if (filterParams.search) params.append('search', filterParams.search);
+      
+      const url = `/products/${params.toString() ? '?' + params.toString() : ''}`;
+      const response = await api.get(url);
       setProducts(response.data.results || response.data);
     } catch (err) {
       setError('Failed to load products');
       console.error('Products error:', err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchCategories = async () => {
+    try {
+      const response = await api.get('/products/categories/');
+      setCategories(response.data.results || response.data);
+    } catch (err) {
+      console.error('Categories error:', err);
     }
   };
 
@@ -83,7 +110,30 @@ const PointOfSale = () => {
   };
 
   const calculateTax = () => {
-    return calculateSubtotal() * 0.18; // 18% tax
+    let totalTax = 0;
+    cart.forEach(item => {
+      if (item.tax_rate && item.tax_rate > 0) {
+        // For tax-inclusive pricing: tax = (price × tax_rate) / (100 + tax_rate)
+        const itemTax = (item.quantity * item.unit_price * item.tax_rate) / (100 + item.tax_rate);
+        totalTax += itemTax;
+      }
+    });
+    return totalTax;
+  };
+
+  const calculateCost = () => {
+    let totalCost = 0;
+    cart.forEach(item => {
+      if (item.tax_rate && item.tax_rate > 0) {
+        // For tax-inclusive pricing: cost = (price × 100) / (100 + tax_rate)
+        const itemCost = (item.quantity * item.unit_price * 100) / (100 + item.tax_rate);
+        totalCost += itemCost;
+      } else {
+        // No tax, full price is cost
+        totalCost += item.quantity * item.unit_price;
+      }
+    });
+    return totalCost;
   };
 
   const calculateTotal = () => {
@@ -135,6 +185,71 @@ const PointOfSale = () => {
     setError('');
   };
 
+  const handleFilterChange = (filterType, value) => {
+    const newFilters = { ...filters, [filterType]: value };
+    setFilters(newFilters);
+    fetchProducts(newFilters);
+  };
+
+  const clearFilters = () => {
+    const clearedFilters = { category: '', search: '' };
+    setFilters(clearedFilters);
+    fetchProducts(clearedFilters);
+  };
+
+  const handleQuantityClick = (item) => {
+    setEditingQuantity(item.id);
+    setTempQuantity(item.quantity.toString());
+  };
+
+  const handleQuantityChange = (e) => {
+    const value = e.target.value;
+    // Only allow numbers and empty string
+    if (value === '' || /^\d+$/.test(value)) {
+      setTempQuantity(value);
+    }
+  };
+
+  const handleQuantitySubmit = (item) => {
+    const newQuantity = parseInt(tempQuantity);
+    
+    if (tempQuantity === '' || isNaN(newQuantity) || newQuantity < 0) {
+      setError('Please enter a valid quantity');
+      setEditingQuantity(null);
+      return;
+    }
+    
+    if (newQuantity > item.stock_quantity) {
+      setError(`Not enough stock available. Max: ${item.stock_quantity}`);
+      setEditingQuantity(null);
+      return;
+    }
+    
+    if (newQuantity === 0) {
+      // Remove item from cart if quantity is 0
+      removeFromCart(item.id);
+    } else {
+      updateQuantity(item.id, newQuantity);
+    }
+    
+    setEditingQuantity(null);
+    setTempQuantity('');
+    setError('');
+  };
+
+  const handleQuantityCancel = () => {
+    setEditingQuantity(null);
+    setTempQuantity('');
+  };
+
+  const handleQuantityKeyPress = (e, item) => {
+    if (e.key === 'Enter') {
+      handleQuantitySubmit(item);
+    } else if (e.key === 'Escape') {
+      handleQuantityCancel();
+    }
+  };
+
   if (loading) {
     return (
       <div className="pos">
@@ -159,6 +274,45 @@ const PointOfSale = () => {
         {/* Product Grid */}
         <div className="pos-products">
           <h2>Products</h2>
+          
+          {/* Filters */}
+          <div className="pos-filters">
+            <div className="filter-group">
+              <label>Category:</label>
+              <select 
+                value={filters.category} 
+                onChange={(e) => handleFilterChange('category', e.target.value)}
+              >
+                <option value="">All Categories</option>
+                {categories.map(category => (
+                  <option key={category.id} value={category.id}>
+                    {category.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="filter-group">
+              <label>Search:</label>
+              <input
+                type="text"
+                placeholder="Search products..."
+                value={filters.search}
+                onChange={(e) => handleFilterChange('search', e.target.value)}
+              />
+            </div>
+            <div className="filter-group">
+              <Button variant="outline" size="small" onClick={clearFilters}>
+                Clear
+              </Button>
+            </div>
+          </div>
+
+          <div className="products-info">
+            <p className="products-count">
+              {products.length} product{products.length !== 1 ? 's' : ''} found
+            </p>
+          </div>
+
           <div className="products-grid">
             {products.map(product => (
               <div
@@ -200,42 +354,81 @@ const PointOfSale = () => {
             {cart.length === 0 ? (
               <p className="empty-cart">Cart is empty</p>
             ) : (
-              cart.map(item => (
-                <div key={item.id} className="cart-item">
-                  <div className="item-info">
-                    <h4>{item.name}</h4>
-                    <p>${parseFloat(item.unit_price).toFixed(2)} each</p>
-                  </div>
-                  <div className="item-controls">
-                    <Button
-                      size="small"
-                      variant="outline"
-                      onClick={() => updateQuantity(item.id, item.quantity - 1)}
-                    >
-                      -
-                    </Button>
-                    <span className="quantity">{item.quantity}</span>
-                    <Button
-                      size="small"
-                      variant="outline"
-                      onClick={() => updateQuantity(item.id, item.quantity + 1)}
-                      disabled={item.quantity >= item.stock_quantity}
-                    >
-                      +
-                    </Button>
-                    <Button
-                      size="small"
-                      variant="danger"
-                      onClick={() => removeFromCart(item.id)}
-                    >
-                      ×
-                    </Button>
-                  </div>
-                  <div className="item-total">
-                    ${(item.quantity * item.unit_price).toFixed(2)}
-                  </div>
+              <>
+                <div className="cart-table-header">
+                  <div className="header-product">Product</div>
+                  <div className="header-price">Price</div>
+                  <div className="header-quantity">Qty</div>
+                  <div className="header-total">Total</div>
+                  <div className="header-actions">Actions</div>
                 </div>
-              ))
+                {cart.map(item => (
+                  <div key={item.id} className="cart-item">
+                    <div className="item-product">
+                      <h4>{item.name}</h4>
+                      <p className="item-sku">SKU: {item.sku}</p>
+                    </div>
+                    <div className="item-price">
+                      ${parseFloat(item.unit_price).toFixed(2)}
+                    </div>
+                    <div className="item-quantity">
+                      <div className="quantity-controls">
+                        <Button
+                          size="small"
+                          variant="outline"
+                          onClick={() => updateQuantity(item.id, item.quantity - 1)}
+                        >
+                          -
+                        </Button>
+                        {editingQuantity === item.id ? (
+                          <div className="quantity-edit">
+                            <input
+                              type="number"
+                              value={tempQuantity}
+                              onChange={handleQuantityChange}
+                              onKeyPress={(e) => handleQuantityKeyPress(e, item)}
+                              onBlur={() => handleQuantitySubmit(item)}
+                              className="quantity-input"
+                              min="0"
+                              max={item.stock_quantity}
+                              autoFocus
+                            />
+                          </div>
+                        ) : (
+                          <span 
+                            className="quantity clickable"
+                            onClick={() => handleQuantityClick(item)}
+                            title="Click to edit quantity"
+                          >
+                            {item.quantity}
+                          </span>
+                        )}
+                        <Button
+                          size="small"
+                          variant="outline"
+                          onClick={() => updateQuantity(item.id, item.quantity + 1)}
+                          disabled={item.quantity >= item.stock_quantity}
+                        >
+                          +
+                        </Button>
+                      </div>
+                    </div>
+                    <div className="item-total">
+                      ${(item.quantity * item.unit_price).toFixed(2)}
+                    </div>
+                    <div className="item-actions">
+                      <Button
+                        size="small"
+                        variant="danger"
+                        onClick={() => removeFromCart(item.id)}
+                        title="Remove item"
+                      >
+                        ×
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </>
             )}
           </div>
 
@@ -243,16 +436,20 @@ const PointOfSale = () => {
             <>
               <div className="cart-summary">
                 <div className="summary-row">
-                  <span>Subtotal:</span>
+                  <span>Total Amount:</span>
                   <span>${calculateSubtotal().toFixed(2)}</span>
                 </div>
-                <div className="summary-row">
-                  <span>Tax (18%):</span>
+                <div className="summary-row cost-breakdown">
+                  <span>Cost (excl. tax):</span>
+                  <span>${calculateCost().toFixed(2)}</span>
+                </div>
+                <div className="summary-row tax-breakdown">
+                  <span>Tax included:</span>
                   <span>${calculateTax().toFixed(2)}</span>
                 </div>
                 <div className="summary-row total">
                   <span>Total:</span>
-                  <span>${calculateTotal().toFixed(2)}</span>
+                  <span>${calculateSubtotal().toFixed(2)}</span>
                 </div>
               </div>
 

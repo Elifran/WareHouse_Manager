@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Category, Product, StockMovement
+from .models import Category, Product, StockMovement, TaxClass
 
 class CategorySerializer(serializers.ModelSerializer):
     products_count = serializers.SerializerMethodField()
@@ -12,21 +12,45 @@ class CategorySerializer(serializers.ModelSerializer):
     def get_products_count(self, obj):
         return obj.products.filter(is_active=True).count()
 
+class TaxClassSerializer(serializers.ModelSerializer):
+    products_count = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = TaxClass
+        fields = ['id', 'name', 'description', 'tax_rate', 'is_active', 'products_count', 'created_at', 'updated_at']
+        read_only_fields = ['id', 'created_at', 'updated_at']
+    
+    def get_products_count(self, obj):
+        return obj.products.filter(is_active=True).count()
+    
+    def validate_tax_rate(self, value):
+        if value < 0 or value > 100:
+            raise serializers.ValidationError("Tax rate must be between 0 and 100 percent.")
+        return value
+
 class ProductSerializer(serializers.ModelSerializer):
     category_name = serializers.CharField(source='category.name', read_only=True)
+    tax_class_name = serializers.CharField(source='tax_class.name', read_only=True)
+    tax_rate = serializers.ReadOnlyField()
     profit_margin = serializers.ReadOnlyField()
-    is_low_stock = serializers.ReadOnlyField()
-    is_out_of_stock = serializers.ReadOnlyField()
+    is_low_stock = serializers.SerializerMethodField()
+    is_out_of_stock = serializers.SerializerMethodField()
     
     class Meta:
         model = Product
         fields = [
-            'id', 'name', 'description', 'category', 'category_name', 'sku', 
-            'price', 'cost_price', 'stock_quantity', 'min_stock_level', 
+            'id', 'name', 'description', 'category', 'category_name', 'tax_class', 'tax_class_name', 'tax_rate',
+            'sku', 'price', 'cost_price', 'stock_quantity', 'min_stock_level', 
             'max_stock_level', 'unit', 'is_active', 'profit_margin', 
             'is_low_stock', 'is_out_of_stock', 'created_at', 'updated_at'
         ]
         read_only_fields = ['id', 'created_at', 'updated_at']
+    
+    def get_is_low_stock(self, obj):
+        return obj.is_low_stock
+    
+    def get_is_out_of_stock(self, obj):
+        return obj.is_out_of_stock
     
     def validate_sku(self, value):
         if self.instance and self.instance.sku == value:
@@ -54,12 +78,20 @@ class StockMovementSerializer(serializers.ModelSerializer):
 
 class ProductListSerializer(serializers.ModelSerializer):
     category_name = serializers.CharField(source='category.name', read_only=True)
-    is_low_stock = serializers.ReadOnlyField()
-    is_out_of_stock = serializers.ReadOnlyField()
+    tax_class_name = serializers.CharField(source='tax_class.name', read_only=True)
+    tax_rate = serializers.ReadOnlyField()
+    is_low_stock = serializers.SerializerMethodField()
+    is_out_of_stock = serializers.SerializerMethodField()
     
     class Meta:
         model = Product
         fields = [
-            'id', 'name', 'category_name', 'sku', 'price', 'stock_quantity', 
+            'id', 'name', 'category_name', 'tax_class', 'tax_class_name', 'tax_rate', 'sku', 'price', 'stock_quantity', 
             'unit', 'is_active', 'is_low_stock', 'is_out_of_stock'
         ]
+    
+    def get_is_low_stock(self, obj):
+        return obj.is_low_stock
+    
+    def get_is_out_of_stock(self, obj):
+        return obj.is_out_of_stock

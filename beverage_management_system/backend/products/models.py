@@ -1,5 +1,5 @@
 from django.db import models
-from django.core.validators import MinValueValidator
+from django.core.validators import MinValueValidator, MaxValueValidator
 from decimal import Decimal
 
 class Category(models.Model):
@@ -14,10 +14,32 @@ class Category(models.Model):
     class Meta:
         verbose_name_plural = "Categories"
 
+class TaxClass(models.Model):
+    name = models.CharField(max_length=100, unique=True)
+    description = models.TextField(blank=True)
+    tax_rate = models.DecimalField(
+        max_digits=5, 
+        decimal_places=2, 
+        validators=[MinValueValidator(Decimal('0.00')), MaxValueValidator(Decimal('100.00'))],
+        help_text="Tax rate as a percentage (e.g., 18.00 for 18%)"
+    )
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    def __str__(self):
+        return f"{self.name} ({self.tax_rate}%)"
+    
+    class Meta:
+        verbose_name = "Tax Class"
+        verbose_name_plural = "Tax Classes"
+        ordering = ['name']
+
 class Product(models.Model):
     name = models.CharField(max_length=200)
     description = models.TextField(blank=True)
     category = models.ForeignKey(Category, on_delete=models.CASCADE, related_name='products')
+    tax_class = models.ForeignKey(TaxClass, on_delete=models.SET_NULL, null=True, blank=True, related_name='products')
     sku = models.CharField(max_length=50, unique=True)
     price = models.DecimalField(max_digits=10, decimal_places=2, validators=[MinValueValidator(Decimal('0.01'))])
     cost_price = models.DecimalField(max_digits=10, decimal_places=2, validators=[MinValueValidator(Decimal('0.00'))])
@@ -45,6 +67,13 @@ class Product(models.Model):
     @property
     def is_out_of_stock(self):
         return self.stock_quantity == 0
+    
+    @property
+    def tax_rate(self):
+        """Get the tax rate for this product"""
+        if self.tax_class and self.tax_class.is_active:
+            return self.tax_class.tax_rate
+        return Decimal('0.00')
 
 class StockMovement(models.Model):
     MOVEMENT_TYPES = [

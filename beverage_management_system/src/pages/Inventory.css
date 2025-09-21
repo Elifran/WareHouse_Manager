@@ -40,11 +40,16 @@
   font-size: 0.875rem;
 }
 
-.filter-group select {
+.filter-group select,
+.filter-group input {
   padding: 0.5rem;
   border: 1px solid #d1d5db;
   border-radius: 0.375rem;
   font-size: 0.875rem;
+}
+
+.filter-group input {
+  min-width: 200px;
 }
 
 .product-name {

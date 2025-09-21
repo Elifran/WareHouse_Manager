@@ -4,6 +4,8 @@ from . import views
 urlpatterns = [
     path('categories/', views.CategoryListCreateView.as_view(), name='category-list-create'),
     path('categories/<int:pk>/', views.CategoryDetailView.as_view(), name='category-detail'),
+    path('tax-classes/', views.TaxClassListCreateView.as_view(), name='tax-class-list-create'),
+    path('tax-classes/<int:pk>/', views.TaxClassDetailView.as_view(), name='tax-class-detail'),
     path('', views.ProductListCreateView.as_view(), name='product-list-create'),
     path('<int:pk>/', views.ProductDetailView.as_view(), name='product-detail'),
     path('stock-movements/', views.StockMovementListCreateView.as_view(), name='stock-movement-list-create'),

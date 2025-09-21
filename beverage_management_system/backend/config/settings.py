@@ -15,7 +15,7 @@ SECRET_KEY = 'django-insecure-your-secret-key-here-change-in-production'
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = ['localhost', '127.0.0.1', '0.0.0.0', 'backend']
+ALLOWED_HOSTS = ['localhost', '127.0.0.1', '0.0.0.0', 'backend', 'testserver']
 
 # Application definition
 INSTALLED_APPS = [
@@ -150,4 +150,4 @@ CORS_ALLOWED_ORIGINS = [
 CORS_ALLOW_CREDENTIALS = True
 
 # Custom user model
-# AUTH_USER_MODEL = 'core.User'  # Commented out for initial setup
+AUTH_USER_MODEL = 'core.User'

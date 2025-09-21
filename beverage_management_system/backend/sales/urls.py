@@ -10,4 +10,6 @@ urlpatterns = [
     path('chart-data/', views.sales_chart_data, name='sales-chart-data'),
     path('<int:sale_id>/complete/', views.complete_sale, name='complete-sale'),
     path('<int:sale_id>/cancel/', views.cancel_sale, name='cancel-sale'),
+    path('delete/', views.delete_sales, name='delete-sales'),
+    path('<int:sale_id>/edit/', views.edit_sale, name='edit-sale'),
 ]

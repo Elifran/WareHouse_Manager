@@ -5,7 +5,7 @@ from rest_framework.response import Response
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.contrib.auth import authenticate
 from .models import User
-from .serializers import UserSerializer, UserRegistrationSerializer, LoginSerializer
+from .serializers import UserSerializer, UserRegistrationSerializer, LoginSerializer, AdminUserEditSerializer
 
 class UserListCreateView(generics.ListCreateAPIView):
     queryset = User.objects.all()
@@ -20,8 +20,13 @@ class UserListCreateView(generics.ListCreateAPIView):
 
 class UserDetailView(generics.RetrieveUpdateDestroyAPIView):
     queryset = User.objects.all()
-    serializer_class = UserSerializer
     permission_classes = [IsAuthenticated]
+    
+    def get_serializer_class(self):
+        # Use AdminUserEditSerializer for admin users, regular UserSerializer for others
+        if self.request.user.role == 'admin':
+            return AdminUserEditSerializer
+        return UserSerializer
     
     def get_queryset(self):
         # Only admins can access all users, others only themselves
