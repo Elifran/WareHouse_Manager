@@ -94,13 +94,21 @@ The Purchase Orders & Deliveries system allows you to:
 ## Frontend Components
 
 ### Pages
-- **PurchaseOrders**: Main page for managing purchase orders and deliveries
+- **PurchaseOrders**: Main page with side-by-side layout and mini navigation
 - **Suppliers**: Supplier management page
 
 ### Components
-- **PurchaseOrderModal**: Create/edit purchase orders
-- **DeliveryModal**: Create deliveries from purchase orders
+- **PurchaseOrderModal**: Create/edit purchase orders with unit selection
+- **DeliveryModal**: Create deliveries from purchase orders with unit conversion
+- **EditDeliveryModal**: Edit pending deliveries with comprehensive item management
 - **SupplierModal**: Create/edit suppliers
+
+### Layout Features
+- **Side-by-Side Design**: Modern layout with navigation panel and main content area
+- **Mini Navigation**: Tabbed interface for Purchase Orders, Pending Deliveries, and Delivery History
+- **Responsive Design**: Adapts to different screen sizes (desktop, tablet, mobile)
+- **Count Display**: Shows number of items in each category
+- **Active State Highlighting**: Visual feedback for current selection
 
 ## Workflow
 
@@ -111,25 +119,31 @@ The Purchase Orders & Deliveries system allows you to:
 4. Save supplier
 
 ### 2. Create Purchase Order
-1. Go to "Purchase Orders" page
+1. Go to "Purchase Orders" page (defaults to Purchase Orders tab)
 2. Click "Create Purchase Order"
 3. Select supplier
-4. Add items with quantities and costs
+4. Add items with quantities, units, and costs (unit selection shows only compatible units)
 5. Set expected delivery date
 6. Save order
 
 ### 3. Process Delivery
-1. From purchase order, click "Create Delivery"
-2. Specify quantities actually received
+1. From purchase order, click "Create Delivery" or switch to "Pending Deliveries" tab
+2. Specify quantities actually received (unit pre-selected from purchase order)
 3. Modify prices if needed
 4. Add condition notes
 5. Save delivery
 
 ### 4. Confirm Delivery
-1. From pending deliveries, click "Confirm & Update Stock"
-2. System automatically updates product stock
-3. Creates stock movement records
-4. Marks delivery as completed
+1. Switch to "Pending Deliveries" tab or use the mini navigation
+2. Click "Confirm & Update Stock" on the delivery
+3. System automatically updates product stock with unit conversion
+4. Creates stock movement records
+5. Marks delivery as completed
+
+### 5. View History
+1. Switch to "Delivery History" tab
+2. View all completed deliveries with print options
+3. Track received dates and delivery details
 
 ## Status Flow
 
@@ -150,19 +164,29 @@ The Purchase Orders & Deliveries system allows you to:
 ## Integration with Existing System
 
 ### Stock Management
-- Deliveries automatically update product stock quantities
+- Deliveries automatically update product stock quantities with unit conversion
 - Stock movements are tracked with delivery references
 - Integration with existing low stock alerts
+- Supports multi-unit stock tracking
 
 ### Product Management
 - Uses existing Product, Category, and TaxClass models
 - Maintains product cost prices and tax information
 - Supports existing product SKU system
+- **Unit System Integration**: Purchase orders and deliveries work with the multi-unit system
+- **Unit Selection**: Only shows compatible units for each product
+- **Price Conversion**: Automatically calculates prices for different units
 
 ### User Management
 - Tracks who created orders and deliveries
 - Uses existing user authentication system
 - Respects user roles and permissions
+
+### Multi-Unit System
+- **Compatible Units**: Each product can have specific compatible units
+- **Unit Conversion**: Automatic conversion between units (e.g., pieces to packs)
+- **Price Calculation**: Prices automatically adjust based on unit selection
+- **Stock Display**: Shows stock in multiple units simultaneously
 
 ## Security & Permissions
 

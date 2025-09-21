@@ -4,12 +4,24 @@ A comprehensive beverage inventory and point-of-sale management system built wit
 
 ## Features
 
+### Core Features
 - **Dashboard**: Real-time sales metrics, inventory alerts, and recent activity
 - **Inventory Management**: Product catalog, stock tracking, low stock alerts
 - **Point of Sale**: Modern POS interface with cart management and payment processing
 - **User Management**: Role-based access control (Admin, Manager, Sales)
 - **Reports**: Sales reports, inventory reports, and analytics
 - **Stock Management**: Automatic stock updates, movement tracking
+
+### Advanced Features
+- **Multi-Unit System**: Support for different units (pieces, packs, kg, liters) with automatic conversion
+- **Unit Conversion**: Flexible unit relationships (e.g., 1 carton = 12 pieces, 1 kg = 1000g)
+- **Product-Specific Units**: Each product can have its own set of compatible units
+- **Dynamic Pricing**: Prices automatically convert based on selected unit
+- **Purchase Orders & Deliveries**: Complete procurement workflow with supplier management
+- **Print System**: Comprehensive printing for all documents with network printer support
+- **System Management**: Manage tax classes, categories, units, and unit conversions
+- **Stock Movement Tracking**: Complete audit trail of all stock changes
+- **Role-Based Navigation**: Dynamic navigation based on user permissions
 
 ## Tech Stack
 
@@ -122,30 +134,48 @@ After running migrations and creating a superuser, you can log in with your admi
 - `POST /api/core/register/` - User registration
 - `GET /api/core/profile/` - User profile
 
-### Products
+### Products & Units
 - `GET /api/products/` - List products
 - `POST /api/products/` - Create product
 - `GET /api/products/{id}/` - Product details
 - `PUT /api/products/{id}/` - Update product
 - `DELETE /api/products/{id}/` - Delete product
 - `GET /api/products/categories/` - List categories
+- `GET /api/products/units/` - List all units
+- `GET /api/products/base-units/` - List base units
+- `GET /api/products/unit-conversions/` - List unit conversions
+- `POST /api/products/unit-conversions/` - Create unit conversion
+- `GET /api/products/{id}/stock-availability/` - Get stock in different units
+- `POST /api/products/bulk-stock-availability/` - Bulk stock availability check
 
 ### Sales
-- `GET /api/sales/` - List sales
+- `GET /api/sales/` - List sales (with date filtering)
 - `POST /api/sales/` - Create sale
 - `POST /api/sales/{id}/complete/` - Complete sale
 - `GET /api/sales/summary/` - Sales summary
+- `GET /api/sales/chart-data/` - Chart data for dashboard
 
-### Reports
+### Purchase Orders & Deliveries
+- `GET /api/purchases/suppliers/` - List suppliers
+- `POST /api/purchases/suppliers/` - Create supplier
+- `GET /api/purchases/purchase-orders/` - List purchase orders
+- `POST /api/purchases/purchase-orders/` - Create purchase order
+- `GET /api/purchases/deliveries/` - List deliveries
+- `POST /api/purchases/deliveries/` - Create delivery
+- `POST /api/purchases/deliveries/confirm/` - Confirm delivery
+- `GET /api/purchases/deliveries/pending/` - Get pending deliveries
+
+### Reports & Analytics
 - `GET /api/reports/dashboard/` - Dashboard data
 - `POST /api/reports/sales/` - Generate sales report
 - `POST /api/reports/inventory/` - Generate inventory report
+- `GET /api/reports/stock-movements/` - Stock movement history
 
 ## User Roles
 
-- **Admin**: Full access to all features
-- **Manager**: Access to inventory, sales, and reports
-- **Sales**: Access to POS and basic inventory view
+- **Admin**: Full access to all features including system management
+- **Manager**: Access to inventory, sales, reports, and purchase orders
+- **Sales**: Access to POS and basic inventory view (restricted from stock management)
 
 ## Environment Variables
 
@@ -176,6 +206,41 @@ DATABASE_URL=postgresql://user:password@localhost:5432/beverage_db
 ## License
 
 This project is licensed under the MIT License.
+
+## Recent Updates
+
+### Multi-Unit System
+- **Flexible Units**: Support for pieces, packs, kg, liters, and custom units
+- **Unit Conversions**: Define conversion relationships (e.g., 1 carton = 12 pieces)
+- **Product-Specific Units**: Each product can have its own set of compatible units
+- **Dynamic Pricing**: Prices automatically convert based on selected unit
+- **Stock Display**: Show stock quantities in multiple units simultaneously
+
+### Purchase Orders & Deliveries
+- **Supplier Management**: Complete supplier database with contact information
+- **Purchase Order Workflow**: Create, send, and track purchase orders
+- **Delivery Processing**: Receive goods and automatically update stock
+- **Side-by-Side Layout**: Modern interface with mini navigation tabs
+- **Print Integration**: Print purchase orders and delivery receipts
+
+### Enhanced Printing System
+- **Network Printers**: Detect and configure network printers
+- **Print Templates**: Professional print layouts for all documents
+- **Unit Information**: Print reports include unit details and conversions
+- **Print IDs**: Track printing with unique identifiers and timestamps
+
+### System Management
+- **Tax Classes**: Manage different tax rates and categories
+- **Product Categories**: Organize products with realistic categories
+- **Unit Management**: Create and manage units and conversions
+- **Data Validation**: Comprehensive validation with user-friendly error messages
+
+### User Experience Improvements
+- **Role-Based Navigation**: Dynamic menus based on user permissions
+- **Responsive Design**: Optimized for desktop, tablet, and mobile
+- **Real-Time Updates**: Automatic refresh after operations
+- **Enhanced Filtering**: Advanced filtering for sales and reports
+- **Stock Validation**: Prevent overselling with real-time stock checks
 
 ## Support
 
