@@ -146,7 +146,8 @@ const SalesManagement = () => {
           product: item.product,
           quantity: item.quantity,
           unit: item.unit?.id || item.unit || '',
-          unit_price: item.unit_price
+          unit_price: item.unit_price,
+          price_mode: item.price_mode || 'standard'
         }))
       });
       setShowEditModal(true);
@@ -346,7 +347,12 @@ const SalesManagement = () => {
                     <div className="sale-items">
                       {items.slice(0, 2).map((item, index) => (
                         <div key={index} className="sale-item-row">
-                          <span className="item-name">{item.product_name}</span>
+                          <span className="item-name">
+                            {item.product_name}
+                            <span className={`price-mode-badge ${item.price_mode || 'standard'}`}>
+                              {item.price_mode === 'wholesale' ? 'WS' : 'STD'}
+                            </span>
+                          </span>
                           <span className="item-details">
                             {item.quantity} {item.unit_symbol || 'pcs'} × {formatCurrency(item.unit_price)}
                           </span>
@@ -499,85 +505,75 @@ const SalesManagement = () => {
                   
                   <h3>Sale Items</h3>
               <div className="edit-items">
-                {editFormData.items.map((item, index) => (
-                  <div key={index} className="edit-item">
-                    <div className="form-group">
-                      <label>Product</label>
-                      <select
-                        value={item.product}
-                        onChange={(e) => {
-                          updateEditItem(index, 'product', e.target.value);
-                          updateEditItem(index, 'unit_price', getProductPrice(e.target.value));
-                        }}
-                      >
-                        <option value="">Select Product</option>
-                        {products.map(product => (
-                          <option key={product.id} value={product.id}>
-                            {product.name} - {formatCurrency(product.price)}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                    
-                    <div className="form-group">
-                      <label>Quantity</label>
-                      <input
-                        type="number"
-                        min="1"
-                        value={item.quantity}
-                        onChange={(e) => updateEditItem(index, 'quantity', parseInt(e.target.value) || 1)}
-                      />
-                    </div>
-                    
-                    <div className="form-group">
-                      <label>Unit</label>
-                      <select
-                        value={item.unit}
-                        onChange={(e) => {
-                          const unitId = e.target.value;
-                          updateEditItem(index, 'unit', unitId);
-                          
-                          // Auto-set unit price based on selected unit's price
-                          if (unitId) {
-                            const selectedProduct = products.find(p => p.id === parseInt(item.product));
-                            const selectedUnit = selectedProduct?.available_units?.find(u => u.id === parseInt(unitId));
-                            if (selectedUnit && selectedUnit.price) {
-                              updateEditItem(index, 'unit_price', selectedUnit.price.toFixed(2));
-                            }
-                          }
-                        }}
-                      >
-                        <option value="">Select Unit</option>
-                        {(() => {
-                          const selectedProduct = products.find(p => p.id === parseInt(item.product));
-                          return selectedProduct?.available_units?.map(unit => (
-                            <option key={unit.id} value={unit.id}>
-                              {unit.name} ({unit.symbol}) - {unit.price?.toFixed(2) || 'N/A'} MGA
-                            </option>
-                          )) || [];
-                        })()}
-                      </select>
-                    </div>
-                    
-                    <div className="form-group">
-                      <label>Unit Price</label>
-                      <input
-                        type="number"
-                        min="0"
-                        step="0.01"
-                        value={item.unit_price}
-                        onChange={(e) => updateEditItem(index, 'unit_price', parseFloat(e.target.value) || 0)}
-                      />
-                    </div>
-                    
-                    <div className="form-group">
-                      <label>Total</label>
-                      <input
-                        type="text"
-                        value={formatCurrency(item.quantity * item.unit_price)}
-                        readOnly
-                      />
-                    </div>
+                {editFormData.items.map((item, index) => {
+                  // Get the original item from the sale to display product and unit info
+                  const originalItem = selectedSale?.items?.find(origItem => 
+                    origItem.product === item.product && 
+                    origItem.unit === item.unit &&
+                    origItem.price_mode === item.price_mode
+                  );
+                  
+                  return (
+                    <div key={index} className="edit-item">
+                      <div className="form-group">
+                        <label>Product</label>
+                        <input
+                          type="text"
+                          value={originalItem?.product_name || 'Unknown Product'}
+                          readOnly
+                          className="readonly-field"
+                        />
+                      </div>
+                      
+                      <div className="form-group">
+                        <label>Unit</label>
+                        <input
+                          type="text"
+                          value={originalItem?.unit_name ? `${originalItem.unit_name} (${originalItem.unit_symbol})` : 'N/A'}
+                          readOnly
+                          className="readonly-field"
+                        />
+                      </div>
+                      
+                      <div className="form-group">
+                        <label>Price Mode</label>
+                        <input
+                          type="text"
+                          value={item.price_mode === 'wholesale' ? 'Wholesale (WS)' : 'Standard (STD)'}
+                          readOnly
+                          className="readonly-field"
+                        />
+                      </div>
+                      
+                      <div className="form-group">
+                        <label>Unit Price</label>
+                        <input
+                          type="text"
+                          value={formatCurrency(item.unit_price)}
+                          readOnly
+                          className="readonly-field"
+                        />
+                      </div>
+                      
+                      <div className="form-group">
+                        <label>Quantity</label>
+                        <input
+                          type="number"
+                          min="1"
+                          value={item.quantity}
+                          onChange={(e) => updateEditItem(index, 'quantity', parseInt(e.target.value) || 1)}
+                        />
+                      </div>
+                      
+                      <div className="form-group">
+                        <label>Total</label>
+                        <input
+                          type="text"
+                          value={formatCurrency(item.quantity * item.unit_price)}
+                          readOnly
+                          className="readonly-field"
+                        />
+                      </div>
                     
                     <Button 
                       variant="danger" 
@@ -587,7 +583,8 @@ const SalesManagement = () => {
                       Remove
                     </Button>
                   </div>
-                ))}
+                  );
+                })}
                 
                 <Button variant="primary" onClick={addEditItem}>
                   Add Item

@@ -11,8 +11,8 @@ class SaleItemSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = SaleItem
-        fields = ['id', 'product', 'product_name', 'product_sku', 'quantity', 'unit', 'unit_name', 'unit_symbol', 'unit_price', 'total_price']
-        read_only_fields = ['id', 'total_price']
+        fields = ['id', 'product', 'product_name', 'product_sku', 'quantity', 'unit', 'unit_name', 'unit_symbol', 'unit_price', 'unit_cost', 'total_price', 'total_cost', 'price_mode']
+        read_only_fields = ['id', 'total_price', 'unit_cost', 'total_cost']
     
     def validate_quantity(self, value):
         if value <= 0:
@@ -24,6 +24,7 @@ class SaleItemCreateSerializer(serializers.Serializer):
     quantity = serializers.IntegerField()
     unit = serializers.IntegerField()
     unit_price = serializers.DecimalField(max_digits=10, decimal_places=2)
+    price_mode = serializers.ChoiceField(choices=[('standard', 'Standard'), ('wholesale', 'Wholesale')], default='standard')
     
     def validate_quantity(self, value):
         if value <= 0:
@@ -113,6 +114,24 @@ class SaleCreateSerializer(serializers.ModelSerializer):
             subtotal += item.total_price
             
             # Calculate cost and tax for this item based on its product's tax class (tax-inclusive pricing)
+            # First, calculate the actual unit cost based on product cost price and unit conversion
+            from products.utils import get_unit_conversion_factor
+            
+            # Get the cost price per unit in the sale unit
+            if item.unit and item.unit.id != item.product.base_unit.id:
+                # Convert cost price from base unit to sale unit
+                from products.utils import get_price_conversion_factor
+                conversion_factor = get_price_conversion_factor(item.product.base_unit.id, item.unit.id)
+                unit_cost_price = item.product.cost_price * conversion_factor
+            else:
+                # Same unit as base unit, use cost price directly
+                unit_cost_price = item.product.cost_price
+            
+            # Store the unit cost in the sale item (frozen for historical accuracy)
+            item.unit_cost = unit_cost_price
+            item.save()  # Save to update total_cost
+            
+            # Calculate tax and cost for sale totals
             if item.product.tax_class and item.product.tax_class.is_active and item.product.tax_class.tax_rate > 0:
                 # For tax-inclusive pricing: 
                 # tax = (price × tax_rate) / (100 + tax_rate)
@@ -122,8 +141,8 @@ class SaleCreateSerializer(serializers.ModelSerializer):
                 total_tax += item_tax
                 total_cost += item_cost
             else:
-                # No tax or 0% tax rate, full price is cost
-                total_cost += item.total_price
+                # No tax or 0% tax rate, use the stored total cost
+                total_cost += item.total_cost
         
         # Calculate totals (tax-inclusive pricing)
         sale.subtotal = subtotal  # This is the total amount including tax

@@ -379,7 +379,11 @@ const PointOfSale = () => {
       return;
     }
     
-    const existingItem = cart.find(item => item.id === product.id && item.unit_id === unit.id);
+    const existingItem = cart.find(item => 
+      item.id === product.id && 
+      item.unit_id === unit.id && 
+      item.price_mode === priceMode
+    );
     if (existingItem) {
       // Check if adding 1 more would exceed available quantity
       if (existingItem.quantity + 1 > unitStockInfo.available_quantity) {
@@ -387,7 +391,7 @@ const PointOfSale = () => {
         return;
       }
       setCart(cart.map(item =>
-        item.id === product.id && item.unit_id === unit.id
+        item.id === product.id && item.unit_id === unit.id && item.price_mode === priceMode
           ? { ...item, quantity: item.quantity + 1 }
           : item
       ));
@@ -403,16 +407,17 @@ const PointOfSale = () => {
         unit_id: unit.id,
         unit_name: unit.name,
         unit_symbol: unit.symbol,
-        unit_price: getCurrentUnitPrice(product, unitStockInfo) || getCurrentPrice(product)
+        unit_price: getCurrentUnitPrice(product, unitStockInfo) || getCurrentPrice(product),
+        price_mode: priceMode
       };
       setCart([...cart, newCartItem]);
     }
     setError('');
   };
 
-  const updateQuantity = (productId, unitId, quantity) => {
+  const updateQuantity = (productId, unitId, quantity, priceMode = null) => {
     if (quantity <= 0) {
-      setCart(cart.filter(item => !(item.id === productId && item.unit_id === unitId)));
+      setCart(cart.filter(item => !(item.id === productId && item.unit_id === unitId && item.price_mode === priceMode)));
     } else {
       // Check updated stock availability for the selected unit
       const updatedStockInfo = getUpdatedStockAvailability(productId);
@@ -425,7 +430,7 @@ const PointOfSale = () => {
       
       // For updateQuantity, we need to consider the current cart quantity
       const currentCartQuantity = cart
-        .filter(item => item.id === productId && item.unit_id === unitId)
+        .filter(item => item.id === productId && item.unit_id === unitId && item.price_mode === priceMode)
         .reduce((sum, item) => sum + item.quantity, 0);
       
       // Calculate how much we can add (available + what's already in cart)
@@ -437,7 +442,7 @@ const PointOfSale = () => {
       }
       
       setCart(cart.map(item =>
-        item.id === productId && item.unit_id === unitId
+        item.id === productId && item.unit_id === unitId && item.price_mode === priceMode
           ? { ...item, quantity }
           : item
       ));
@@ -445,8 +450,8 @@ const PointOfSale = () => {
     }
   };
 
-  const removeFromCart = (productId, unitId) => {
-    setCart(cart.filter(item => !(item.id === productId && item.unit_id === unitId)));
+  const removeFromCart = (productId, unitId, priceMode = null) => {
+    setCart(cart.filter(item => !(item.id === productId && item.unit_id === unitId && item.price_mode === priceMode)));
   };
 
   const calculateSubtotal = () => {
@@ -556,7 +561,8 @@ const PointOfSale = () => {
               product: item.id,
               quantity: item.quantity,
               unit: parseInt(unitId),
-              unit_price: parseFloat(item.unit_price)
+              unit_price: parseFloat(item.unit_price),
+              price_mode: item.price_mode || 'standard'
             };
           })
         };
@@ -691,7 +697,7 @@ const PointOfSale = () => {
     
     // For handleQuantitySubmit, we need to consider the current cart quantity
     const currentCartQuantity = cart
-      .filter(cartItem => cartItem.id === item.id && cartItem.unit_id === item.unit_id)
+      .filter(cartItem => cartItem.id === item.id && cartItem.unit_id === item.unit_id && cartItem.price_mode === item.price_mode)
       .reduce((sum, cartItem) => sum + cartItem.quantity, 0);
     
     // Calculate how much we can add (available + what's already in cart)
@@ -705,9 +711,9 @@ const PointOfSale = () => {
     
     if (newQuantity === 0) {
       // Remove item from cart if quantity is 0
-      removeFromCart(item.id, item.unit_id);
+      removeFromCart(item.id, item.unit_id, item.price_mode);
     } else {
-      updateQuantity(item.id, item.unit_id, newQuantity);
+      updateQuantity(item.id, item.unit_id, newQuantity, item.price_mode);
     }
     
     setEditingQuantity(null);
@@ -1064,10 +1070,13 @@ const PointOfSale = () => {
                   <div className="header-actions">Actions</div>
                 </div>
                 {cart.map(item => (
-                  <div key={`${item.id}-${item.unit_id}`} className="cart-item">
+                  <div key={`${item.id}-${item.unit_id}-${item.price_mode}`} className="cart-item">
                     <div className="item-product">
                       <h4>{item.name}</h4>
                       <p className="item-sku">SKU: {item.sku}</p>
+                      <span className={`price-mode-badge ${item.price_mode}`}>
+                        {item.price_mode === 'wholesale' ? 'WS' : 'STD'}
+                      </span>
                     </div>
                     <div className="item-unit">
                       {item.unit_symbol || 'piece'}
@@ -1080,7 +1089,7 @@ const PointOfSale = () => {
                         <Button
                           size="small"
                           variant="outline"
-                          onClick={() => updateQuantity(item.id, item.unit_id, item.quantity - 1)}
+                          onClick={() => updateQuantity(item.id, item.unit_id, item.quantity - 1, item.price_mode)}
                         >
                           -
                         </Button>
@@ -1110,12 +1119,12 @@ const PointOfSale = () => {
                         <Button
                           size="small"
                           variant="outline"
-                          onClick={() => updateQuantity(item.id, item.unit_id, item.quantity + 1)}
+                          onClick={() => updateQuantity(item.id, item.unit_id, item.quantity + 1, item.price_mode)}
                           disabled={(() => {
                             const updatedStockInfo = getUpdatedStockAvailability(item.id);
                             const unitStockInfo = updatedStockInfo?.find(u => u.id === item.unit_id);
                             const currentCartQuantity = cart
-                              .filter(cartItem => cartItem.id === item.id && cartItem.unit_id === item.unit_id)
+                              .filter(cartItem => cartItem.id === item.id && cartItem.unit_id === item.unit_id && cartItem.price_mode === item.price_mode)
                               .reduce((sum, cartItem) => sum + cartItem.quantity, 0);
                             const maxAllowed = (unitStockInfo?.available_quantity || 0) + currentCartQuantity;
                             return item.quantity >= maxAllowed;
@@ -1132,7 +1141,7 @@ const PointOfSale = () => {
                       <Button
                         size="small"
                         variant="danger"
-                        onClick={() => removeFromCart(item.id, item.unit_id)}
+                        onClick={() => removeFromCart(item.id, item.unit_id, item.price_mode)}
                         title="Remove item"
                       >
                         ×

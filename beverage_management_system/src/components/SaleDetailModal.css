@@ -222,7 +222,7 @@
 
 .table-header {
   display: grid;
-  grid-template-columns: 3fr 1.5fr 1fr 1.5fr 1.5fr 1.5fr;
+  grid-template-columns: 3fr 1.5fr 1fr 1.5fr 1.5fr 1fr 1.5fr;
   background: #f9fafb;
   padding: 1.25rem 2rem;
   font-weight: 600;
@@ -233,7 +233,7 @@
 
 .table-row {
   display: grid;
-  grid-template-columns: 3fr 1.5fr 1fr 1.5fr 1.5fr 1.5fr;
+  grid-template-columns: 3fr 1.5fr 1fr 1.5fr 1.5fr 1fr 1.5fr;
   padding: 1.25rem 2rem;
   border-bottom: 1px solid #e5e7eb;
   align-items: center;
@@ -271,6 +271,7 @@
 
 .col-quantity,
 .col-price,
+.col-mode,
 .col-total {
   text-align: right;
   font-weight: 500;
@@ -413,7 +414,30 @@
   
   .col-quantity,
   .col-price,
+  .col-mode,
   .col-total {
     text-align: left;
   }
+}
+
+/* Price Mode Badge */
+.price-mode-badge {
+  display: inline-block;
+  padding: 0.125rem 0.375rem;
+  border-radius: 0.25rem;
+  font-size: 0.625rem;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.price-mode-badge.standard {
+  background-color: #dbeafe;
+  color: #1e40af;
+  border: 1px solid #93c5fd;
+}
+
+.price-mode-badge.wholesale {
+  background-color: #fef3c7;
+  color: #92400e;
+  border: 1px solid #fcd34d;
 }

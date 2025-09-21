@@ -266,7 +266,7 @@ def dashboard_data(request):
     ).aggregate(
         total_sales=Sum('total_amount'),
         total_count=Count('id'),
-        total_cost=Sum('cost_amount')  # Use cost_amount from sales (tax-inclusive pricing)
+        total_cost=Sum('cost_amount')  # Use cost_amount from sales (calculated from stored sale item costs)
     )
     
     # Get total cost from sales cost_amount field (already calculated with tax-inclusive pricing)

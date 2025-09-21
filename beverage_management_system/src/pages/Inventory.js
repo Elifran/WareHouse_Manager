@@ -185,19 +185,16 @@ const Inventory = () => {
         // Find the default unit and convert values if needed
         const defaultUnit = compatibleUnitsData.find(cu => cu.is_default);
         if (defaultUnit && defaultUnit.unit !== product.base_unit) {
-          // Convert from base unit to default unit
-          const priceConversionFactor = await getPriceConversionFactor(product.base_unit, defaultUnit.unit);
-          const quantityConversionFactor = await getQuantityConversionFactor(product.base_unit, defaultUnit.unit);
-          
           setCurrentDisplayUnit(defaultUnit.unit);
           setProductFormData(prev => ({
             ...prev,
-            price: (parseFloat(product.price) * priceConversionFactor).toFixed(2),
-            wholesale_price: product.wholesale_price ? (parseFloat(product.wholesale_price) * priceConversionFactor).toFixed(2) : '',
-            cost_price: (parseFloat(product.cost_price) * priceConversionFactor).toFixed(2),
-            stock_quantity: Math.round(parseFloat(product.stock_quantity) * quantityConversionFactor),
-            min_stock_level: Math.round(parseFloat(product.min_stock_level || 0) * quantityConversionFactor),
-            max_stock_level: Math.round(parseFloat(product.max_stock_level || 0) * quantityConversionFactor)
+            // All values are already in the correct unit (default unit), don't convert them
+            price: product.price,
+            wholesale_price: product.wholesale_price,
+            cost_price: product.cost_price,
+            stock_quantity: product.stock_quantity,
+            min_stock_level: product.min_stock_level,
+            max_stock_level: product.max_stock_level
           }));
         } else {
           // No default unit or default unit is the same as base unit
@@ -357,7 +354,7 @@ const Inventory = () => {
 
   const filteredProducts = products.filter(product => {
     const matchesSearch = product.name.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesCategory = !selectedCategory || product.category?.id === parseInt(selectedCategory);
+    const matchesCategory = !selectedCategory || product.category === parseInt(selectedCategory);
     const matchesStock = stockFilter === 'all' || 
       (stockFilter === 'low' && product.stock_quantity <= product.min_stock_level) ||
       (stockFilter === 'out' && product.stock_quantity === 0);

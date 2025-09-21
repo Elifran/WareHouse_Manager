@@ -269,7 +269,9 @@ def delete_sales(request):
 @api_view(['PUT'])
 @permission_classes([IsAuthenticated])
 def edit_sale(request, sale_id):
-    """Edit a sale for returns or modifications"""
+    """Edit a sale - only allow quantity changes"""
+    from products.models import Product, StockMovement
+    
     # Only allow admin and manager roles to edit sales
     if request.user.role not in ['admin', 'manager']:
         return Response({'error': 'Permission denied'}, status=status.HTTP_403_FORBIDDEN)
@@ -287,126 +289,112 @@ def edit_sale(request, sale_id):
     if not new_items_data:
         return Response({'error': 'Items are required'}, status=status.HTTP_400_BAD_REQUEST)
     
-    # Calculate differences for stock adjustment
-    old_items = {item.id: item for item in sale.items.all()}
-    new_items = {}
+    # Get existing items for comparison
+    existing_items = list(sale.items.all())
     
-    # Process new items
-    for item_data in new_items_data:
-        product_id = item_data.get('product')
-        quantity = int(item_data.get('quantity', 0))
-        
-        if quantity <= 0:
-            continue
-            
-        if product_id in new_items:
-            new_items[product_id] += quantity
-        else:
-            new_items[product_id] = quantity
+    # Allow item removal but not addition
+    if len(new_items_data) > len(existing_items):
+        return Response({'error': 'Cannot add new items, only quantity changes and item removal allowed'}, status=status.HTTP_400_BAD_REQUEST)
     
-    # Calculate stock adjustments
+    # Calculate stock adjustments and validate changes
     stock_adjustments = {}
-    
-    # Check old items
-    for item in old_items.values():
-        product_id = item.product.id
-        old_quantity = item.quantity
-        
-        if product_id in new_items:
-            # Item exists in both old and new
-            new_quantity = new_items[product_id]
-            if new_quantity != old_quantity:
-                # Quantity changed
-                diff = new_quantity - old_quantity
-                if product_id in stock_adjustments:
-                    stock_adjustments[product_id] += diff
-                else:
-                    stock_adjustments[product_id] = diff
-        else:
-            # Item removed
-            if product_id in stock_adjustments:
-                stock_adjustments[product_id] -= old_quantity
-            else:
-                stock_adjustments[product_id] = -old_quantity
-    
-    # Check new items
-    for product_id, new_quantity in new_items.items():
-        if product_id not in [item.product.id for item in old_items.values()]:
-            # New item added
-            if product_id in stock_adjustments:
-                stock_adjustments[product_id] += new_quantity
-            else:
-                stock_adjustments[product_id] = new_quantity
-    
-    # Check stock availability for positive adjustments
-    for product_id, adjustment in stock_adjustments.items():
-        if adjustment > 0:  # Adding stock (returning items)
-            from products.models import Product
-            try:
-                product = Product.objects.get(id=product_id)
-                if product.stock_quantity < adjustment:
-                    return Response({
-                        'error': f'Insufficient stock for {product.name}. Available: {product.stock_quantity}, Required: {adjustment}'
-                    }, status=status.HTTP_400_BAD_REQUEST)
-            except Product.DoesNotExist:
-                return Response({'error': f'Product {product_id} not found'}, status=status.HTTP_400_BAD_REQUEST)
-    
-    # Update sale items
-    sale.items.all().delete()  # Remove all existing items
-    
-    # Create new items
     subtotal = 0
     total_cost = 0
     total_tax = 0
+    processed_existing_items = set()  # Track which existing items have been processed
     
     for item_data in new_items_data:
         product_id = item_data.get('product')
         quantity = int(item_data.get('quantity', 0))
         unit_price = float(item_data.get('unit_price', 0))
+        unit_id = item_data.get('unit')
+        price_mode = item_data.get('price_mode', 'standard')
         
-        if quantity <= 0 or unit_price <= 0:
-            continue
+        if quantity <= 0:
+            return Response({'error': 'Quantity must be greater than 0'}, status=status.HTTP_400_BAD_REQUEST)
         
-        from products.models import Product
-        try:
-            product = Product.objects.get(id=product_id)
-        except Product.DoesNotExist:
-            continue
+        # Find the corresponding existing item
+        existing_item = None
+        for existing in existing_items:
+            if (existing.product.id == product_id and 
+                existing.unit.id == unit_id and 
+                existing.price_mode == price_mode):
+                existing_item = existing
+                processed_existing_items.add(existing.id)
+                break
         
-        # Create sale item
-        SaleItem.objects.create(
-            sale=sale,
-            product=product,
-            quantity=quantity,
-            unit_price=unit_price
-        )
+        if not existing_item:
+            return Response({'error': 'Cannot change product, unit, or price mode - only quantity changes allowed'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Check if unit price matches (should not change)
+        from decimal import Decimal
+        if abs(float(existing_item.unit_price) - unit_price) > 0.01:  # Allow small floating point differences
+            return Response({'error': 'Cannot change unit price - only quantity changes allowed'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Calculate quantity difference for stock adjustment
+        quantity_diff = quantity - existing_item.quantity
+        if quantity_diff != 0:
+            if product_id in stock_adjustments:
+                stock_adjustments[product_id] += quantity_diff
+            else:
+                stock_adjustments[product_id] = quantity_diff
+        
+        # Update the existing item quantity
+        existing_item.quantity = quantity
+        existing_item.save()
         
         # Calculate totals
         item_total = quantity * unit_price
         subtotal += item_total
         
         # Calculate cost and tax for this item
-        if product.tax_class and product.tax_class.is_active and product.tax_class.tax_rate > 0:
+        if existing_item.product.tax_class and existing_item.product.tax_class.is_active and existing_item.product.tax_class.tax_rate > 0:
             # Tax-inclusive pricing
-            item_tax = (item_total * product.tax_class.tax_rate) / (100 + product.tax_class.tax_rate)
-            item_cost = (item_total * 100) / (100 + product.tax_class.tax_rate)
+            item_tax = (item_total * existing_item.product.tax_class.tax_rate) / (100 + existing_item.product.tax_class.tax_rate)
+            item_cost = (item_total * 100) / (100 + existing_item.product.tax_class.tax_rate)
             total_tax += item_tax
             total_cost += item_cost
         else:
-            # No tax or 0% tax rate, full price is cost
-            total_cost += item_total
+            # No tax or 0% tax rate, use the stored unit cost
+            total_cost += existing_item.total_cost
+    
+    # Handle removed items (existing items not in new_items_data)
+    for existing_item in existing_items:
+        if existing_item.id not in processed_existing_items:
+            # This item was removed - add negative stock adjustment
+            product_id = existing_item.product.id
+            if product_id in stock_adjustments:
+                stock_adjustments[product_id] -= existing_item.quantity
+            else:
+                stock_adjustments[product_id] = -existing_item.quantity
+            
+            # Delete the removed item
+            existing_item.delete()
+    
+    # Validate stock availability for increases
+    for product_id, adjustment in stock_adjustments.items():
+        if adjustment < 0:  # Stock decrease (additional sale)
+            # Check if we have enough stock
+            try:
+                product = Product.objects.get(id=product_id)
+                if product.stock_quantity < abs(adjustment):
+                    return Response({
+                        'error': f'Insufficient stock for {product.name}. Available: {product.stock_quantity}, Required: {abs(adjustment)}'
+                    }, status=status.HTTP_400_BAD_REQUEST)
+            except Product.DoesNotExist:
+                return Response({'error': f'Product {product_id} not found'}, status=status.HTTP_400_BAD_REQUEST)
     
     # Update sale totals
-    sale.subtotal = subtotal
-    sale.cost_amount = total_cost
-    sale.tax_amount = total_tax
-    sale.total_amount = subtotal - sale.discount_amount
+    from decimal import Decimal
+    sale.subtotal = Decimal(str(subtotal))
+    sale.cost_amount = Decimal(str(total_cost))
+    sale.tax_amount = Decimal(str(total_tax))
+    sale.total_amount = Decimal(str(subtotal)) - sale.discount_amount
     sale.save()
     
     # Apply stock adjustments
     for product_id, adjustment in stock_adjustments.items():
         if adjustment != 0:
-            from products.models import Product, StockMovement
             product = Product.objects.get(id=product_id)
             
             movement_type = 'return' if adjustment > 0 else 'out'
