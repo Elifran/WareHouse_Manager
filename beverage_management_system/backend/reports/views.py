@@ -230,32 +230,86 @@ def generate_stock_movement_report(request):
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def dashboard_data(request):
-    """Get dashboard data"""
+    """Get dashboard data with time period support and role-based access"""
     today = timezone.now().date()
+    this_week = today - timedelta(days=today.weekday())
     this_month = today.replace(day=1)
     
-    # Sales summary
-    today_sales = Sale.objects.filter(
-        created_at__date=today,
+    # Get user role
+    user_role = request.user.role
+    is_sales_team = user_role == 'sales'
+    
+    # For sales teams, only allow daily view
+    if is_sales_team:
+        period = 'daily'
+        start_date = today
+        end_date = today
+    else:
+        # Get time period from query params for admin/manager
+        period = request.GET.get('period', 'month')  # daily, weekly, monthly
+        
+        # Calculate date range based on period
+        if period == 'daily':
+            start_date = today
+            end_date = today
+        elif period == 'weekly':
+            start_date = this_week
+            end_date = today
+        else:  # monthly
+            start_date = this_month
+            end_date = today
+    
+    # Sales summary for selected period
+    period_sales = Sale.objects.filter(
+        created_at__date__range=[start_date, end_date],
         status='completed'
     ).aggregate(
         total_sales=Sum('total_amount'),
-        total_count=Count('id')
+        total_count=Count('id'),
+        total_cost=Sum('cost_amount')  # Use cost_amount from sales (tax-inclusive pricing)
     )
     
-    month_sales = Sale.objects.filter(
-        created_at__date__gte=this_month,
-        status='completed'
-    ).aggregate(
-        total_sales=Sum('total_amount'),
-        total_count=Count('id')
-    )
+    # Get total cost from sales cost_amount field (already calculated with tax-inclusive pricing)
+    total_cost = float(period_sales['total_cost'] or 0)
+    total_revenue = float(period_sales['total_sales'] or 0)
+    profit_margin = ((total_revenue - total_cost) / total_revenue * 100) if total_revenue > 0 else 0
     
-    # Inventory summary
+    # Daily sales for chart (last 7 days)
+    chart_data = []
+    for i in range(7):
+        date = today - timedelta(days=i)
+        daily_sales = Sale.objects.filter(
+            created_at__date=date,
+            status='completed'
+        ).aggregate(
+            total_sales=Sum('total_amount'),
+            total_count=Count('id')
+        )
+        
+        # Calculate daily cost from sales cost_amount field
+        daily_cost_data = Sale.objects.filter(
+            created_at__date=date,
+            status='completed'
+        ).aggregate(total_cost=Sum('cost_amount'))
+        daily_cost = float(daily_cost_data['total_cost'] or 0)
+        
+        chart_data.append({
+            'date': date.strftime('%Y-%m-%d'),
+            'sales': float(daily_sales['total_sales'] or 0),
+            'cost': daily_cost,
+            'profit': float(daily_sales['total_sales'] or 0) - daily_cost,
+            'transactions': daily_sales['total_count'] or 0
+        })
+    
+    chart_data.reverse()  # Show oldest to newest
+    
+    # Inventory summary with cost data
     inventory_summary = Product.objects.filter(is_active=True).aggregate(
         total_products=Count('id'),
         low_stock_count=Count('id', filter=Q(stock_quantity__lte=F('min_stock_level'))),
-        out_of_stock_count=Count('id', filter=Q(stock_quantity=0))
+        out_of_stock_count=Count('id', filter=Q(stock_quantity=0)),
+        total_inventory_value=Sum(F('stock_quantity') * F('cost_price')),
+        total_retail_value=Sum(F('stock_quantity') * F('price'))
     )
     
     # Recent sales
@@ -266,6 +320,7 @@ def dashboard_data(request):
     recent_sales_data = []
     for sale in recent_sales:
         recent_sales_data.append({
+            'id': sale.id,
             'sale_number': sale.sale_number,
             'customer_name': sale.customer_name,
             'total_amount': float(sale.total_amount),
@@ -273,27 +328,87 @@ def dashboard_data(request):
             'created_at': sale.created_at
         })
     
-    # Top selling products
+    # Top selling products with cost data and unit information
     top_products = SaleItem.objects.filter(
         sale__status='completed',
-        sale__created_at__date__gte=this_month
-    ).values('product__name', 'product__sku').annotate(
+        sale__created_at__date__range=[start_date, end_date]
+    ).select_related('product', 'unit', 'product__tax_class').values(
+        'product__name', 'product__sku', 'product__tax_class__tax_rate', 'unit__name', 'unit__symbol'
+    ).annotate(
         total_sold=Sum('quantity'),
         total_revenue=Sum('total_price')
     ).order_by('-total_sold')[:5]
     
-    return Response({
-        'sales': {
-            'today': {
-                'total_sales': float(today_sales['total_sales'] or 0),
-                'total_count': today_sales['total_count'] or 0
-            },
-            'this_month': {
-                'total_sales': float(month_sales['total_sales'] or 0),
-                'total_count': month_sales['total_count'] or 0
-            }
+    # Add cost and profit data to top products using tax-inclusive pricing
+    top_products_data = []
+    for product in top_products:
+        # Calculate cost using tax-inclusive pricing logic
+        if product['product__tax_class__tax_rate'] and product['product__tax_class__tax_rate'] > 0:
+            # For tax-inclusive pricing: cost = (price × 100) / (100 + tax_rate)
+            tax_rate = float(product['product__tax_class__tax_rate'])
+            product_revenue = float(product['total_revenue'])
+            product_cost = (product_revenue * 100) / (100 + tax_rate)
+        else:
+            # No tax, full revenue is cost
+            product_cost = float(product['total_revenue'])
+        
+        profit = float(product['total_revenue']) - product_cost
+        top_products_data.append({
+            'product__name': product['product__name'],
+            'product__sku': product['product__sku'],
+            'total_sold': product['total_sold'],
+            'unit_name': product['unit__name'] or 'piece',
+            'unit_symbol': product['unit__symbol'] or 'piece',
+            'total_revenue': float(product['total_revenue']),
+            'total_cost': product_cost,
+            'profit': profit,
+            'profit_margin': (profit / float(product['total_revenue']) * 100) if product['total_revenue'] > 0 else 0
+        })
+    
+    # Base response data
+    response_data = {
+        'period': period,
+        'date_range': {
+            'start_date': start_date.strftime('%Y-%m-%d'),
+            'end_date': end_date.strftime('%Y-%m-%d')
         },
-        'inventory': inventory_summary,
-        'recent_sales': recent_sales_data,
-        'top_products': list(top_products)
-    })
+        'sales': {
+            'total_sales': total_revenue,
+            'total_count': period_sales['total_count'] or 0
+        },
+        'inventory': {
+            'total_products': inventory_summary['total_products'],
+            'low_stock_count': inventory_summary['low_stock_count'],
+            'out_of_stock_count': inventory_summary['out_of_stock_count']
+        },
+        'recent_sales': recent_sales_data
+    }
+    
+    # Add sensitive data only for admin/manager roles
+    if not is_sales_team:
+        response_data['sales'].update({
+            'total_cost': total_cost,
+            'profit': total_revenue - total_cost,
+            'profit_margin': profit_margin
+        })
+        response_data['inventory'].update({
+            'total_inventory_value': float(inventory_summary['total_inventory_value'] or 0),
+            'total_retail_value': float(inventory_summary['total_retail_value'] or 0)
+        })
+        response_data['chart_data'] = chart_data
+        response_data['top_products'] = top_products_data
+    else:
+        # For sales teams, provide basic top products without cost/profit data
+        basic_top_products = []
+        for product in top_products:
+            basic_top_products.append({
+                'product__name': product['product__name'],
+                'product__sku': product['product__sku'],
+                'total_sold': product['total_sold'],
+                'unit_name': product['unit__name'] or 'piece',
+                'unit_symbol': product['unit__symbol'] or 'piece',
+                'total_revenue': float(product['total_revenue'])
+            })
+        response_data['top_products'] = basic_top_products
+    
+    return Response(response_data)

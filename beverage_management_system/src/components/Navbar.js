@@ -1,13 +1,15 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import Button from './Button';
 import './Navbar.css';
 
 const Navbar = () => {
-  const { user, logout, isAuthenticated } = useAuth();
+  const { user, logout, isAuthenticated, isSales } = useAuth();
   const navigate = useNavigate();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [activeDropdown, setActiveDropdown] = useState(null);
+  const navbarRef = useRef(null);
 
   const handleLogout = () => {
     logout();
@@ -18,8 +20,67 @@ const Navbar = () => {
     setIsMenuOpen(!isMenuOpen);
   };
 
+  const toggleDropdown = (category) => {
+    setActiveDropdown(activeDropdown === category ? null : category);
+  };
+
+  // Close dropdowns when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (navbarRef.current && !navbarRef.current.contains(event.target)) {
+        setActiveDropdown(null);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
+
+  const navigationCategories = {
+    sales: {
+      title: 'Sales',
+      icon: '💰',
+      items: [
+        { name: 'Point of Sale', path: '/pos', icon: '🛒' },
+        { name: 'Sales Management', path: '/sales-management', icon: '📊', adminOnly: true }
+      ]
+    },
+    purchases: {
+      title: 'Purchases',
+      icon: '📦',
+      items: [
+        { name: 'Purchase Orders', path: '/purchase-orders', icon: '📋' },
+        { name: 'Suppliers', path: '/suppliers', icon: '🏢' }
+      ],
+      salesHidden: true // Hide entire purchases section for sales users
+    },
+    inventory: {
+      title: 'Inventory',
+      icon: '📦',
+      items: [
+        { name: 'Inventory Management', path: '/inventory', icon: '📦' }
+      ],
+      salesHidden: true // Hide entire inventory section for sales users
+    },
+    administration: {
+      title: 'Administration',
+      icon: '⚙️',
+      items: [
+        { name: 'Users', path: '/users', icon: '👥', adminOnly: true },
+        { name: 'Tax Management', path: '/tax-management', icon: '📊', adminOnly: true },
+        { name: 'System Management', path: '/system-management', icon: '🔧', adminOnly: true },
+        { name: 'Printer Settings', path: '/printer-settings', icon: '🖨️', adminOnly: true },
+        { name: 'Stock Movement', path: '/stock-movement', icon: '📦', adminOnly: true },
+        { name: 'Reports', path: '/reports', icon: '📈', adminOnly: true }
+      ],
+      salesHidden: true // Hide entire administration section for sales users
+    }
+  };
+
   return (
-    <nav className="navbar">
+    <nav className="navbar" ref={navbarRef}>
       <div className="navbar-container">
         <Link to="/" className="navbar-brand">
           <h1>Beverage Manager</h1>
@@ -28,20 +89,56 @@ const Navbar = () => {
         {isAuthenticated && (
           <>
             <div className={`navbar-menu ${isMenuOpen ? 'active' : ''}`}>
-              <Link to="/dashboard" className="navbar-link">
+              <Link to="/dashboard" className="navbar-link dashboard-link">
+                <span className="nav-icon">🏠</span>
                 Dashboard
               </Link>
-              <Link to="/inventory" className="navbar-link">
-                Inventory
-              </Link>
-              <Link to="/pos" className="navbar-link">
-                Point of Sale
-              </Link>
-              {user?.role === 'admin' && (
-                <Link to="/reports" className="navbar-link">
-                  Reports
-                </Link>
-              )}
+              
+              {Object.entries(navigationCategories).map(([key, category]) => {
+                // Hide entire category for sales users if marked as salesHidden
+                if (isSales && category.salesHidden) {
+                  return null;
+                }
+                
+                return (
+                  <div key={key} className="navbar-dropdown">
+                    <button 
+                      className="navbar-dropdown-toggle"
+                      onClick={() => toggleDropdown(key)}
+                    >
+                      <span className="nav-icon">{category.icon}</span>
+                      {category.title}
+                      <span className={`dropdown-arrow ${activeDropdown === key ? 'active' : ''}`}>▼</span>
+                    </button>
+                    
+                    {activeDropdown === key && (
+                      <div className="navbar-dropdown-menu">
+                        {category.items.map((item, index) => {
+                          // Check if user has permission for this item
+                          if (item.adminOnly && !(user?.role === 'admin' || user?.role === 'manager')) {
+                            return null;
+                          }
+                          if (item.adminOnly && item.name === 'Reports' && user?.role !== 'admin') {
+                            return null;
+                          }
+                          
+                          return (
+                            <Link 
+                              key={index}
+                              to={item.path} 
+                              className="navbar-dropdown-link"
+                              onClick={() => setActiveDropdown(null)}
+                            >
+                              <span className="nav-icon">{item.icon}</span>
+                              {item.name}
+                            </Link>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
 
             <div className="navbar-user">

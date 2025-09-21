@@ -24,6 +24,7 @@ class Sale(models.Model):
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
     payment_method = models.CharField(max_length=20, choices=PAYMENT_METHODS, default='cash')
     subtotal = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    cost_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0)  # Cost excluding tax
     tax_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     discount_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     total_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0)
@@ -42,6 +43,7 @@ class SaleItem(models.Model):
     sale = models.ForeignKey(Sale, on_delete=models.CASCADE, related_name='items')
     product = models.ForeignKey('products.Product', on_delete=models.CASCADE)
     quantity = models.PositiveIntegerField(validators=[MinValueValidator(1)])
+    unit = models.ForeignKey('products.Unit', on_delete=models.PROTECT, null=True, blank=True, help_text="Unit used for this sale item")
     unit_price = models.DecimalField(max_digits=10, decimal_places=2, validators=[MinValueValidator(Decimal('0.01'))])
     total_price = models.DecimalField(max_digits=10, decimal_places=2, validators=[MinValueValidator(Decimal('0.01'))])
     
@@ -53,7 +55,7 @@ class SaleItem(models.Model):
         super().save(*args, **kwargs)
     
     class Meta:
-        unique_together = ['sale', 'product']
+        unique_together = ['sale', 'product', 'unit']
 
 class Payment(models.Model):
     sale = models.ForeignKey(Sale, on_delete=models.CASCADE, related_name='payments')

@@ -37,6 +37,7 @@ source venv/bin/activate
 
 # Install dependencies
 echo "Installing Python dependencies..."
+pip install setuptools
 pip install -r requirements.txt
 
 # Run migrations
@@ -44,10 +45,16 @@ echo "Running database migrations..."
 python manage.py makemigrations
 python manage.py migrate
 
-# Create superuser
+# Create superuser if it doesn't exist
 echo "Creating superuser account..."
-echo "Please enter the following information for the admin account:"
-python manage.py createsuperuser
+python manage.py shell -c "
+from core.models import User
+if not User.objects.filter(username='admin').exists():
+    User.objects.create_superuser('admin', 'admin@example.com', 'admin123', role='admin')
+    print('Admin user created successfully!')
+else:
+    print('Admin user already exists!')
+"
 
 echo "✅ Backend setup completed"
 
@@ -82,3 +89,10 @@ echo ""
 echo "Or use Docker:"
 echo "  docker-compose up --build"
 echo ""
+
+# cd beverage_management_system/backend
+# source venv/bin/activate
+# python manage.py runserver
+
+# cd beverage_management_system
+# npm start

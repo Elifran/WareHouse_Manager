@@ -35,6 +35,31 @@ A comprehensive beverage inventory and point-of-sale management system built wit
 ./setup.sh
 ```
 
+### Default Admin Credentials
+
+After setup, you can log in with these default credentials:
+
+- **Username**: `admin`
+- **Password**: `admin123`
+
+**Backup Admin Account:**
+- **Username**: `backup_admin`
+- **Password**: `backup123`
+
+### Reset Admin Password
+
+If you need to reset the admin password:
+
+```bash
+# Use the reset script
+./beverage_management_system/reset_admin.sh
+
+# Or use the Django management command
+cd beverage_management_system/backend
+source venv/bin/activate
+python manage.py reset_admin_password
+```
+
 ### Option 2: Manual Setup
 
 #### Backend Setup
