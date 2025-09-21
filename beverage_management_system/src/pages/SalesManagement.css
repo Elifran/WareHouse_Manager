@@ -23,6 +23,56 @@
 .header-actions {
   display: flex;
   gap: 1rem;
+  align-items: center;
+}
+
+.print-sales-report-btn {
+  margin-right: 0.5rem;
+}
+
+.print-sale-btn {
+  margin-right: 0.5rem;
+}
+
+/* Sale Items Display */
+.sale-items {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  max-width: 200px;
+}
+
+.sale-item-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+  padding: 0.25rem;
+  background-color: #f9fafb;
+  border-radius: 0.25rem;
+  border: 1px solid #e5e7eb;
+}
+
+.item-name {
+  font-weight: 500;
+  color: #1f2937;
+  font-size: 0.875rem;
+}
+
+.item-details {
+  font-size: 0.75rem;
+  color: #6b7280;
+}
+
+.more-items {
+  font-size: 0.75rem;
+  color: #9ca3af;
+  font-style: italic;
+  padding: 0.25rem;
+}
+
+.no-items {
+  color: #9ca3af;
+  font-style: italic;
 }
 
 .error-message {

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import api from '../services/api';
 import SaleDetailModal from '../components/SaleDetailModal';
+import PrintButton from '../components/PrintButton';
 import './Dashboard.css';
 
 const Dashboard = () => {
@@ -19,7 +20,7 @@ const Dashboard = () => {
 
   useEffect(() => {
     fetchDashboardData();
-  }, [selectedPeriod, isSalesTeam]);
+  }, [selectedPeriod, isSalesTeam]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const fetchDashboardData = async () => {
     try {
@@ -289,7 +290,24 @@ const Dashboard = () => {
 
       {/* Recent Sales */}
       <div className="dashboard-section">
-        <h2>Recent Sales</h2>
+        <div className="section-header">
+          <h2>Recent Sales</h2>
+          {dashboardData?.recent_sales?.length > 0 && (
+            <PrintButton
+              data={{
+                ...dashboardData.recent_sales,
+                user_name: user?.username || 'Unknown User',
+                user_id: user?.id || 'unknown',
+                print_timestamp: new Date().toISOString(),
+                print_id: `PRINT-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+              }}
+              title="Recent Sales Report"
+              type="sales_history"
+              printText="Print Recent Sales"
+              className="print-recent-sales-btn"
+            />
+          )}
+        </div>
         <div className="recent-sales">
           {dashboardData?.recent_sales?.length > 0 ? (
             <div className="sales-list">
@@ -337,7 +355,7 @@ const Dashboard = () => {
                   <div className="product-stats">
                     <div className="stat-row">
                       <span className="stat-label">Sold:</span>
-                      <span className="stat-value">{product.total_sold}</span>
+                      <span className="stat-value">{product.total_sold} {product.unit_symbol || 'piece'}</span>
                     </div>
                     <div className="stat-row">
                       <span className="stat-label">Revenue:</span>

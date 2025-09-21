@@ -328,11 +328,13 @@ def dashboard_data(request):
             'created_at': sale.created_at
         })
     
-    # Top selling products with cost data
+    # Top selling products with cost data and unit information
     top_products = SaleItem.objects.filter(
         sale__status='completed',
         sale__created_at__date__range=[start_date, end_date]
-    ).values('product__name', 'product__sku', 'product__tax_class__tax_rate').annotate(
+    ).select_related('product', 'unit', 'product__tax_class').values(
+        'product__name', 'product__sku', 'product__tax_class__tax_rate', 'unit__name', 'unit__symbol'
+    ).annotate(
         total_sold=Sum('quantity'),
         total_revenue=Sum('total_price')
     ).order_by('-total_sold')[:5]
@@ -355,6 +357,8 @@ def dashboard_data(request):
             'product__name': product['product__name'],
             'product__sku': product['product__sku'],
             'total_sold': product['total_sold'],
+            'unit_name': product['unit__name'] or 'piece',
+            'unit_symbol': product['unit__symbol'] or 'piece',
             'total_revenue': float(product['total_revenue']),
             'total_cost': product_cost,
             'profit': profit,
@@ -401,6 +405,8 @@ def dashboard_data(request):
                 'product__name': product['product__name'],
                 'product__sku': product['product__sku'],
                 'total_sold': product['total_sold'],
+                'unit_name': product['unit__name'] or 'piece',
+                'unit_symbol': product['unit__symbol'] or 'piece',
                 'total_revenue': float(product['total_revenue'])
             })
         response_data['top_products'] = basic_top_products

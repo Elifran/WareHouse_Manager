@@ -34,6 +34,17 @@
   border-bottom: 1px solid #e5e7eb;
 }
 
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.print-sale-receipt-btn {
+  font-size: 0.875rem;
+  padding: 0.5rem 1rem;
+}
+
 .modal-header h2 {
   margin: 0;
   color: #1f2937;

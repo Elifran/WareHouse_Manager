@@ -3,6 +3,7 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
+from django_filters import FilterSet, DateFilter
 from django.db.models import Sum, Count, Q
 from django.utils import timezone
 from datetime import datetime, timedelta
@@ -12,11 +13,19 @@ from .serializers import (
     SaleItemSerializer, PaymentSerializer
 )
 
+class SaleFilter(FilterSet):
+    created_at__date__gte = DateFilter(field_name='created_at', lookup_expr='date__gte')
+    created_at__date__lte = DateFilter(field_name='created_at', lookup_expr='date__lte')
+    
+    class Meta:
+        model = Sale
+        fields = ['status', 'payment_method', 'sold_by', 'created_at__date__gte', 'created_at__date__lte']
+
 class SaleListCreateView(generics.ListCreateAPIView):
-    queryset = Sale.objects.select_related('sold_by').prefetch_related('items', 'payments').all()
+    queryset = Sale.objects.select_related('sold_by').prefetch_related('items__product', 'items__unit', 'payments').all()
     permission_classes = [IsAuthenticated]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
-    filterset_fields = ['status', 'payment_method', 'sold_by']
+    filterset_class = SaleFilter
     search_fields = ['sale_number', 'customer_name', 'customer_phone']
     ordering_fields = ['created_at', 'total_amount', 'sale_number']
     ordering = ['-created_at']
@@ -142,21 +151,37 @@ def complete_sale(request, sale_id):
     
     # Update stock for each item
     for item in sale.items.all():
-        if item.product.stock_quantity < item.quantity:
+        # Calculate quantity in base unit for stock check
+        if item.unit and item.product.base_unit:
+            # Convert quantity from sale unit to base unit
+            base_quantity = item.product.convert_quantity(item.quantity, item.unit, item.product.base_unit)
+            if base_quantity is None:
+                base_quantity = item.quantity
+            else:
+                base_quantity = int(base_quantity)
+        else:
+            # If no unit specified, assume it's already in base unit
+            base_quantity = item.quantity
+        
+        if item.product.stock_quantity < base_quantity:
             return Response({
-                'error': f'Insufficient stock for {item.product.name}. Available: {item.product.stock_quantity}'
+                'error': f'Insufficient stock for {item.product.name}. Available: {item.product.stock_quantity}, Required: {base_quantity}'
             }, status=status.HTTP_400_BAD_REQUEST)
         
         # Create stock movement
         from products.models import StockMovement
-        StockMovement.objects.create(
+        stock_movement = StockMovement.objects.create(
             product=item.product,
             movement_type='out',
-            quantity=item.quantity,
+            quantity=base_quantity,
+            unit=item.product.base_unit,
             reference_number=sale.sale_number,
             notes=f'Sale {sale.sale_number}',
             created_by=request.user
         )
+        
+        # Ensure the product stock is updated by refreshing from database
+        item.product.refresh_from_db()
     
     # Update sale status
     sale.status = 'completed'

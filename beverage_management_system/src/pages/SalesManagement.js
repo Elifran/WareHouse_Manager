@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import api from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
 import Table from '../components/Table';
 import Button from '../components/Button';
+import PrintButton from '../components/PrintButton';
 import './SalesManagement.css';
 
 const SalesManagement = () => {
@@ -31,12 +32,7 @@ const SalesManagement = () => {
     end_date: ''
   });
 
-  useEffect(() => {
-    fetchSales();
-    fetchProducts();
-  }, [filters]);
-
-  const fetchSales = async () => {
+  const fetchSales = useCallback(async () => {
     try {
       setLoading(true);
       setError('');
@@ -55,7 +51,12 @@ const SalesManagement = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [filters]);
+
+  useEffect(() => {
+    fetchSales();
+    fetchProducts();
+  }, [fetchSales]);
 
   const fetchProducts = async () => {
     try {
@@ -82,6 +83,7 @@ const SalesManagement = () => {
         status: 'completed'
       });
       fetchSales();
+      fetchProducts(); // Refresh products to update stock quantities
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to delete sales');
       console.error('Delete sales error:', err);
@@ -97,6 +99,7 @@ const SalesManagement = () => {
       setSelectedSale(null);
       setEditFormData({ items: [] });
       fetchSales();
+      fetchProducts(); // Refresh products to update stock quantities
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to update sale');
       console.error('Edit sale error:', err);
@@ -142,6 +145,7 @@ const SalesManagement = () => {
         items: fullSale.items.map(item => ({
           product: item.product,
           quantity: item.quantity,
+          unit: item.unit?.id || item.unit || '',
           unit_price: item.unit_price
         }))
       });
@@ -157,7 +161,7 @@ const SalesManagement = () => {
   const addEditItem = () => {
     setEditFormData(prev => ({
       ...prev,
-      items: [...prev.items, { product: '', quantity: 1, unit_price: 0 }]
+      items: [...prev.items, { product: '', quantity: 1, unit: '', unit_price: 0 }]
     }));
   };
 
@@ -219,6 +223,19 @@ const SalesManagement = () => {
       <div className="page-header">
         <h1>Sales Management</h1>
         <div className="header-actions">
+          <PrintButton
+            data={{
+              ...sales,
+              user_name: user?.username || 'Unknown User',
+              user_id: user?.id || 'unknown',
+              print_timestamp: new Date().toISOString(),
+              print_id: `PRINT-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+            }}
+            title="Sales Management Report"
+            type="sales_history"
+            printText="Print Sales Report"
+            className="print-sales-report-btn"
+          />
           <Button 
             variant="danger" 
             onClick={() => setShowDeleteModal(true)}
@@ -319,6 +336,30 @@ const SalesManagement = () => {
                 render: (value) => getStatusBadge(value)
               },
               {
+                key: 'items',
+                header: 'Items',
+                render: (items, row) => {
+                  if (!items || items.length === 0) {
+                    return <span className="no-items">No items</span>;
+                  }
+                  return (
+                    <div className="sale-items">
+                      {items.slice(0, 2).map((item, index) => (
+                        <div key={index} className="sale-item-row">
+                          <span className="item-name">{item.product_name}</span>
+                          <span className="item-details">
+                            {item.quantity} {item.unit_symbol || 'pcs'} × {formatCurrency(item.unit_price)}
+                          </span>
+                        </div>
+                      ))}
+                      {items.length > 2 && (
+                        <div className="more-items">+{items.length - 2} more items</div>
+                      )}
+                    </div>
+                  );
+                }
+              },
+              {
                 key: 'total_amount',
                 header: 'Total Amount',
                 render: (value) => formatCurrency(value)
@@ -338,6 +379,19 @@ const SalesManagement = () => {
                 header: 'Actions',
                 render: (_, row) => (
                   <div className="action-buttons">
+                    <PrintButton
+                      data={{
+                        ...row,
+                        user_name: user?.username || 'Unknown User',
+                        user_id: user?.id || 'unknown',
+                        print_timestamp: new Date().toISOString(),
+                        print_id: `PRINT-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+                      }}
+                      title="Sale Receipt"
+                      type="sale"
+                      printText="Print"
+                      className="print-sale-btn"
+                    />
                     <Button 
                       variant="primary" 
                       size="small"
@@ -473,6 +527,36 @@ const SalesManagement = () => {
                         value={item.quantity}
                         onChange={(e) => updateEditItem(index, 'quantity', parseInt(e.target.value) || 1)}
                       />
+                    </div>
+                    
+                    <div className="form-group">
+                      <label>Unit</label>
+                      <select
+                        value={item.unit}
+                        onChange={(e) => {
+                          const unitId = e.target.value;
+                          updateEditItem(index, 'unit', unitId);
+                          
+                          // Auto-set unit price based on selected unit's price
+                          if (unitId) {
+                            const selectedProduct = products.find(p => p.id === parseInt(item.product));
+                            const selectedUnit = selectedProduct?.available_units?.find(u => u.id === parseInt(unitId));
+                            if (selectedUnit && selectedUnit.price) {
+                              updateEditItem(index, 'unit_price', selectedUnit.price.toFixed(2));
+                            }
+                          }
+                        }}
+                      >
+                        <option value="">Select Unit</option>
+                        {(() => {
+                          const selectedProduct = products.find(p => p.id === parseInt(item.product));
+                          return selectedProduct?.available_units?.map(unit => (
+                            <option key={unit.id} value={unit.id}>
+                              {unit.name} ({unit.symbol}) - ${unit.price?.toFixed(2) || 'N/A'}
+                            </option>
+                          )) || [];
+                        })()}
+                      </select>
                     </div>
                     
                     <div className="form-group">

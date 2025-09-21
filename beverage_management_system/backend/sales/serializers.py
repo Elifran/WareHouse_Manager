@@ -6,10 +6,12 @@ from products.serializers import ProductListSerializer
 class SaleItemSerializer(serializers.ModelSerializer):
     product_name = serializers.CharField(source='product.name', read_only=True)
     product_sku = serializers.CharField(source='product.sku', read_only=True)
+    unit_name = serializers.CharField(source='unit.name', read_only=True)
+    unit_symbol = serializers.CharField(source='unit.symbol', read_only=True)
     
     class Meta:
         model = SaleItem
-        fields = ['id', 'product', 'product_name', 'product_sku', 'quantity', 'unit_price', 'total_price']
+        fields = ['id', 'product', 'product_name', 'product_sku', 'quantity', 'unit', 'unit_name', 'unit_symbol', 'unit_price', 'total_price']
         read_only_fields = ['id', 'total_price']
     
     def validate_quantity(self, value):
@@ -20,7 +22,7 @@ class SaleItemSerializer(serializers.ModelSerializer):
 class SaleItemCreateSerializer(serializers.ModelSerializer):
     class Meta:
         model = SaleItem
-        fields = ['product', 'quantity', 'unit_price']
+        fields = ['product', 'quantity', 'unit', 'unit_price']
     
     def validate_quantity(self, value):
         if value <= 0:
@@ -105,17 +107,21 @@ class SaleCreateSerializer(serializers.ModelSerializer):
         sale.total_amount = sale.subtotal - sale.discount_amount  # Total after discount
         sale.save()
         
+        # Note: Stock deduction is handled in the complete_sale endpoint, not here
+        # This prevents double deduction of stock
+        
         return sale
 
 class SaleListSerializer(serializers.ModelSerializer):
     sold_by_name = serializers.CharField(source='sold_by.username', read_only=True)
     items_count = serializers.SerializerMethodField()
+    items = SaleItemSerializer(many=True, read_only=True)
     
     class Meta:
         model = Sale
         fields = [
             'id', 'sale_number', 'customer_name', 'status', 'payment_method',
-            'total_amount', 'sold_by_name', 'items_count', 'created_at'
+            'total_amount', 'sold_by_name', 'items_count', 'items', 'created_at'
         ]
     
     def get_items_count(self, obj):

@@ -155,6 +155,25 @@
   margin-bottom: 2rem;
 }
 
+.section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+.section-header h2 {
+  margin: 0;
+  color: #1f2937;
+  font-size: 1.25rem;
+  font-weight: 600;
+}
+
+.print-recent-sales-btn {
+  font-size: 0.875rem;
+  padding: 0.5rem 1rem;
+}
+
 .dashboard-section h2 {
   color: #1f2937;
   font-size: 1.25rem;

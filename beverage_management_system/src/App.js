@@ -8,7 +8,13 @@ import Inventory from './pages/Inventory';
 import PointOfSale from './pages/PointOfSale';
 import Users from './pages/Users';
 import TaxManagement from './pages/TaxManagement';
+import SystemManagement from './pages/SystemManagement';
+import PrinterSettings from './pages/PrinterSettings';
+import StockMovement from './pages/StockMovement';
 import SalesManagement from './pages/SalesManagement';
+import PurchaseOrders from './pages/PurchaseOrders';
+import Suppliers from './pages/Suppliers';
+import Reports from './pages/Reports';
 import './App.css';
 
 const ProtectedRoute = ({ children }) => {
@@ -24,6 +30,35 @@ const ProtectedRoute = ({ children }) => {
   }
   
   return isAuthenticated ? children : <Navigate to="/login" />;
+};
+
+const RoleProtectedRoute = ({ children, allowedRoles = [], salesBlocked = false }) => {
+  const { isAuthenticated, loading, user, isSales } = useAuth();
+  
+  if (loading) {
+    return (
+      <div className="app-loading">
+        <div className="spinner"></div>
+        <span>Loading...</span>
+      </div>
+    );
+  }
+  
+  if (!isAuthenticated) {
+    return <Navigate to="/login" />;
+  }
+  
+  // Block sales users from accessing certain pages
+  if (salesBlocked && isSales) {
+    return <Navigate to="/pos" />;
+  }
+  
+  // Check if user role is in allowed roles
+  if (allowedRoles.length > 0 && !allowedRoles.includes(user?.role)) {
+    return <Navigate to="/pos" />;
+  }
+  
+  return children;
 };
 
 const AppRoutes = () => {
@@ -50,9 +85,9 @@ const AppRoutes = () => {
             <Route 
               path="/inventory" 
               element={
-                <ProtectedRoute>
+                <RoleProtectedRoute salesBlocked={true}>
                   <Inventory />
-                </ProtectedRoute>
+                </RoleProtectedRoute>
               } 
             />
             <Route 
@@ -66,25 +101,73 @@ const AppRoutes = () => {
             <Route 
               path="/users" 
               element={
-                <ProtectedRoute>
+                <RoleProtectedRoute allowedRoles={['admin', 'manager']}>
                   <Users />
-                </ProtectedRoute>
+                </RoleProtectedRoute>
               } 
             />
             <Route 
               path="/tax-management" 
               element={
-                <ProtectedRoute>
+                <RoleProtectedRoute allowedRoles={['admin', 'manager']}>
                   <TaxManagement />
-                </ProtectedRoute>
+                </RoleProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/system-management" 
+              element={
+                <RoleProtectedRoute allowedRoles={['admin', 'manager']}>
+                  <SystemManagement />
+                </RoleProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/printer-settings" 
+              element={
+                <RoleProtectedRoute allowedRoles={['admin']}>
+                  <PrinterSettings />
+                </RoleProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/stock-movement" 
+              element={
+                <RoleProtectedRoute allowedRoles={['admin', 'manager']}>
+                  <StockMovement />
+                </RoleProtectedRoute>
               } 
             />
             <Route 
               path="/sales-management" 
               element={
-                <ProtectedRoute>
+                <RoleProtectedRoute allowedRoles={['admin', 'manager']}>
                   <SalesManagement />
-                </ProtectedRoute>
+                </RoleProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/purchase-orders" 
+              element={
+                <RoleProtectedRoute salesBlocked={true}>
+                  <PurchaseOrders />
+                </RoleProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/suppliers" 
+              element={
+                <RoleProtectedRoute salesBlocked={true}>
+                  <Suppliers />
+                </RoleProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/reports" 
+              element={
+                <RoleProtectedRoute allowedRoles={['admin']}>
+                  <Reports />
+                </RoleProtectedRoute>
               } 
             />
             <Route 
