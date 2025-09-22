@@ -810,3 +810,36 @@
     font-size: 1.25rem;
   }
 }
+
+/* Payment Options Styles */
+.payment-types {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-top: 1rem;
+}
+
+.payment-type {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem;
+  border: 1px solid #d1d5db;
+  border-radius: 0.375rem;
+  cursor: pointer;
+  transition: all 0.2s ease-in-out;
+}
+
+.payment-type:hover {
+  border-color: #3b82f6;
+  background-color: #f8fafc;
+}
+
+.payment-type input[type="radio"] {
+  margin: 0;
+}
+
+.payment-type input[type="radio"]:checked + span {
+  color: #3b82f6;
+  font-weight: 600;
+}

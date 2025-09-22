@@ -178,6 +178,9 @@ const generateDeliveryContent = (data) => {
 const generateSaleContent = (data) => {
   // Debug: Log the data being processed
   console.log('generateSaleContent - Data received:', data);
+  console.log('generateSaleContent - Payment status:', data.payment_status);
+  console.log('generateSaleContent - Paid amount:', data.paid_amount);
+  console.log('generateSaleContent - Remaining amount:', data.remaining_amount);
   console.log('generateSaleContent - Items array:', data.items);
   console.log('generateSaleContent - Items length:', data.items ? data.items.length : 'No items');
   
@@ -219,6 +222,31 @@ const generateSaleContent = (data) => {
         <span class="info-label">Status:</span>
         <span class="info-value">${data.status || 'N/A'}</span>
       </div>
+      <div class="info-row">
+        <span class="info-label">Payment Status:</span>
+        <span class="info-value">${data.payment_status === 'paid' ? 'Paid' : 
+                                   data.payment_status === 'partial' ? 'Partial Payment' : 
+                                   data.payment_status === 'pending' ? 'Pending Payment' : 
+                                   'N/A'}</span>
+      </div>
+      <div class="info-row">
+        <span class="info-label">Total Amount:</span>
+        <span class="info-value">${parseFloat(data.total_amount || 0).toFixed(2)} MGA</span>
+      </div>
+      <div class="info-row">
+        <span class="info-label">Paid Amount:</span>
+        <span class="info-value">${parseFloat(data.paid_amount || 0).toFixed(2)} MGA</span>
+      </div>
+      ${data.payment_status === 'partial' ? `
+        <div class="info-row payment-warning">
+          <span class="info-label">Remaining Amount:</span>
+          <span class="info-value">${parseFloat(data.remaining_amount || 0).toFixed(2)} MGA</span>
+        </div>
+        <div class="info-row payment-warning">
+          <span class="info-label">Due Date:</span>
+          <span class="info-value">${data.due_date || 'To be determined'}</span>
+        </div>
+      ` : ''}
     </div>
     <table>
       <thead>

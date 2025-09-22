@@ -17,6 +17,8 @@ const PendingSales = () => {
   const [editFormData, setEditFormData] = useState({});
   const [completingSale, setCompletingSale] = useState(null);
   const [stockValidationStatus, setStockValidationStatus] = useState({});
+  const [paymentType, setPaymentType] = useState('full');
+  const [paidAmount, setPaidAmount] = useState(0);
 
   useEffect(() => {
     if (!authLoading && user) {
@@ -290,6 +292,22 @@ const PendingSales = () => {
     console.log('Setting EditFormData:', formData);
     
     setEditFormData(formData);
+    
+    // Initialize payment options
+    const currentPaidAmount = parseFloat(sale.paid_amount) || 0;
+    const totalAmount = parseFloat(sale.total_amount) || 0;
+    
+    if (currentPaidAmount >= totalAmount) {
+      setPaymentType('full');
+      setPaidAmount(totalAmount);
+    } else if (currentPaidAmount > 0) {
+      setPaymentType('partial');
+      setPaidAmount(currentPaidAmount);
+    } else {
+      setPaymentType('full');
+      setPaidAmount(totalAmount);
+    }
+    
     setShowEditModal(true);
     setShowSaleModal(false);
   };
@@ -348,6 +366,19 @@ const PendingSales = () => {
     });
   };
 
+  const calculateEditTotal = () => {
+    return editFormData.items?.reduce((total, item) => {
+      return total + (parseFloat(item.unit_price || 0) * parseFloat(item.quantity || 0));
+    }, 0) || 0;
+  };
+
+  // Update paid amount when payment type changes
+  useEffect(() => {
+    if (paymentType === 'full') {
+      setPaidAmount(calculateEditTotal());
+    }
+  }, [paymentType, editFormData.items]);
+
 
   const saveEditedSale = async () => {
     try {
@@ -356,6 +387,7 @@ const PendingSales = () => {
         customer_phone: editFormData.customer_phone,
         customer_email: editFormData.customer_email,
         payment_method: editFormData.payment_method,
+        paid_amount: paidAmount,
         items: editFormData.items.map(item => ({
           id: item.id,
           quantity: item.quantity,
@@ -743,6 +775,69 @@ const PendingSales = () => {
                     </select>
                   </div>
                 </div>
+              </div>
+
+              {/* Payment Options */}
+              <div className="form-section">
+                <h3>Payment Type</h3>
+                <div className="payment-types">
+                  <label className="payment-type">
+                    <input
+                      type="radio"
+                      name="paymentType"
+                      value="full"
+                      checked={paymentType === 'full'}
+                      onChange={(e) => setPaymentType(e.target.value)}
+                    />
+                    <span>Full Payment (100%)</span>
+                  </label>
+                  <label className="payment-type">
+                    <input
+                      type="radio"
+                      name="paymentType"
+                      value="partial"
+                      checked={paymentType === 'partial'}
+                      onChange={(e) => setPaymentType(e.target.value)}
+                    />
+                    <span>Partial Payment (0-99.99%)</span>
+                  </label>
+                </div>
+                
+                {paymentType === 'partial' && (
+                  <div className="form-group">
+                    <label>Amount to Pay</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      max={calculateEditTotal()}
+                      value={paidAmount || 0}
+                      onChange={(e) => {
+                        const value = parseFloat(e.target.value) || 0;
+                        setPaidAmount(value);
+                      }}
+                      placeholder="Enter amount to pay"
+                    />
+                    <small>
+                      Total: {formatCurrency(calculateEditTotal())} | 
+                      Remaining: {formatCurrency(calculateEditTotal() - (paidAmount || 0))}
+                    </small>
+                  </div>
+                )}
+                
+                {paymentType === 'full' && (
+                  <div className="form-group">
+                    <label>Amount to Pay</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={calculateEditTotal()}
+                      readOnly
+                      className="form-control"
+                    />
+                    <small>Full payment for the total amount.</small>
+                  </div>
+                )}
               </div>
 
               {/* Items */}

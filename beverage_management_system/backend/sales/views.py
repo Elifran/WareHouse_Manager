@@ -187,7 +187,7 @@ def complete_sale(request, sale_id):
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def cancel_sale(request, sale_id):
-    """Cancel a sale"""
+    """Cancel a sale with different behaviors for pending vs confirmed sales"""
     try:
         sale = Sale.objects.get(id=sale_id)
     except Sale.DoesNotExist:
@@ -196,11 +196,79 @@ def cancel_sale(request, sale_id):
     if sale.status not in ['pending', 'completed']:
         return Response({'error': 'Sale cannot be cancelled'}, status=status.HTTP_400_BAD_REQUEST)
     
-    sale.status = 'cancelled'
-    sale.save()
+    if sale.status == 'pending':
+        # For pending sales: just cancel them (no database impact)
+        sale.status = 'cancelled'
+        sale.save()
+        
+    elif sale.status == 'completed':
+        # For confirmed sales: create a return to restore stock and mark as returned
+        # Create a return sale with the same items
+        return_sale = Sale.objects.create(
+            sale_type='return',
+            original_sale=sale,
+            customer_name=sale.customer_name,
+            customer_phone=sale.customer_phone,
+            customer_email=sale.customer_email,
+            payment_method=sale.payment_method,
+            status='completed',  # Mark return as completed immediately
+            sold_by=request.user
+        )
+        
+        # Generate return sale number
+        return_sale.sale_number = f"RET-{return_sale.id:06d}"
+        return_sale.save()
+        
+        # Create return items (same as original sale items)
+        for original_item in sale.items.all():
+            SaleItem.objects.create(
+                sale=return_sale,
+                product=original_item.product,
+                quantity=original_item.quantity,
+                unit=original_item.unit,
+                unit_price=original_item.unit_price,
+                unit_cost=original_item.unit_cost,
+                total_price=original_item.total_price,
+                total_cost=original_item.total_cost,
+                price_mode=original_item.price_mode,
+                original_sale_item=original_item
+            )
+            
+            # Restore stock by creating a stock movement
+            from products.models import StockMovement
+            StockMovement.objects.create(
+                product=original_item.product,
+                movement_type='return',
+                quantity=original_item.quantity,
+                unit=original_item.product.base_unit,
+                reference_number=return_sale.sale_number,
+                notes=f'Return from cancelled sale {sale.sale_number}',
+                created_by=request.user
+            )
+        
+        # Calculate return totals
+        return_sale.calculate_totals()
+        
+        # Mark original sale as refunded
+        sale.status = 'refunded'
+        sale.save()
+        
+        # Return the return sale data
+        serializer = SaleSerializer(return_sale)
+        return Response({
+            'message': 'Sale cancelled and stock restored',
+            'return_sale': serializer.data,
+            'original_sale_status': 'refunded',
+            'refund_amount': float(sale.paid_amount),  # Amount to be refunded to customer
+            'original_sale_number': sale.sale_number
+        })
     
+    # For pending sales, return the cancelled sale
     serializer = SaleSerializer(sale)
-    return Response(serializer.data)
+    return Response({
+        'message': 'Pending sale cancelled',
+        'sale': serializer.data
+    })
 
 @api_view(['DELETE'])
 @permission_classes([IsAuthenticated])
@@ -278,6 +346,10 @@ def edit_sale(request, sale_id):
     if sale.status not in ['completed', 'pending']:
         return Response({'error': 'Sale cannot be edited'}, status=status.HTTP_400_BAD_REQUEST)
     
+    # Prevent editing of completed sales that are fully paid
+    if sale.status == 'completed' and sale.payment_status == 'paid':
+        return Response({'error': 'Fully paid completed sales cannot be edited'}, status=status.HTTP_400_BAD_REQUEST)
+    
     # Get the new items data
     new_items_data = request.data.get('items', [])
     if not new_items_data:
@@ -304,8 +376,23 @@ def edit_sale(request, sale_id):
         unit_id = item_data.get('unit')
         price_mode = item_data.get('price_mode', 'standard')
         
-        if quantity <= 0:
-            return Response({'error': 'Quantity must be greater than 0'}, status=status.HTTP_400_BAD_REQUEST)
+        if quantity < 0:
+            return Response({'error': 'Quantity cannot be negative'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        # If quantity is 0, update the item to have 0 quantity (don't remove it)
+        if quantity == 0:
+            # Find the corresponding existing item and update it to 0 quantity
+            for existing in existing_items:
+                if (existing.product.id == product_id and 
+                    existing.unit.id == unit_id and 
+                    existing.price_mode == price_mode):
+                    existing.quantity = 0
+                    existing.total_price = 0
+                    existing.total_cost = 0
+                    existing.save()
+                    processed_existing_items.add(existing.id)
+                    break
+            continue  # Skip to next item (already processed)
         
         # Find the corresponding existing item
         existing_item = None
@@ -424,10 +511,34 @@ def edit_sale(request, sale_id):
     
     # Update sale totals
     from decimal import Decimal
+    from datetime import date, timedelta
     sale.subtotal = Decimal(str(subtotal))
     sale.cost_amount = Decimal(str(total_cost))
     sale.tax_amount = Decimal(str(total_tax))
     sale.total_amount = Decimal(str(subtotal)) - sale.discount_amount
+    
+    # Handle payment amount if provided
+    paid_amount = request.data.get('paid_amount')
+    if paid_amount is not None:
+        try:
+            paid_amount = Decimal(str(paid_amount))
+            sale.paid_amount = paid_amount
+            sale.remaining_amount = sale.total_amount - paid_amount
+            
+            # Update payment status
+            if paid_amount >= sale.total_amount:
+                sale.payment_status = 'paid'
+                sale.due_date = None
+            elif paid_amount > 0:
+                sale.payment_status = 'partial'
+                if not sale.due_date:
+                    sale.due_date = date.today() + timedelta(days=30)
+            else:
+                sale.payment_status = 'pending'
+                sale.due_date = None
+        except (ValueError, TypeError):
+            return Response({'error': 'Invalid paid amount'}, status=status.HTTP_400_BAD_REQUEST)
+    
     sale.save()
     
     # Apply stock adjustments
@@ -473,3 +584,92 @@ def pending_sales(request):
         return Response(serializer.data)
     except Exception as e:
         return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+@api_view(['PATCH'])
+@permission_classes([IsAuthenticated])
+def update_payment_method(request, sale_id):
+    """Update payment method for a sale"""
+    try:
+        sale = Sale.objects.get(id=sale_id)
+    except Sale.DoesNotExist:
+        return Response({'error': 'Sale not found'}, status=status.HTTP_404_NOT_FOUND)
+    
+    # Only allow updating payment method for pending sales
+    if sale.status != 'pending':
+        return Response({'error': 'Payment method can only be updated for pending sales'}, status=status.HTTP_400_BAD_REQUEST)
+    
+    payment_method = request.data.get('payment_method')
+    if not payment_method:
+        return Response({'error': 'Payment method is required'}, status=status.HTTP_400_BAD_REQUEST)
+    
+    # Validate payment method
+    valid_methods = [choice[0] for choice in Sale.PAYMENT_METHODS]
+    if payment_method not in valid_methods:
+        return Response({'error': 'Invalid payment method'}, status=status.HTTP_400_BAD_REQUEST)
+    
+    sale.payment_method = payment_method
+    sale.save()
+    
+    serializer = SaleSerializer(sale)
+    return Response(serializer.data)
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def make_payment(request, sale_id):
+    """Make a payment for a sale (full payment only for edit management)"""
+    from decimal import Decimal
+    
+    try:
+        sale = Sale.objects.get(id=sale_id)
+    except Sale.DoesNotExist:
+        return Response({'error': 'Sale not found'}, status=status.HTTP_404_NOT_FOUND)
+    
+    payment_amount = request.data.get('payment_amount')
+    if not payment_amount:
+        return Response({'error': 'Payment amount is required'}, status=status.HTTP_400_BAD_REQUEST)
+    
+    try:
+        payment_amount = Decimal(str(payment_amount))
+    except (ValueError, TypeError):
+        return Response({'error': 'Invalid payment amount'}, status=status.HTTP_400_BAD_REQUEST)
+    
+    if payment_amount <= 0:
+        return Response({'error': 'Payment amount must be greater than 0'}, status=status.HTTP_400_BAD_REQUEST)
+    
+    # Check if this is a full payment (for edit management)
+    is_full_payment = request.data.get('is_full_payment', False)
+    
+    if is_full_payment:
+        # For edit management, only allow full payment
+        if payment_amount != sale.remaining_amount:
+            return Response({'error': 'Payment amount must equal the remaining amount for full payment'}, status=status.HTTP_400_BAD_REQUEST)
+    else:
+        # For POS, allow partial payments
+        if payment_amount > sale.remaining_amount:
+            return Response({'error': 'Payment amount cannot exceed remaining amount'}, status=status.HTTP_400_BAD_REQUEST)
+    
+    # Update payment amounts
+    sale.paid_amount += payment_amount
+    sale.remaining_amount = sale.total_amount - sale.paid_amount
+    
+    # Update payment status and due date
+    if sale.paid_amount >= sale.total_amount:
+        sale.payment_status = 'paid'
+        sale.due_date = None  # No due date for fully paid sales
+    elif sale.paid_amount > 0:
+        sale.payment_status = 'partial'
+        # Set due date to 30 days from now if not already set
+        if not sale.due_date:
+            from datetime import date, timedelta
+            sale.due_date = date.today() + timedelta(days=30)
+    else:
+        sale.payment_status = 'pending'
+        sale.due_date = None  # No due date for pending sales
+    
+    sale.save()
+    
+    serializer = SaleSerializer(sale)
+    return Response({
+        'message': 'Payment processed successfully',
+        'sale': serializer.data
+    })

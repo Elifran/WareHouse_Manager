@@ -12,7 +12,7 @@ class SaleItemSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = SaleItem
-        fields = ['id', 'product', 'product_name', 'product_sku', 'quantity', 'quantity_display', 'unit', 'unit_name', 'unit_symbol', 'unit_price', 'unit_cost', 'total_price', 'total_cost', 'price_mode']
+        fields = ['id', 'product', 'product_name', 'product_sku', 'quantity', 'quantity_display', 'unit', 'unit_name', 'unit_symbol', 'unit_price', 'unit_cost', 'total_price', 'total_cost', 'price_mode', 'original_sale_item']
         read_only_fields = ['id', 'total_price', 'unit_cost', 'total_cost']
     
     def get_quantity_display(self, obj):
@@ -78,6 +78,7 @@ class SaleItemCreateSerializer(serializers.Serializer):
     unit = serializers.IntegerField()
     unit_price = serializers.DecimalField(max_digits=10, decimal_places=2)
     price_mode = serializers.ChoiceField(choices=[('standard', 'Standard'), ('wholesale', 'Wholesale')], default='standard')
+    original_sale_item = serializers.IntegerField(required=False, allow_null=True)
     
     def validate_quantity(self, value):
         if value <= 0:
@@ -143,13 +144,15 @@ class SaleSerializer(serializers.ModelSerializer):
     payments = PaymentSerializer(many=True, read_only=True)
     sold_by_name = serializers.CharField(source='sold_by.username', read_only=True)
     items_count = serializers.SerializerMethodField()
+    original_sale_number = serializers.CharField(source='original_sale.sale_number', read_only=True)
     
     class Meta:
         model = Sale
         fields = [
-            'id', 'sale_number', 'customer_name', 'customer_phone', 'customer_email',
+            'id', 'sale_number', 'sale_type', 'original_sale', 'original_sale_number',
+            'customer_name', 'customer_phone', 'customer_email',
             'status', 'payment_method', 'subtotal', 'cost_amount', 'tax_amount', 'discount_amount',
-            'total_amount', 'notes', 'sold_by', 'sold_by_name', 'items', 'payments',
+            'total_amount', 'paid_amount', 'remaining_amount', 'payment_status', 'due_date', 'notes', 'sold_by', 'sold_by_name', 'items', 'payments',
             'items_count', 'created_at', 'updated_at'
         ]
         read_only_fields = ['id', 'sale_number', 'subtotal', 'cost_amount', 'tax_amount', 'total_amount', 'created_at', 'updated_at']
@@ -210,20 +213,53 @@ class SaleSerializer(serializers.ModelSerializer):
 
 class SaleCreateSerializer(serializers.ModelSerializer):
     items = SaleItemCreateSerializer(many=True)
+    sale_type = serializers.ChoiceField(choices=[('sale', 'Sale'), ('return', 'Return')], default='sale')
     
     class Meta:
         model = Sale
         fields = [
-            'customer_name', 'customer_phone', 'customer_email', 'payment_method',
-            'discount_amount', 'notes', 'items'
+            'sale_type', 'original_sale', 'customer_name', 'customer_phone', 'customer_email', 'payment_method',
+            'discount_amount', 'paid_amount', 'notes', 'items'
         ]
     
+    def validate_original_sale(self, value):
+        """Validate original_sale field"""
+        # Only validate if we have a value and we're creating a return
+        if value:
+            # Check if this is a return by looking at the sale_type in the data
+            sale_type = self.initial_data.get('sale_type', 'sale')
+            if sale_type == 'return':
+                # For returns, ensure the original sale exists and is completed
+                if value.status != 'completed':
+                    raise serializers.ValidationError("Can only create returns for completed sales")
+        return value
+    
+    def validate_paid_amount(self, value):
+        """Validate paid_amount field"""
+        if value is None:
+            value = 0
+        if value < 0:
+            raise serializers.ValidationError("Paid amount cannot be negative")
+        return value
+    
+    def validate_customer_name(self, value):
+        """Validate customer_name field"""
+        # Customer name is required for partial payments, but we can't validate this here
+        # because we don't have the total amount yet. This validation will be done in the create method.
+        return value
+    
     def create(self, validated_data):
+        from products.models import Product, Unit
+        from .models import SaleItem
+        
         items_data = validated_data.pop('items')
         sale = Sale.objects.create(**validated_data)
         
-        # Generate sale number
-        sale.sale_number = f"SALE-{sale.id:06d}"
+        # Generate sale number based on sale type
+        if sale.sale_type == 'return':
+            sale.sale_number = f"RET-{sale.id:06d}"
+        else:
+            sale.sale_number = f"SALE-{sale.id:06d}"
         sale.save()
         
         # Create sale items and calculate subtotal, cost, and tax
@@ -233,20 +269,29 @@ class SaleCreateSerializer(serializers.ModelSerializer):
         
         for item_data in items_data:
             # Convert product ID to Product object for the ForeignKey
-            from products.models import Product
             product_id = item_data.pop('product')
             product = Product.objects.get(id=product_id)
             
+            # Handle original_sale_item for returns
+            original_sale_item = None
+            if 'original_sale_item' in item_data and item_data['original_sale_item']:
+                original_sale_item = SaleItem.objects.get(id=item_data.pop('original_sale_item'))
+            elif 'original_sale_item' in item_data:
+                # Remove the field if it's None or empty
+                item_data.pop('original_sale_item')
+            
             # Ensure unit_price is set from product if not provided
             if 'unit_price' not in item_data or not item_data['unit_price']:
-                item_data['unit_price'] = product.price
+                if original_sale_item:
+                    item_data['unit_price'] = original_sale_item.unit_price
+                else:
+                    item_data['unit_price'] = product.price
             
             # Convert unit ID to Unit object for the ForeignKey
-            from products.models import Unit
             unit_id = item_data.pop('unit')
             unit = Unit.objects.get(id=unit_id)
             
-            item = SaleItem.objects.create(sale=sale, product=product, unit=unit, **item_data)
+            item = SaleItem.objects.create(sale=sale, product=product, unit=unit, original_sale_item=original_sale_item, **item_data)
             subtotal += item.total_price
             
             # Calculate cost and tax for this item based on its product's tax class (tax-inclusive pricing)
@@ -285,6 +330,23 @@ class SaleCreateSerializer(serializers.ModelSerializer):
         sale.cost_amount = total_cost  # This is the cost excluding tax
         sale.tax_amount = total_tax  # This is the tax portion of the total
         sale.total_amount = sale.subtotal - sale.discount_amount  # Total after discount
+        
+        # Calculate payment amounts
+        sale.remaining_amount = sale.total_amount - sale.paid_amount
+        
+        # Update payment status
+        if sale.paid_amount >= sale.total_amount:
+            sale.payment_status = 'paid'
+        elif sale.paid_amount > 0:
+            sale.payment_status = 'partial'
+        else:
+            sale.payment_status = 'pending'
+        
+        # Validate customer name for partial payments
+        if sale.payment_status == 'partial' and (not sale.customer_name or not sale.customer_name.strip()):
+            sale.delete()  # Clean up the created sale
+            raise serializers.ValidationError("Customer name is required for partial payments")
+        
         sale.save()
         
         # Note: Stock deduction is handled in the complete_sale endpoint, not here
@@ -300,8 +362,9 @@ class SaleListSerializer(serializers.ModelSerializer):
     class Meta:
         model = Sale
         fields = [
-            'id', 'sale_number', 'customer_name', 'status', 'payment_method',
-            'total_amount', 'sold_by_name', 'items_count', 'items', 'created_at'
+            'id', 'sale_number', 'sale_type', 'customer_name', 'status', 'payment_method',
+            'total_amount', 'paid_amount', 'remaining_amount', 'payment_status', 'due_date',
+            'sold_by_name', 'items_count', 'items', 'created_at'
         ]
     
     def get_items_count(self, obj):

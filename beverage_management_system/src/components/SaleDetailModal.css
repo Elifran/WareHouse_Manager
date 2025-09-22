@@ -220,7 +220,7 @@
   overflow: hidden;
 }
 
-.table-header {
+.sale-detail-modal .table-header {
   display: grid;
   grid-template-columns: 3fr 1.5fr 1fr 1.5fr 1.5fr 1fr 1.5fr;
   background: #f9fafb;
@@ -231,7 +231,7 @@
   border-bottom: 1px solid #e5e7eb;
 }
 
-.table-row {
+.sale-detail-modal .table-row {
   display: grid;
   grid-template-columns: 3fr 1.5fr 1fr 1.5fr 1.5fr 1fr 1.5fr;
   padding: 1.25rem 2rem;
@@ -239,11 +239,11 @@
   align-items: center;
 }
 
-.table-row:last-child {
+.sale-detail-modal .table-row:last-child {
   border-bottom: none;
 }
 
-.table-row:hover {
+.sale-detail-modal .table-row:hover {
   background: #f9fafb;
 }
 
@@ -392,21 +392,21 @@
     grid-template-columns: 1fr;
   }
   
-  .table-header,
-  .table-row {
+  .sale-detail-modal .table-header,
+  .sale-detail-modal .table-row {
     grid-template-columns: 1fr;
     gap: 0.5rem;
   }
   
-  .table-header > div,
-  .table-row > div {
+  .sale-detail-modal .table-header > div,
+  .sale-detail-modal .table-row > div {
     display: flex;
     justify-content: space-between;
     align-items: center;
   }
   
-  .table-header > div::before,
-  .table-row > div::before {
+  .sale-detail-modal .table-header > div::before,
+  .sale-detail-modal .table-row > div::before {
     content: attr(data-label);
     font-weight: 600;
     color: #6b7280;

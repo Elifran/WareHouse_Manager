@@ -10,6 +10,11 @@ class Sale(models.Model):
         ('refunded', 'Refunded'),
     ]
     
+    SALE_TYPE_CHOICES = [
+        ('sale', 'Sale'),
+        ('return', 'Return'),
+    ]
+    
     PAYMENT_METHODS = [
         ('cash', 'Cash'),
         ('card', 'Card'),
@@ -18,6 +23,8 @@ class Sale(models.Model):
     ]
     
     sale_number = models.CharField(max_length=50, unique=True)
+    sale_type = models.CharField(max_length=10, choices=SALE_TYPE_CHOICES, default='sale', help_text="Type of transaction: sale or return")
+    original_sale = models.ForeignKey('self', on_delete=models.CASCADE, null=True, blank=True, related_name='returns', help_text="Original sale for returns")
     customer_name = models.CharField(max_length=200, blank=True)
     customer_phone = models.CharField(max_length=20, blank=True)
     customer_email = models.EmailField(blank=True)
@@ -28,6 +35,10 @@ class Sale(models.Model):
     tax_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     discount_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     total_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    paid_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0, help_text="Amount paid by customer")
+    remaining_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0, help_text="Remaining amount to be paid")
+    payment_status = models.CharField(max_length=20, choices=[('pending', 'Pending'), ('partial', 'Partial'), ('paid', 'Paid')], default='pending', help_text="Payment status")
+    due_date = models.DateField(null=True, blank=True, help_text="Due date for partial payments")
     notes = models.TextField(blank=True)
     sold_by = models.ForeignKey('core.User', on_delete=models.SET_NULL, null=True, related_name='sales')
     created_at = models.DateTimeField(auto_now_add=True)
@@ -48,7 +59,25 @@ class Sale(models.Model):
         self.subtotal = subtotal
         self.cost_amount = cost_amount
         self.total_amount = subtotal + self.tax_amount - self.discount_amount
-        self.save(update_fields=['subtotal', 'cost_amount', 'total_amount'])
+        
+        # Calculate remaining amount
+        self.remaining_amount = self.total_amount - self.paid_amount
+        
+        # Update payment status
+        if self.paid_amount >= self.total_amount:
+            self.payment_status = 'paid'
+            self.due_date = None  # No due date for fully paid sales
+        elif self.paid_amount > 0:
+            self.payment_status = 'partial'
+            # Set due date to 30 days from now if not already set
+            if not self.due_date:
+                from datetime import date, timedelta
+                self.due_date = date.today() + timedelta(days=30)
+        else:
+            self.payment_status = 'pending'
+            self.due_date = None  # No due date for pending sales
+        
+        self.save(update_fields=['subtotal', 'cost_amount', 'total_amount', 'remaining_amount', 'payment_status', 'due_date'])
     
     class Meta:
         ordering = ['-created_at']
@@ -68,6 +97,7 @@ class SaleItem(models.Model):
     total_price = models.DecimalField(max_digits=15, decimal_places=2, validators=[MinValueValidator(Decimal('0.01'))])
     total_cost = models.DecimalField(max_digits=15, decimal_places=2, default=0, help_text="Total cost at time of sale (frozen for historical accuracy)")
     price_mode = models.CharField(max_length=20, choices=PRICE_MODE_CHOICES, default='standard', help_text="Price mode used for this sale item")
+    original_sale_item = models.ForeignKey('self', on_delete=models.CASCADE, null=True, blank=True, related_name='return_items', help_text="Original sale item for returns")
     
     def __str__(self):
         return f"{self.product.name} x {self.quantity} = {self.total_price}"

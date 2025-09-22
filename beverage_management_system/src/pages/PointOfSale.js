@@ -16,6 +16,8 @@ const PointOfSale = () => {
     email: ''
   });
   const [paymentMethod, setPaymentMethod] = useState('cash');
+  const [paymentType, setPaymentType] = useState('full'); // 'full' or 'partial'
+  const [paidAmount, setPaidAmount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [processing, setProcessing] = useState(false);
   const [error, setError] = useState('');
@@ -42,6 +44,28 @@ const PointOfSale = () => {
     }
     return parseFloat(product.price);
   };
+
+  // Calculate total amount
+  const calculateTotal = () => {
+    const total = cart.reduce((total, item) => {
+      const unitPrice = item.unit_price || 0;
+      return total + (unitPrice * item.quantity);
+    }, 0);
+    return total;
+  };
+
+  // Update paid amount when payment type changes
+  useEffect(() => {
+    const total = calculateTotal();
+    if (paymentType === 'full') {
+      setPaidAmount(total);
+    } else if (paymentType === 'partial') {
+      // Only reset to 0 if it's currently set to the full amount
+      if (paidAmount === total) {
+        setPaidAmount(0);
+      }
+    }
+  }, [paymentType, cart]);
 
   // Function to get the current price for a specific unit
   const getCurrentUnitPrice = (product, unitStockInfo) => {
@@ -510,6 +534,9 @@ const PointOfSale = () => {
   const autoPrintReceipt = async (saleNumber, saleData, saleStatus = 'completed') => {
     try {
       // Create print content for the sale
+      const total = calculateSubtotal();
+      const remaining = total - paidAmount;
+      
       const printData = {
         sale_number: saleNumber,
         customer_name: customerInfo.name || 'Walk-in Customer',
@@ -521,7 +548,11 @@ const PointOfSale = () => {
         print_timestamp: new Date().toISOString(),
         print_id: `PRINT-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
         status: saleStatus,
-        total_amount: calculateSubtotal(),
+        total_amount: total,
+        paid_amount: paidAmount,
+        remaining_amount: remaining,
+        payment_status: remaining > 0 ? 'partial' : 'paid',
+        due_date: remaining > 0 ? new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toLocaleDateString() : null, // 30 days from now
         items: cart.map(item => ({
           product_name: item.name,
           product_sku: item.sku,
@@ -565,19 +596,42 @@ const PointOfSale = () => {
 
   const handleCheckout = async () => {
     if (cart.length === 0) {
-      setError('Cart is empty');
+      setError('Cart is empty. Please add items to the cart before completing the sale.');
       return;
     }
 
     setProcessing(true);
     setError('');
 
+    // Validate customer name for partial payments
+    if (paymentType === 'partial' && (!customerInfo.name || !customerInfo.name.trim())) {
+      setError('Customer name is required for partial payments');
+      setProcessing(false);
+      return;
+    }
+
+    // Validate paid amount
+    const total = calculateTotal();
+    if (paidAmount > total) {
+      setError('Paid amount cannot exceed the total amount');
+      setProcessing(false);
+      return;
+    }
+
+    if (paidAmount < 0) {
+      setError('Paid amount cannot be negative');
+      setProcessing(false);
+      return;
+    }
+
     try {
       const saleData = {
+        sale_type: 'sale',
         customer_name: customerInfo.name,
         customer_phone: customerInfo.phone,
         customer_email: customerInfo.email,
         payment_method: paymentMethod,
+        paid_amount: paidAmount,
           items: cart.map(item => {
             // More robust unit ID extraction
             let unitId = item.unit_id;
@@ -594,6 +648,7 @@ const PointOfSale = () => {
             };
           })
         };
+
 
       // Create the sale
       const response = await api.post('/sales/', saleData);
@@ -665,8 +720,21 @@ const PointOfSale = () => {
         alert(`Pending sale created! Sale Number: ${saleNumber}\nYou can complete it later in Sales Management.`);
       }
     } catch (err) {
-      setError(err.response?.data?.detail || 'Failed to create sale');
       console.error('Sale creation error:', err);
+      console.error('Error response:', err.response?.data);
+      
+      // Handle different types of errors
+      if (err.response?.data?.error) {
+        setError(err.response.data.error);
+      } else if (err.response?.data?.detail) {
+        setError(err.response.data.detail);
+      } else if (err.response?.data?.customer_name) {
+        setError(err.response.data.customer_name[0]);
+      } else if (err.response?.data?.paid_amount) {
+        setError(err.response.data.paid_amount[0]);
+      } else {
+        setError('Failed to create sale. Please check the console for details.');
+      }
     } finally {
       setProcessing(false);
     }
@@ -1166,7 +1234,10 @@ const PointOfSale = () => {
 
           <div className="cart-items">
             {cart.length === 0 ? (
-              <p className="empty-cart">Cart is empty</p>
+              <div className="empty-cart">
+                <p>Cart is empty</p>
+                <p className="empty-cart-hint">Add items from the product list to start a sale</p>
+              </div>
             ) : (
               <>
                 <div className="cart-table-header">
@@ -1293,9 +1364,10 @@ const PointOfSale = () => {
                 <div className="form-group">
                   <input
                     type="text"
-                    placeholder="Customer Name (Optional)"
+                    placeholder={paymentType === 'partial' ? "Customer Name (Required for Partial Payment)" : "Customer Name (Optional)"}
                     value={customerInfo.name}
                     onChange={(e) => setCustomerInfo({...customerInfo, name: e.target.value})}
+                    className={paymentType === 'partial' && !customerInfo.name ? 'required-field' : ''}
                   />
                 </div>
                 <div className="form-group">
@@ -1332,6 +1404,49 @@ const PointOfSale = () => {
                     </label>
                   ))}
                 </div>
+                
+                <h3>Payment Type</h3>
+                <div className="payment-types">
+                  <label className="payment-type">
+                    <input
+                      type="radio"
+                      name="paymentType"
+                      value="full"
+                      checked={paymentType === 'full'}
+                      onChange={(e) => setPaymentType(e.target.value)}
+                    />
+                    <span>Full Payment (100%)</span>
+                  </label>
+                  <label className="payment-type">
+                    <input
+                      type="radio"
+                      name="paymentType"
+                      value="partial"
+                      checked={paymentType === 'partial'}
+                      onChange={(e) => setPaymentType(e.target.value)}
+                    />
+                    <span>Partial Payment (0-99.99%)</span>
+                  </label>
+                </div>
+                
+                {paymentType === 'partial' && (
+                  <div className="form-group">
+                    <label>Amount to Pay</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      max={calculateTotal()}
+                      value={paidAmount || 0}
+                      onChange={(e) => {
+                        const value = parseFloat(e.target.value) || 0;
+                        setPaidAmount(value);
+                      }}
+                      placeholder="Enter amount to pay"
+                    />
+                    <small>Total: ${calculateTotal().toFixed(2)} | Remaining: ${(calculateTotal() - (paidAmount || 0)).toFixed(2)}</small>
+                  </div>
+                )}
               </div>
               </form>
 
