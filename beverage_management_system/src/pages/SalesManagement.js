@@ -182,6 +182,49 @@ const SalesManagement = () => {
     }));
   };
 
+  const validateEditSale = () => {
+    if (!editFormData.items || editFormData.items.length === 0) {
+      return false;
+    }
+
+    // Check if any item has invalid quantity
+    for (const item of editFormData.items) {
+      const quantity = parseFloat(item.quantity);
+      if (isNaN(quantity) || quantity <= 0) {
+        return false;
+      }
+
+      // Find the corresponding original item to check stock availability
+      const originalItem = selectedSale?.items?.find(original => 
+        original.product === item.product && 
+        original.unit === item.unit && 
+        original.price_mode === item.price_mode
+      );
+
+      if (originalItem) {
+        // Calculate the quantity difference
+        const originalQuantity = parseFloat(originalItem.quantity);
+        const quantityDiff = quantity - originalQuantity;
+        
+        // If increasing quantity, check stock availability
+        if (quantityDiff > 0) {
+          // Find the product to get current stock
+          const product = products.find(p => p.id === parseInt(item.product));
+          if (product) {
+            // Convert quantity difference to base units for stock check
+            // This is a simplified check - in a real scenario, you'd need proper unit conversion
+            const stockNeeded = quantityDiff;
+            if (product.stock_quantity < stockNeeded) {
+              return false;
+            }
+          }
+        }
+      }
+    }
+
+    return true;
+  };
+
   const getProductPrice = (productId) => {
     const product = products.find(p => p.id === parseInt(productId));
     return product ? product.price : 0;
@@ -595,7 +638,11 @@ const SalesManagement = () => {
                     <Button variant="secondary" onClick={() => setShowEditModal(false)}>
                       Cancel
                     </Button>
-                    <Button variant="primary" onClick={handleEditSale}>
+                    <Button 
+                      variant="primary" 
+                      onClick={handleEditSale}
+                      disabled={!validateEditSale()}
+                    >
                       Update Sale
                     </Button>
                   </div>

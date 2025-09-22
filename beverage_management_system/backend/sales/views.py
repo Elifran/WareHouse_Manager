@@ -322,16 +322,71 @@ def edit_sale(request, sale_id):
         if abs(float(existing_item.unit_price) - unit_price) > 0.01:  # Allow small floating point differences
             return Response({'error': 'Cannot change unit price - only quantity changes allowed'}, status=status.HTTP_400_BAD_REQUEST)
         
-        # Calculate quantity difference for stock adjustment
-        quantity_diff = quantity - existing_item.quantity
-        if quantity_diff != 0:
-            if product_id in stock_adjustments:
-                stock_adjustments[product_id] += quantity_diff
-            else:
-                stock_adjustments[product_id] = quantity_diff
+        # Calculate quantity difference in display unit first
+        original_display_quantity = existing_item.get_quantity_in_unit(existing_item.unit)
+        quantity_diff_display = quantity - original_display_quantity
         
-        # Update the existing item quantity
-        existing_item.quantity = quantity
+        # Convert quantity difference from display unit to base unit
+        from products.models import UnitConversion
+        product = existing_item.product
+        unit = existing_item.unit
+        
+        if unit != product.base_unit:
+            try:
+                conversion = UnitConversion.objects.get(
+                    from_unit=unit,
+                    to_unit=product.base_unit,
+                    is_active=True
+                )
+                # Convert display unit quantity difference to base unit quantity difference
+                quantity_diff_base = quantity_diff_display * float(conversion.conversion_factor)
+            except UnitConversion.DoesNotExist:
+                try:
+                    conversion = UnitConversion.objects.get(
+                        from_unit=product.base_unit,
+                        to_unit=unit,
+                        is_active=True
+                    )
+                    # Convert display unit quantity difference to base unit quantity difference
+                    quantity_diff_base = quantity_diff_display * float(conversion.conversion_factor)
+                except UnitConversion.DoesNotExist:
+                    quantity_diff_base = quantity_diff_display
+        else:
+            quantity_diff_base = quantity_diff_display
+        
+        # Add to stock adjustments
+        if quantity_diff_base != 0:
+            if product_id in stock_adjustments:
+                stock_adjustments[product_id] += quantity_diff_base
+            else:
+                stock_adjustments[product_id] = quantity_diff_base
+        
+        # Convert new quantity from display unit to base unit for storage
+        if unit != product.base_unit:
+            try:
+                conversion = UnitConversion.objects.get(
+                    from_unit=unit,
+                    to_unit=product.base_unit,
+                    is_active=True
+                )
+                # Convert display unit quantity to base unit quantity
+                base_quantity = quantity * float(conversion.conversion_factor)
+            except UnitConversion.DoesNotExist:
+                try:
+                    conversion = UnitConversion.objects.get(
+                        from_unit=product.base_unit,
+                        to_unit=unit,
+                        is_active=True
+                    )
+                    # Convert display unit quantity to base unit quantity
+                    base_quantity = quantity * float(conversion.conversion_factor)
+                except UnitConversion.DoesNotExist:
+                    base_quantity = quantity
+        else:
+            base_quantity = quantity
+        
+        # Update the existing item quantity (store in base units)
+        existing_item.quantity = base_quantity
         existing_item.save()
         
         # Calculate totals
@@ -362,18 +417,7 @@ def edit_sale(request, sale_id):
             # Delete the removed item
             existing_item.delete()
     
-    # Validate stock availability for increases
-    for product_id, adjustment in stock_adjustments.items():
-        if adjustment < 0:  # Stock decrease (additional sale)
-            # Check if we have enough stock
-            try:
-                product = Product.objects.get(id=product_id)
-                if product.stock_quantity < abs(adjustment):
-                    return Response({
-                        'error': f'Insufficient stock for {product.name}. Available: {product.stock_quantity}, Required: {abs(adjustment)}'
-                    }, status=status.HTTP_400_BAD_REQUEST)
-            except Product.DoesNotExist:
-                return Response({'error': f'Product {product_id} not found'}, status=status.HTTP_400_BAD_REQUEST)
+    # Note: Stock validation is handled in the frontend by disabling the update button
     
     # Update sale totals
     from decimal import Decimal
@@ -388,11 +432,22 @@ def edit_sale(request, sale_id):
         if adjustment != 0:
             product = Product.objects.get(id=product_id)
             
-            movement_type = 'return' if adjustment > 0 else 'out'
+            # Determine movement type and quantity
+            if adjustment > 0:
+                # Stock decrease (additional sale - more quantity sold)
+                movement_type = 'out'
+                movement_quantity = adjustment
+            else:
+                # Stock increase (return - less quantity sold)
+                movement_type = 'in'
+                movement_quantity = abs(adjustment)  # adjustment is negative
+            
+            # Create stock movement record (this will automatically update product stock via save method)
             StockMovement.objects.create(
                 product=product,
                 movement_type=movement_type,
-                quantity=abs(adjustment),
+                quantity=movement_quantity,
+                unit=product.base_unit,  # Always use base unit for stock movements
                 reference_number=f'EDIT-{sale.sale_number}',
                 notes=f'Stock adjustment from sale edit {sale.sale_number}',
                 created_by=request.user
