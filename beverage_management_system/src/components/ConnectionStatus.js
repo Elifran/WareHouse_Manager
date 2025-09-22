@@ -9,9 +9,9 @@ const ConnectionStatus = () => {
   const checkConnection = async () => {
     try {
       setIsChecking(true);
-      // Try to access a simple endpoint that doesn't require authentication
-      await api.get('/core/login/', { timeout: 5000 });
-      // If we get any response (even 405 Method Not Allowed), the server is connected
+      // Try to access the health check endpoint that doesn't require authentication
+      await api.get('/core/health/', { timeout: 5000 });
+      // If we get here, server is connected
       setIsConnected(true);
     } catch (error) {
       // Check if it's a connection error vs other errors

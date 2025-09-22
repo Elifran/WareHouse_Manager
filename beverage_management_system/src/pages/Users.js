@@ -231,7 +231,12 @@ const UserModal = ({ user, onClose, onSave }) => {
 
 
     // Client-side validation for password fields
-    if (showPasswordFields && formData.password && formData.password_confirm) {
+    if (showPasswordFields) {
+      if (!formData.password || !formData.password_confirm) {
+        setError('Both password fields are required when changing password');
+        setLoading(false);
+        return;
+      }
       if (formData.password !== formData.password_confirm) {
         setError('Passwords do not match');
         setLoading(false);
@@ -250,10 +255,15 @@ const UserModal = ({ user, onClose, onSave }) => {
         const updateData = { ...formData };
         
         // Only include password fields if the checkbox is checked and both fields are filled
-        if (!showPasswordFields || !updateData.password || !updateData.password_confirm) {
-          // Remove password fields if checkbox not checked or either field is empty
+        if (!showPasswordFields) {
+          // Remove password fields if checkbox not checked
           delete updateData.password;
           delete updateData.password_confirm;
+        } else if (!updateData.password || !updateData.password_confirm) {
+          // If checkbox is checked but fields are empty, this should have been caught by validation
+          setError('Both password fields are required when changing password');
+          setLoading(false);
+          return;
         }
         
         await api.put(`/core/users/${user.id}/`, updateData);
@@ -269,8 +279,14 @@ const UserModal = ({ user, onClose, onSave }) => {
       }
       onSave();
     } catch (err) {
-      setError(err.response?.data?.detail || err.response?.data?.error || 'Failed to save user');
-      console.error('Save error:', err);
+      console.error('Save error details:', err);
+      console.error('Error response:', err.response);
+      console.error('Error response data:', err.response?.data);
+      console.error('Error response status:', err.response?.status);
+      
+      const errorMessage = err.response?.data?.detail || err.response?.data?.error || 'Failed to save user';
+      console.error('Setting error message:', errorMessage);
+      setError(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -397,7 +413,7 @@ const UserModal = ({ user, onClose, onSave }) => {
                         name="password"
                         value={formData.password}
                         onChange={handleChange}
-                        required={showPasswordFields && formData.password.length > 0}
+                        required={showPasswordFields}
                         minLength="8"
                         placeholder="Minimum 8 characters"
                       />
@@ -409,7 +425,7 @@ const UserModal = ({ user, onClose, onSave }) => {
                         name="password_confirm"
                         value={formData.password_confirm}
                         onChange={handleChange}
-                        required={showPasswordFields && formData.password_confirm.length > 0}
+                        required={showPasswordFields}
                         minLength="8"
                         placeholder="Confirm password"
                       />
