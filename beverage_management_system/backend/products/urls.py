@@ -23,6 +23,7 @@ urlpatterns = [
     path('<int:product_id>/units/<int:pk>/', views.ProductUnitDetailView.as_view(), name='product-unit-detail'),
     path('<int:product_id>/compatible-units/', views.get_product_compatible_units, name='product-compatible-units'),
     path('<int:product_id>/available-units/', views.get_product_available_units, name='product-available-units'),
+    path('<int:product_id>/unit-costs/', views.get_product_unit_costs, name='product-unit-costs'),
     path('price-conversion-factor/', views.get_price_conversion_factor_api, name='price-conversion-factor'),
     path('quantity-conversion-factor/', views.get_quantity_conversion_factor_api, name='quantity-conversion-factor'),
 ]

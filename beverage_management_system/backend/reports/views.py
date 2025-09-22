@@ -145,9 +145,11 @@ def generate_inventory_report(request):
         products = products.filter(stock_quantity=0)
     
     # Calculate summary
+    from django.db.models import DecimalField
+    
     summary = products.aggregate(
         total_products=Count('id'),
-        total_value=Sum(F('stock_quantity') * F('cost_price')),
+        total_value=Sum(F('stock_quantity') * F('cost_price'), output_field=DecimalField(max_digits=15, decimal_places=2)),
         low_stock_count=Count('id', filter=Q(stock_quantity__lte=F('min_stock_level'))),
         out_of_stock_count=Count('id', filter=Q(stock_quantity=0))
     )
@@ -304,12 +306,14 @@ def dashboard_data(request):
     chart_data.reverse()  # Show oldest to newest
     
     # Inventory summary with cost data
+    from django.db.models import DecimalField
+    
     inventory_summary = Product.objects.filter(is_active=True).aggregate(
         total_products=Count('id'),
         low_stock_count=Count('id', filter=Q(stock_quantity__lte=F('min_stock_level'))),
         out_of_stock_count=Count('id', filter=Q(stock_quantity=0)),
-        total_inventory_value=Sum(F('stock_quantity') * F('cost_price')),
-        total_retail_value=Sum(F('stock_quantity') * F('price'))
+        total_inventory_value=Sum(F('stock_quantity') * F('cost_price'), output_field=DecimalField(max_digits=15, decimal_places=2)),
+        total_retail_value=Sum(F('stock_quantity') * F('price'), output_field=DecimalField(max_digits=15, decimal_places=2))
     )
     
     # Recent sales

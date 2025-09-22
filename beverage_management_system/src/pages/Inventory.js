@@ -145,80 +145,83 @@ const Inventory = () => {
   };
 
   const handleEditProduct = async (product) => {
-    setEditingProduct(product);
-    // Store original product data for conversion calculations
-    setOriginalProductData({
-      price: product.price,
-      wholesale_price: product.wholesale_price,
-      cost_price: product.cost_price,
-      stock_quantity: product.stock_quantity,
-      base_unit: product.base_unit
-    });
-    
-    // Set initial form data with base unit values
-    setProductFormData({
-      name: product.name,
-      sku: product.sku || '',
-      description: product.description || '',
-      category: product.category || '',
-      base_unit: product.base_unit || '',
-      price: product.price || '',
-      wholesale_price: product.wholesale_price || '',
-      cost_price: product.cost_price || '',
-      stock_quantity: product.stock_quantity || '',
-      min_stock_level: product.min_stock_level || '',
-      max_stock_level: product.max_stock_level || '',
-      tax_class: product.tax_class || '',
-      is_active: product.is_active !== false
-    });
-    
-    if (product.id) {
-      // Fetch compatible units first
-      await fetchCompatibleUnits(product.id);
-      await fetchAvailableUnits(product.id);
+    try {
+      // Fetch fresh product data from the API
+      const response = await api.get(`/products/${product.id}/`);
+      const freshProduct = response.data;
       
-      // Get the compatible units data directly from the API
-      try {
-        const response = await api.get(`/products/${product.id}/compatible-units/`);
-        const compatibleUnitsData = response.data.compatible_units || [];
-        
-        // Find the default unit and convert values if needed
-        const defaultUnit = compatibleUnitsData.find(cu => cu.is_default);
-        if (defaultUnit && defaultUnit.unit !== product.base_unit) {
-          setCurrentDisplayUnit(defaultUnit.unit);
-          setProductFormData(prev => ({
-            ...prev,
-            // All values are already in the correct unit (default unit), don't convert them
-            price: product.price,
-            wholesale_price: product.wholesale_price,
-            cost_price: product.cost_price,
-            stock_quantity: product.stock_quantity,
-            min_stock_level: product.min_stock_level,
-            max_stock_level: product.max_stock_level
-          }));
-        } else {
-          // No default unit or default unit is the same as base unit
-          setCurrentDisplayUnit(product.base_unit);
-        }
-      } catch (err) {
-        console.error('Error fetching compatible units for conversion:', err);
-        setCurrentDisplayUnit(product.base_unit);
+      setEditingProduct(freshProduct);
+      
+      // Store original product data for conversion calculations
+      setOriginalProductData({
+        price: freshProduct.price,
+        wholesale_price: freshProduct.wholesale_price,
+        cost_price: freshProduct.cost_price,
+        stock_quantity: freshProduct.stock_quantity,
+        base_unit: freshProduct.base_unit
+      });
+      
+      // Set initial form data with fresh data
+      setProductFormData({
+        name: freshProduct.name,
+        sku: freshProduct.sku || '',
+        description: freshProduct.description || '',
+        category: freshProduct.category || '',
+        base_unit: freshProduct.base_unit || '',
+        price: freshProduct.price || '',
+        wholesale_price: freshProduct.wholesale_price || '',
+        cost_price: freshProduct.cost_price || '',
+        stock_quantity: freshProduct.stock_quantity || '',
+        min_stock_level: freshProduct.min_stock_level || '',
+        max_stock_level: freshProduct.max_stock_level || '',
+        tax_class: freshProduct.tax_class || '',
+        is_active: freshProduct.is_active !== false
+      });
+      
+      // Fetch compatible units and available units
+      await fetchCompatibleUnits(freshProduct.id);
+      await fetchAvailableUnits(freshProduct.id);
+      
+      // Find the default unit from the product's compatible units
+      const defaultUnit = freshProduct.compatible_units?.find(cu => cu.is_default);
+      if (defaultUnit) {
+        setCurrentDisplayUnit(defaultUnit.unit);
+      } else {
+        // No default unit found, use base unit
+        setCurrentDisplayUnit(freshProduct.base_unit);
       }
+      
+      // The product data from the API is already in the default unit, so use it directly
+      setProductFormData(prev => ({
+        ...prev,
+        // All values are already in the correct unit (default unit) from the API
+        price: freshProduct.price,
+        wholesale_price: freshProduct.wholesale_price,
+        cost_price: freshProduct.cost_price,
+        stock_quantity: freshProduct.stock_quantity,
+        min_stock_level: freshProduct.min_stock_level,
+        max_stock_level: freshProduct.max_stock_level
+      }));
+      
+      setShowProductModal(true);
+    } catch (err) {
+      console.error('Error fetching product data:', err);
+      setError('Failed to load product data');
     }
-    setShowProductModal(true);
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
+      // The backend now handles conversion automatically, so just send the form data as-is
       const data = {
         ...productFormData,
         price: parseFloat(productFormData.price) || 0,
         wholesale_price: productFormData.wholesale_price ? parseFloat(productFormData.wholesale_price) : null,
         cost_price: parseFloat(productFormData.cost_price) || 0,
-        stock_quantity: parseInt(productFormData.stock_quantity) || 0,
-        min_stock_level: parseInt(productFormData.min_stock_level) || 0,
-        max_stock_level: parseInt(productFormData.max_stock_level) || 0,
+        stock_quantity: parseFloat(productFormData.stock_quantity) || 0,
+        min_stock_level: parseFloat(productFormData.min_stock_level) || 0,
+        max_stock_level: parseFloat(productFormData.max_stock_level) || 0,
       };
 
       if (editingProduct) {
@@ -231,6 +234,7 @@ const Inventory = () => {
       fetchProducts();
     } catch (err) {
       console.error('Error saving product:', err);
+      console.error('Error details:', err.response?.data);
       setError('Failed to save product');
     }
   };
@@ -281,7 +285,7 @@ const Inventory = () => {
     if (!editingProduct || !originalProductData) return;
     
     try {
-      // First, get the unit details to calculate conversion
+      // First, get the unit details
       const compatibleUnit = compatibleUnits.find(cu => cu.id === productUnitId);
       if (!compatibleUnit) return;
 
@@ -291,37 +295,28 @@ const Inventory = () => {
       });
 
       // Get the new display unit
-      const newDisplayUnitId = compatibleUnit.unit || compatibleUnit.unit_id;
-      const currentDisplayUnitId = currentDisplayUnit;
+      const newDisplayUnitId = compatibleUnit.unit?.id || compatibleUnit.unit_id;
       
-      // If we're changing to the same unit, no conversion needed
-      if (currentDisplayUnitId === newDisplayUnitId) {
-        // Just refresh the compatible units
-        fetchCompatibleUnits(editingProduct.id);
-        fetchAvailableUnits(editingProduct.id);
-        return;
-      }
-      
-      // Calculate conversion factors from current display unit to new display unit
-      const priceConversionFactor = await getPriceConversionFactor(currentDisplayUnitId, newDisplayUnitId);
-      const quantityConversionFactor = await getQuantityConversionFactor(currentDisplayUnitId, newDisplayUnitId);
-      
-      // Update form data with converted values
-      setProductFormData(prev => ({
-        ...prev,
-        // base_unit NEVER changes - it's the product's fundamental unit
-        price: (parseFloat(prev.price) * priceConversionFactor).toFixed(2),
-        wholesale_price: prev.wholesale_price ? (parseFloat(prev.wholesale_price) * priceConversionFactor).toFixed(2) : '',
-        cost_price: (parseFloat(prev.cost_price) * priceConversionFactor).toFixed(2),
-        stock_quantity: Math.round(parseFloat(prev.stock_quantity) * quantityConversionFactor),
-        min_stock_level: Math.round(parseFloat(prev.min_stock_level || 0) * quantityConversionFactor),
-        max_stock_level: Math.round(parseFloat(prev.max_stock_level || 0) * quantityConversionFactor)
-      }));
-
       // Update current display unit
       setCurrentDisplayUnit(newDisplayUnitId);
 
-      // Refresh compatible units
+      // Fetch fresh product data from API (this will have the correct values in the new default unit)
+      const response = await api.get(`/products/${editingProduct.id}/`);
+      const updatedProduct = response.data;
+      
+      // Update form data with fresh values from API
+      setProductFormData(prev => ({
+        ...prev,
+        // The API now returns values in the default unit, so use them directly
+        price: updatedProduct.price,
+        wholesale_price: updatedProduct.wholesale_price,
+        cost_price: updatedProduct.cost_price,
+        stock_quantity: updatedProduct.stock_quantity,
+        min_stock_level: updatedProduct.min_stock_level,
+        max_stock_level: updatedProduct.max_stock_level
+      }));
+
+      // Refresh compatible units and available units
       fetchCompatibleUnits(editingProduct.id);
       fetchAvailableUnits(editingProduct.id);
       
@@ -350,6 +345,43 @@ const Inventory = () => {
       console.error('Error getting quantity conversion factor:', err);
       return 1;
     }
+  };
+
+  const getUnitIndicator = () => {
+    if (!currentDisplayUnit || !editingProduct || !editingProduct.base_unit) {
+      return currentDisplayUnit?.name || currentDisplayUnit || '';
+    }
+    
+    const baseUnitId = editingProduct.base_unit?.id || editingProduct.base_unit;
+    const displayUnitId = currentDisplayUnit?.id || currentDisplayUnit;
+    
+    if (baseUnitId === displayUnitId) {
+      return "base unit";
+    }
+    
+    // Find conversion factor from base unit to display unit
+    const conversion = editingProduct.available_units?.find(au => au.id === displayUnitId);
+    
+    if (conversion && conversion.conversion_factor) {
+      const factor = parseFloat(conversion.conversion_factor);
+      if (factor > 1) {
+        return `×${factor}`;
+      } else if (factor < 1) {
+        return `÷${Math.round(1/factor)}`;
+      } else {
+        return `×${factor}`;
+      }
+    }
+    
+    // Fallback: Try to parse from unit name if conversion factor is not directly available
+    const unitName = currentDisplayUnit.name;
+    const match = unitName.match(/(\d+)-Pack/);
+    if (match && match[1]) {
+      const factor = parseInt(match[1], 10);
+      return `×${factor}`;
+    }
+
+    return unitName || '';
   };
 
   const filteredProducts = products.filter(product => {
@@ -580,76 +612,104 @@ const Inventory = () => {
           <div className="form-row">
             <div className="form-group">
                   <label htmlFor="price">Price (MGA) *</label>
-              <input
-                type="number"
-                    id="price"
-                    value={productFormData.price}
-                    onChange={(e) => setProductFormData({ ...productFormData, price: e.target.value })}
-                    required
-                    min="0"
-                step="0.01"
-              />
+              <div className="input-with-unit">
+                <input
+                  type="number"
+                      id="price"
+                      value={productFormData.price}
+                      onChange={(e) => setProductFormData({ ...productFormData, price: e.target.value })}
+                      required
+                      min="0"
+                  step="0.01"
+                />
+                {currentDisplayUnit && (
+                  <span className="unit-indicator">{getUnitIndicator()}</span>
+                )}
+              </div>
             </div>
 
             <div className="form-group">
               <label htmlFor="wholesale_price">Wholesale Price (MGA)</label>
-              <input
-                type="number"
-                id="wholesale_price"
-                value={productFormData.wholesale_price || ''}
-                onChange={(e) => setProductFormData({ ...productFormData, wholesale_price: e.target.value })}
-                min="0"
-                step="0.01"
-                placeholder="Optional"
-              />
+              <div className="input-with-unit">
+                <input
+                  type="number"
+                  id="wholesale_price"
+                  value={productFormData.wholesale_price || ''}
+                  onChange={(e) => setProductFormData({ ...productFormData, wholesale_price: e.target.value })}
+                  min="0"
+                  step="0.01"
+                  placeholder="Optional"
+                />
+                {currentDisplayUnit && (
+                  <span className="unit-indicator">{getUnitIndicator()}</span>
+                )}
+              </div>
             </div>
 
             <div className="form-group">
                   <label htmlFor="cost_price">Cost Price (MGA)</label>
-              <input
-                type="number"
-                    id="cost_price"
-                    value={productFormData.cost_price}
-                    onChange={(e) => setProductFormData({ ...productFormData, cost_price: e.target.value })}
-                    min="0"
-                step="0.01"
-              />
+              <div className="input-with-unit">
+                <input
+                  type="number"
+                      id="cost_price"
+                      value={productFormData.cost_price}
+                      onChange={(e) => setProductFormData({ ...productFormData, cost_price: e.target.value })}
+                      min="0"
+                  step="0.01"
+                />
+                {currentDisplayUnit && (
+                  <span className="unit-indicator">{getUnitIndicator()}</span>
+                )}
+              </div>
             </div>
           </div>
 
           <div className="form-row">
             <div className="form-group">
                   <label htmlFor="stock_quantity">Stock Quantity</label>
-              <input
-                type="number"
-                    id="stock_quantity"
-                    value={productFormData.stock_quantity}
-                    onChange={(e) => setProductFormData({ ...productFormData, stock_quantity: e.target.value })}
-                    min="0"
-              />
+              <div className="input-with-unit">
+                <input
+                  type="number"
+                      id="stock_quantity"
+                      value={productFormData.stock_quantity}
+                      onChange={(e) => setProductFormData({ ...productFormData, stock_quantity: e.target.value })}
+                      min="0"
+                      step="0.01"
+                />
+                {currentDisplayUnit && (
+                  <span className="unit-indicator">{getUnitIndicator()}</span>
+                )}
+              </div>
             </div>
 
             <div className="form-group">
                   <label htmlFor="min_stock_level">Min Stock Level</label>
-              <input
-                type="number"
-                    id="min_stock_level"
-                    value={productFormData.min_stock_level}
-                    onChange={(e) => setProductFormData({ ...productFormData, min_stock_level: e.target.value })}
-                    min="0"
-                  />
+              <div className="input-with-unit">
+                <input
+                  type="number"
+                      id="min_stock_level"
+                      value={productFormData.min_stock_level}
+                      onChange={(e) => setProductFormData({ ...productFormData, min_stock_level: e.target.value })}
+                      min="0"
+                      step="0.01"
+                />
+                {currentDisplayUnit && (
+                  <span className="unit-indicator">{getUnitIndicator()}</span>
+                )}
+              </div>
           </div>
 
           <div className="form-group">
                   <label htmlFor="max_stock_level">Max Stock Level</label>
-            <input
-              type="number"
+              <input
+                type="number"
                     id="max_stock_level"
                     value={productFormData.max_stock_level}
                     onChange={(e) => setProductFormData({ ...productFormData, max_stock_level: e.target.value })}
                     min="0"
+                    step="0.01"
                   />
-                </div>
+          </div>
               </div>
 
               {editingProduct && (
@@ -692,15 +752,21 @@ const Inventory = () => {
                               >
                                 Set as Default
                               </Button>
-                              {editingProduct && (compatibleUnit.unit || compatibleUnit.unit_id) !== editingProduct.base_unit && (
-                                <Button 
-                                  type="button"
-                                  variant="danger" 
-                                  size="small"
-                                  onClick={() => removeCompatibleUnit(compatibleUnit.id)}
-                                >
-                                  Remove
-                                </Button>
+                              {editingProduct && (
+                                (() => {
+                                  const unitId = compatibleUnit.unit?.id || compatibleUnit.unit_id;
+                                  const baseUnitId = editingProduct.base_unit?.id || editingProduct.base_unit;
+                                  return unitId !== baseUnitId;
+                                })() && (
+                                  <Button 
+                                    type="button"
+                                    variant="danger" 
+                                    size="small"
+                                    onClick={() => removeCompatibleUnit(compatibleUnit.id)}
+                                  >
+                                    Remove
+                                  </Button>
+                                )
                               )}
                             </>
                           )}

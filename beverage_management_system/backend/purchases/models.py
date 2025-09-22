@@ -68,9 +68,9 @@ class PurchaseOrderItem(models.Model):
     """Model for individual items in a purchase order"""
     purchase_order = models.ForeignKey(PurchaseOrder, on_delete=models.CASCADE, related_name='items')
     product = models.ForeignKey(Product, on_delete=models.CASCADE)
-    quantity_ordered = models.PositiveIntegerField(validators=[MinValueValidator(1)])
-    unit = models.ForeignKey('products.Unit', on_delete=models.PROTECT, null=True, blank=True, help_text="Unit for this order item")
-    unit_cost = models.DecimalField(max_digits=10, decimal_places=2, validators=[MinValueValidator(Decimal('0.01'))])
+    quantity_ordered = models.FloatField(validators=[MinValueValidator(0.001)], help_text="Quantity ordered in base unit")
+    unit = models.ForeignKey('products.Unit', on_delete=models.PROTECT, null=True, blank=True, help_text="Unit for this order item (for display purposes)")
+    unit_cost = models.DecimalField(max_digits=10, decimal_places=2, validators=[MinValueValidator(Decimal('0.01'))], help_text="Cost per unit in the unit used")
     tax_class = models.ForeignKey(TaxClass, on_delete=models.SET_NULL, null=True, blank=True)
     line_total = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal('0.00'))
     tax_amount = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal('0.00'))
@@ -79,9 +79,43 @@ class PurchaseOrderItem(models.Model):
     def __str__(self):
         return f"{self.product.name} - {self.quantity_ordered} units"
     
+    def get_quantity_in_unit(self, unit=None):
+        """Get quantity in a specific unit (defaults to the unit used in this order item)"""
+        if unit is None:
+            unit = self.unit or self.product.base_unit
+        
+        if unit == self.product.base_unit:
+            return self.quantity_ordered
+        
+        # Convert from base unit to the requested unit
+        from products.models import UnitConversion
+        try:
+            conversion = UnitConversion.objects.get(
+                from_unit=self.product.base_unit,
+                to_unit=unit,
+                is_active=True
+            )
+            # For quantities: base * factor = display (e.g., 10.75 pieces * 1 = 10.75 pieces, but 10.75 pieces * 12 = 129 pieces for 12-pack)
+            # Wait, this is wrong. If 1 12-pack = 12 pieces, then to convert from pieces to 12-packs, we divide by 12
+            # So: base / factor = display (e.g., 10.75 pieces / 12 = 0.896 12-packs)
+            return self.quantity_ordered / float(conversion.conversion_factor)
+        except UnitConversion.DoesNotExist:
+            try:
+                conversion = UnitConversion.objects.get(
+                    from_unit=unit,
+                    to_unit=self.product.base_unit,
+                    is_active=True
+                )
+                # If 1 12-pack = 12 pieces, then to convert from pieces to 12-packs, we divide by 12
+                # So: base / factor = display
+                return self.quantity_ordered / float(conversion.conversion_factor)
+            except UnitConversion.DoesNotExist:
+                return self.quantity_ordered
+    
     def save(self, *args, **kwargs):
-        # Calculate line total and tax amount
-        self.line_total = self.quantity_ordered * self.unit_cost
+        # Calculate line total and tax amount based on the display unit quantity
+        display_quantity = self.get_quantity_in_unit(self.unit or self.product.base_unit)
+        self.line_total = Decimal(str(display_quantity)) * Decimal(str(self.unit_cost))
         if self.tax_class and self.tax_class.is_active:
             self.tax_amount = self.line_total * (self.tax_class.tax_rate / 100)
         else:
@@ -91,7 +125,7 @@ class PurchaseOrderItem(models.Model):
         self.purchase_order.calculate_totals()
     
     class Meta:
-        unique_together = ['purchase_order', 'product']
+        unique_together = ['purchase_order', 'product', 'unit']
 
 
 class Delivery(models.Model):
@@ -142,8 +176,8 @@ class Delivery(models.Model):
                     StockMovement.objects.create(
                         product=item.product,
                         movement_type='in',
-                        quantity=item.quantity_received,
-                        unit=item.unit or item.product.base_unit,
+                        quantity=item.quantity_received,  # Already in base unit
+                        unit=item.product.base_unit,  # Use base unit since quantity is in base unit
                         reference_number=f"DEL-{self.delivery_number}",
                         notes=f"Delivery from {self.purchase_order.supplier.name}",
                         created_by=user
@@ -201,9 +235,9 @@ class DeliveryItem(models.Model):
     delivery = models.ForeignKey(Delivery, on_delete=models.CASCADE, related_name='items')
     purchase_order_item = models.ForeignKey(PurchaseOrderItem, on_delete=models.CASCADE)
     product = models.ForeignKey(Product, on_delete=models.CASCADE)
-    quantity_received = models.PositiveIntegerField(default=0, validators=[MinValueValidator(0)])
-    unit = models.ForeignKey('products.Unit', on_delete=models.PROTECT, null=True, blank=True, help_text="Unit for this delivery item")
-    unit_cost = models.DecimalField(max_digits=10, decimal_places=2, validators=[MinValueValidator(Decimal('0.01'))])
+    quantity_received = models.FloatField(default=0, validators=[MinValueValidator(0)], help_text="Quantity received in base unit")
+    unit = models.ForeignKey('products.Unit', on_delete=models.PROTECT, null=True, blank=True, help_text="Unit for this delivery item (for display purposes)")
+    unit_cost = models.DecimalField(max_digits=10, decimal_places=2, validators=[MinValueValidator(Decimal('0.01'))], help_text="Cost per unit in the unit used")
     tax_class = models.ForeignKey(TaxClass, on_delete=models.SET_NULL, null=True, blank=True)
     line_total = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal('0.00'))
     tax_amount = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal('0.00'))
@@ -212,9 +246,40 @@ class DeliveryItem(models.Model):
     def __str__(self):
         return f"{self.product.name} - {self.quantity_received} received"
     
+    def get_quantity_in_unit(self, unit=None):
+        """Get quantity in a specific unit (defaults to the unit used in this delivery item)"""
+        if unit is None:
+            unit = self.unit or self.product.base_unit
+        
+        if unit == self.product.base_unit:
+            return self.quantity_received
+        
+        # Convert from base unit to the requested unit
+        from products.models import UnitConversion
+        try:
+            conversion = UnitConversion.objects.get(
+                from_unit=self.product.base_unit,
+                to_unit=unit,
+                is_active=True
+            )
+            # For quantities: base / factor = display (e.g., 10.75 pieces / 12 = 0.896 12-packs)
+            return self.quantity_received / float(conversion.conversion_factor)
+        except UnitConversion.DoesNotExist:
+            try:
+                conversion = UnitConversion.objects.get(
+                    from_unit=unit,
+                    to_unit=self.product.base_unit,
+                    is_active=True
+                )
+                # For quantities: base / factor = display
+                return self.quantity_received / float(conversion.conversion_factor)
+            except UnitConversion.DoesNotExist:
+                return self.quantity_received
+    
     def save(self, *args, **kwargs):
-        # Calculate line total and tax amount
-        self.line_total = self.quantity_received * self.unit_cost
+        # Calculate line total and tax amount based on the display unit quantity
+        display_quantity = self.get_quantity_in_unit(self.unit or self.product.base_unit)
+        self.line_total = Decimal(str(display_quantity)) * Decimal(str(self.unit_cost))
         if self.tax_class and self.tax_class.is_active:
             self.tax_amount = self.line_total * (self.tax_class.tax_rate / 100)
         else:

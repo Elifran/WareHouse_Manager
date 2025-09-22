@@ -559,7 +559,7 @@ const PointOfSale = () => {
             
             return {
               product: item.id,
-              quantity: item.quantity,
+              quantity: parseFloat(item.quantity),
               unit: parseInt(unitId),
               unit_price: parseFloat(item.unit_price),
               price_mode: item.price_mode || 'standard'
@@ -677,7 +677,7 @@ const PointOfSale = () => {
   };
 
   const handleQuantitySubmit = (item) => {
-    const newQuantity = parseInt(tempQuantity);
+    const newQuantity = parseFloat(tempQuantity);
     
     if (tempQuantity === '' || isNaN(newQuantity) || newQuantity < 0) {
       setError('Please enter a valid quantity');

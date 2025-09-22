@@ -57,7 +57,7 @@ const EditDeliveryModal = ({ delivery, onClose, onSubmit }) => {
         items: formData.items.filter(item => item.quantity_received > 0).map(item => ({
           id: item.id,
           product_id: parseInt(item.product_id),
-          quantity_received: parseInt(item.quantity_received),
+          quantity_received: parseFloat(item.quantity_received),
           unit_cost: parseFloat(item.unit_cost),
           tax_class_id: item.tax_class_id ? parseInt(item.tax_class_id) : null,
           condition_notes: item.condition_notes

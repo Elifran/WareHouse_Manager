@@ -232,6 +232,79 @@ class UnitConversionDetailView(generics.RetrieveUpdateDestroyAPIView):
             return [IsAuthenticated(), IsManagerOrAdmin()]
         return [IsAuthenticated()]
 
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_product_unit_costs(request, product_id):
+    """
+    Get unit costs for a product in all its compatible units
+    """
+    try:
+        product = Product.objects.get(id=product_id)
+    except Product.DoesNotExist:
+        return Response({'error': 'Product not found'}, status=status.HTTP_404_NOT_FOUND)
+    
+    if not product.base_unit:
+        return Response({
+            'product_id': product.id,
+            'product_name': product.name,
+            'unit_costs': []
+        })
+    
+    # Get compatible units for this product
+    compatible_units = product.compatible_units.filter(is_active=True)
+    
+    unit_costs = []
+    
+    # Add base unit
+    unit_costs.append({
+        'id': product.base_unit.id,
+        'name': product.base_unit.name,
+        'symbol': product.base_unit.symbol,
+        'is_base_unit': True,
+        'is_default': False,  # Will be updated below if it's the default
+        'cost_price': float(product.cost_price)
+    })
+    
+    # Add compatible units
+    for compatible_unit in compatible_units:
+        unit = compatible_unit.unit
+        if unit.id == product.base_unit.id:
+            # Update the base unit entry to show if it's default
+            for uc in unit_costs:
+                if uc['id'] == unit.id:
+                    uc['is_default'] = compatible_unit.is_default
+                    break
+            continue
+        
+        # Calculate cost price for this unit
+        cost_in_unit = product.get_cost_price_in_unit(unit)
+        
+        unit_costs.append({
+            'id': unit.id,
+            'name': unit.name,
+            'symbol': unit.symbol,
+            'is_base_unit': False,
+            'is_default': compatible_unit.is_default,
+            'cost_price': float(cost_in_unit) if cost_in_unit else 0
+        })
+    
+    return Response({
+        'product_id': product.id,
+        'product_name': product.name,
+        'base_unit': {
+            'id': product.base_unit.id,
+            'name': product.base_unit.name,
+            'symbol': product.base_unit.symbol
+        },
+        'default_unit': {
+            'id': product.get_default_unit().id,
+            'name': product.get_default_unit().name,
+            'symbol': product.get_default_unit().symbol
+        },
+        'unit_costs': unit_costs
+    })
+
+
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def bulk_stock_availability(request):
@@ -285,7 +358,7 @@ def bulk_stock_availability(request):
                     # Calculate available quantity in this unit
                     # For pack units (e.g., 18-Pack = 18 pieces), conversion_factor is usually > 1
                     # We want to know how many packs we can make from available pieces
-                    available_quantity = int(product.stock_quantity / quantity_conversion_factor)
+                    available_quantity = float(product.stock_quantity / float(quantity_conversion_factor))
                     
                     # Calculate price for this unit using the correct price conversion factor
                     # Use the appropriate base price (standard or wholesale)
@@ -356,13 +429,13 @@ def check_stock_availability(request, product_id):
     for conversion in conversions_from:
         # Calculate how many of this unit are available
         # If 1 carton = 20 pieces, then available cartons = stock_pieces / 20
-        available_quantity = int(product.stock_quantity / conversion.conversion_factor)
+        available_quantity = float(product.stock_quantity / float(conversion.conversion_factor))
         
         available_units.append({
             'id': conversion.to_unit.id,
             'name': conversion.to_unit.name,
             'symbol': conversion.to_unit.symbol,
-            'price': float(product.price * conversion.conversion_factor),
+            'price': float(float(product.price) * float(conversion.conversion_factor)),
             'is_base_unit': False,
             'conversion_factor': float(conversion.conversion_factor),
             'available_quantity': available_quantity,
@@ -379,13 +452,13 @@ def check_stock_availability(request, product_id):
         if not any(unit['id'] == conversion.from_unit.id for unit in available_units):
             # Calculate how many of this unit are available
             # If 1 gony = 50 kg, then available gony = stock_kg / 50
-            available_quantity = int(product.stock_quantity / conversion.conversion_factor)
+            available_quantity = float(product.stock_quantity / float(conversion.conversion_factor))
             
             available_units.append({
                 'id': conversion.from_unit.id,
                 'name': conversion.from_unit.name,
                 'symbol': conversion.from_unit.symbol,
-                'price': float(product.price * conversion.conversion_factor),
+                'price': float(float(product.price) * float(conversion.conversion_factor)),
                 'is_base_unit': False,
                 'conversion_factor': float(conversion.conversion_factor),
                 'available_quantity': available_quantity,

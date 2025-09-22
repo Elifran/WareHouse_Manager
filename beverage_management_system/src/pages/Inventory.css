@@ -555,3 +555,32 @@
   margin-top: 0.25rem;
   display: block;
 }
+
+
+/* Unit indicator styles */
+.input-with-unit {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.input-with-unit input {
+  flex: 1;
+  padding-right: 80px; /* Make space for the unit indicator */
+}
+
+.unit-indicator {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: #f3f4f6;
+  color: #6b7280;
+  font-size: 0.75rem;
+  padding: 2px 6px;
+  border-radius: 4px;
+  border: 1px solid #d1d5db;
+  white-space: nowrap;
+  pointer-events: none;
+  z-index: 1;
+}

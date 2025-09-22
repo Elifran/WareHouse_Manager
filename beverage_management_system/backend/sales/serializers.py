@@ -8,20 +8,73 @@ class SaleItemSerializer(serializers.ModelSerializer):
     product_sku = serializers.CharField(source='product.sku', read_only=True)
     unit_name = serializers.CharField(source='unit.name', read_only=True)
     unit_symbol = serializers.CharField(source='unit.symbol', read_only=True)
+    quantity_display = serializers.SerializerMethodField()
     
     class Meta:
         model = SaleItem
-        fields = ['id', 'product', 'product_name', 'product_sku', 'quantity', 'unit', 'unit_name', 'unit_symbol', 'unit_price', 'unit_cost', 'total_price', 'total_cost', 'price_mode']
+        fields = ['id', 'product', 'product_name', 'product_sku', 'quantity', 'quantity_display', 'unit', 'unit_name', 'unit_symbol', 'unit_price', 'unit_cost', 'total_price', 'total_cost', 'price_mode']
         read_only_fields = ['id', 'total_price', 'unit_cost', 'total_cost']
+    
+    def get_quantity_display(self, obj):
+        """Get quantity in the display unit"""
+        return obj.get_quantity_in_unit(obj.unit or obj.product.base_unit)
     
     def validate_quantity(self, value):
         if value <= 0:
             raise serializers.ValidationError("Quantity must be greater than 0.")
         return value
+    
+    def to_representation(self, instance):
+        """Override to show quantity in display unit"""
+        data = super().to_representation(instance)
+        # Show quantity in the unit used for this sale item
+        data['quantity'] = instance.get_quantity_in_unit(instance.unit or instance.product.base_unit)
+        return data
+    
+    def to_internal_value(self, data):
+        """Override to convert quantity to base unit for storage"""
+        # Convert quantity from display unit to base unit
+        if 'quantity' in data and 'unit' in data:
+            try:
+                from products.models import Unit, UnitConversion
+                
+                unit = Unit.objects.get(id=data['unit'])
+                product_id = data.get('product')
+                if product_id:
+                    from products.models import Product
+                    product = Product.objects.get(id=product_id)
+                    
+                    if unit != product.base_unit:
+                        # The frontend is sending quantities in the selected unit
+                        # We need to convert them to base unit quantities by multiplying by the conversion factor
+                        try:
+                            conversion = UnitConversion.objects.get(
+                                from_unit=unit,
+                                to_unit=product.base_unit,
+                                is_active=True
+                            )
+                            # Always multiply by conversion factor to convert to base unit
+                            # If frontend sends 10 24-Pack, we need 10 × 24 = 240 pieces
+                            data['quantity'] = float(data['quantity']) * float(conversion.conversion_factor)
+                        except UnitConversion.DoesNotExist:
+                            try:
+                                conversion = UnitConversion.objects.get(
+                                    from_unit=product.base_unit,
+                                    to_unit=unit,
+                                    is_active=True
+                                )
+                                # Always multiply by conversion factor to convert to base unit
+                                data['quantity'] = float(data['quantity']) * float(conversion.conversion_factor)
+                            except UnitConversion.DoesNotExist:
+                                pass  # Keep original value if no conversion found
+            except (Unit.DoesNotExist, Product.DoesNotExist, ValueError):
+                pass  # Keep original value if conversion fails
+        
+        return super().to_internal_value(data)
 
 class SaleItemCreateSerializer(serializers.Serializer):
     product = serializers.IntegerField()
-    quantity = serializers.IntegerField()
+    quantity = serializers.FloatField()
     unit = serializers.IntegerField()
     unit_price = serializers.DecimalField(max_digits=10, decimal_places=2)
     price_mode = serializers.ChoiceField(choices=[('standard', 'Standard'), ('wholesale', 'Wholesale')], default='standard')
@@ -43,6 +96,40 @@ class SaleItemCreateSerializer(serializers.Serializer):
             raise serializers.ValidationError(f"Unit must be a valid integer ID, got: {value}")
     
     def validate(self, data):
+        # Convert quantity from display unit to base unit
+        if 'quantity' in data and 'unit' in data and 'product' in data:
+            try:
+                from products.models import Unit, UnitConversion, Product
+                
+                unit = Unit.objects.get(id=data['unit'])
+                product = Product.objects.get(id=data['product'])
+                
+                if unit != product.base_unit:
+                    # The frontend is sending quantities in the selected unit
+                    # We need to convert them to base unit quantities by multiplying by the conversion factor
+                    try:
+                        conversion = UnitConversion.objects.get(
+                            from_unit=unit,
+                            to_unit=product.base_unit,
+                            is_active=True
+                        )
+                        # Always multiply by conversion factor to convert to base unit
+                        # If frontend sends 10 24-Pack, we need 10 × 24 = 240 pieces
+                        data['quantity'] = float(data['quantity']) * float(conversion.conversion_factor)
+                    except UnitConversion.DoesNotExist:
+                        try:
+                            conversion = UnitConversion.objects.get(
+                                from_unit=product.base_unit,
+                                to_unit=unit,
+                                is_active=True
+                            )
+                            # Always multiply by conversion factor to convert to base unit
+                            data['quantity'] = float(data['quantity']) * float(conversion.conversion_factor)
+                        except UnitConversion.DoesNotExist:
+                            pass  # Keep original value if no conversion found
+            except (Unit.DoesNotExist, Product.DoesNotExist, ValueError):
+                pass  # Keep original value if conversion fails
+        
         return data
 
 class PaymentSerializer(serializers.ModelSerializer):
@@ -81,9 +168,7 @@ class SaleCreateSerializer(serializers.ModelSerializer):
         ]
     
     def create(self, validated_data):
-        print(f"SaleCreateSerializer.create - validated_data: {validated_data}")
         items_data = validated_data.pop('items')
-        print(f"SaleCreateSerializer.create - items_data: {items_data}")
         sale = Sale.objects.create(**validated_data)
         
         # Generate sale number

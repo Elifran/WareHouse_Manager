@@ -151,17 +151,8 @@ def complete_sale(request, sale_id):
     
     # Update stock for each item
     for item in sale.items.all():
-        # Calculate quantity in base unit for stock check
-        if item.unit and item.product.base_unit:
-            # Convert quantity from sale unit to base unit
-            base_quantity = item.product.convert_quantity(item.quantity, item.unit, item.product.base_unit)
-            if base_quantity is None:
-                base_quantity = item.quantity
-            else:
-                base_quantity = int(base_quantity)
-        else:
-            # If no unit specified, assume it's already in base unit
-            base_quantity = item.quantity
+        # SaleItem.quantity is already stored in base units, no conversion needed
+        base_quantity = item.quantity
         
         if item.product.stock_quantity < base_quantity:
             return Response({
@@ -174,7 +165,7 @@ def complete_sale(request, sale_id):
             product=item.product,
             movement_type='out',
             quantity=base_quantity,
-            unit=item.product.base_unit,
+            unit=item.product.base_unit,  # Always use base unit for stock movements
             reference_number=sale.sale_number,
             notes=f'Sale {sale.sale_number}',
             created_by=request.user
@@ -305,7 +296,7 @@ def edit_sale(request, sale_id):
     
     for item_data in new_items_data:
         product_id = item_data.get('product')
-        quantity = int(item_data.get('quantity', 0))
+        quantity = float(item_data.get('quantity', 0))
         unit_price = float(item_data.get('unit_price', 0))
         unit_id = item_data.get('unit')
         price_mode = item_data.get('price_mode', 'standard')

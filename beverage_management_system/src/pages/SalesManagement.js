@@ -561,7 +561,7 @@ const SalesManagement = () => {
                           type="number"
                           min="1"
                           value={item.quantity}
-                          onChange={(e) => updateEditItem(index, 'quantity', parseInt(e.target.value) || 1)}
+                          onChange={(e) => updateEditItem(index, 'quantity', parseFloat(e.target.value) || 1)}
                         />
                       </div>
                       

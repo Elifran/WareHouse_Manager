@@ -47,10 +47,10 @@ class SaleItem(models.Model):
     
     sale = models.ForeignKey(Sale, on_delete=models.CASCADE, related_name='items')
     product = models.ForeignKey('products.Product', on_delete=models.CASCADE)
-    quantity = models.PositiveIntegerField(validators=[MinValueValidator(1)])
-    unit = models.ForeignKey('products.Unit', on_delete=models.PROTECT, null=True, blank=True, help_text="Unit used for this sale item")
-    unit_price = models.DecimalField(max_digits=10, decimal_places=2, validators=[MinValueValidator(Decimal('0.01'))])
-    unit_cost = models.DecimalField(max_digits=10, decimal_places=2, default=0, help_text="Cost per unit at time of sale (frozen for historical accuracy)")
+    quantity = models.FloatField(validators=[MinValueValidator(0.001)], help_text="Quantity in base unit")
+    unit = models.ForeignKey('products.Unit', on_delete=models.PROTECT, null=True, blank=True, help_text="Unit used for this sale item (for display purposes)")
+    unit_price = models.DecimalField(max_digits=10, decimal_places=2, validators=[MinValueValidator(Decimal('0.01'))], help_text="Price per unit in the unit used")
+    unit_cost = models.DecimalField(max_digits=10, decimal_places=2, default=0, help_text="Cost per unit in the unit used (frozen for historical accuracy)")
     total_price = models.DecimalField(max_digits=10, decimal_places=2, validators=[MinValueValidator(Decimal('0.01'))])
     total_cost = models.DecimalField(max_digits=10, decimal_places=2, default=0, help_text="Total cost at time of sale (frozen for historical accuracy)")
     price_mode = models.CharField(max_length=20, choices=PRICE_MODE_CHOICES, default='standard', help_text="Price mode used for this sale item")
@@ -58,9 +58,42 @@ class SaleItem(models.Model):
     def __str__(self):
         return f"{self.product.name} x {self.quantity} = {self.total_price}"
     
+    def get_quantity_in_unit(self, unit=None):
+        """Get quantity in a specific unit (defaults to the unit used in this sale item)"""
+        if unit is None:
+            unit = self.unit or self.product.base_unit
+        
+        if unit == self.product.base_unit:
+            return self.quantity
+        
+        # Convert from base unit to the requested unit
+        from products.models import UnitConversion
+        try:
+            conversion = UnitConversion.objects.get(
+                from_unit=self.product.base_unit,
+                to_unit=unit,
+                is_active=True
+            )
+            # For quantities: base / factor = display (e.g., 10.75 pieces / 12 = 0.896 12-packs)
+            return self.quantity / float(conversion.conversion_factor)
+        except UnitConversion.DoesNotExist:
+            try:
+                conversion = UnitConversion.objects.get(
+                    from_unit=unit,
+                    to_unit=self.product.base_unit,
+                    is_active=True
+                )
+                # For quantities: base / factor = display
+                return self.quantity / float(conversion.conversion_factor)
+            except UnitConversion.DoesNotExist:
+                return self.quantity
+    
     def save(self, *args, **kwargs):
-        self.total_price = self.quantity * self.unit_price
-        self.total_cost = self.quantity * self.unit_cost
+        from decimal import Decimal
+        # Calculate total price and cost based on the display unit quantity
+        display_quantity = self.get_quantity_in_unit(self.unit or self.product.base_unit)
+        self.total_price = Decimal(str(display_quantity)) * self.unit_price
+        self.total_cost = Decimal(str(display_quantity)) * self.unit_cost
         super().save(*args, **kwargs)
     
     class Meta:

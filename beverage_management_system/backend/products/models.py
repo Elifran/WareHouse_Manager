@@ -95,9 +95,9 @@ class Product(models.Model):
     price = models.DecimalField(max_digits=10, decimal_places=2, validators=[MinValueValidator(Decimal('0.01'))], help_text="Standard retail price")
     wholesale_price = models.DecimalField(max_digits=10, decimal_places=2, validators=[MinValueValidator(Decimal('0.01'))], null=True, blank=True, help_text="Wholesale price (optional)")
     cost_price = models.DecimalField(max_digits=10, decimal_places=2, validators=[MinValueValidator(Decimal('0.00'))])
-    stock_quantity = models.PositiveIntegerField(default=0)
-    min_stock_level = models.PositiveIntegerField(default=10)
-    max_stock_level = models.PositiveIntegerField(default=1000)
+    stock_quantity = models.FloatField(default=0.0, validators=[MinValueValidator(0.0)])
+    min_stock_level = models.FloatField(default=10.0, validators=[MinValueValidator(0.0)])
+    max_stock_level = models.FloatField(default=1000.0, validators=[MinValueValidator(0.0)])
     unit = models.CharField(max_length=20, default='piece')
     base_unit = models.ForeignKey(Unit, on_delete=models.PROTECT, related_name='base_products', null=True, blank=True, help_text="The smallest unit for this product")
     is_active = models.BooleanField(default=True)
@@ -136,7 +136,7 @@ class Product(models.Model):
                 to_unit=unit,
                 is_active=True
             )
-            return self.stock_quantity / conversion.conversion_factor
+            return self.stock_quantity / float(conversion.conversion_factor)
         except UnitConversion.DoesNotExist:
             # Try reverse conversion
             try:
@@ -145,7 +145,7 @@ class Product(models.Model):
                     to_unit=self.base_unit,
                     is_active=True
                 )
-                return self.stock_quantity * conversion.conversion_factor
+                return self.stock_quantity / float(conversion.conversion_factor)
             except UnitConversion.DoesNotExist:
                 return None
 
@@ -161,7 +161,7 @@ class Product(models.Model):
                 to_unit=to_unit,
                 is_active=True
             )
-            return quantity * conversion.conversion_factor
+            return quantity * float(conversion.conversion_factor)
         except UnitConversion.DoesNotExist:
             # Try reverse conversion
             try:
@@ -170,7 +170,7 @@ class Product(models.Model):
                     to_unit=from_unit,
                     is_active=True
                 )
-                return quantity / conversion.conversion_factor
+                return quantity / float(conversion.conversion_factor)
             except UnitConversion.DoesNotExist:
                 return None
 
@@ -199,6 +199,122 @@ class Product(models.Model):
         
         return units
 
+    def get_price_in_unit(self, unit):
+        """Get price in a specific unit (converted from base unit)"""
+        if unit == self.base_unit:
+            return self.price
+        
+        # Find conversion from base unit to requested unit
+        try:
+            conversion = UnitConversion.objects.get(
+                from_unit=self.base_unit,
+                to_unit=unit,
+                is_active=True
+            )
+            return float(self.price) * float(conversion.conversion_factor)
+        except UnitConversion.DoesNotExist:
+            # Try reverse conversion (this is the common case)
+            try:
+                conversion = UnitConversion.objects.get(
+                    from_unit=unit,
+                    to_unit=self.base_unit,
+                    is_active=True
+                )
+                # If 1 pack = 24 pieces, then to convert from pieces to packs, multiply by 24
+                # Price per piece * pieces per pack = price per pack
+                return float(self.price) * float(conversion.conversion_factor)
+            except UnitConversion.DoesNotExist:
+                return None
+
+    def get_wholesale_price_in_unit(self, unit):
+        """Get wholesale price in a specific unit (converted from base unit)"""
+        if not self.wholesale_price:
+            return None
+            
+        if unit == self.base_unit:
+            return self.wholesale_price
+        
+        # Find conversion from base unit to requested unit
+        try:
+            conversion = UnitConversion.objects.get(
+                from_unit=self.base_unit,
+                to_unit=unit,
+                is_active=True
+            )
+            return float(self.wholesale_price) * float(conversion.conversion_factor)
+        except UnitConversion.DoesNotExist:
+            # Try reverse conversion
+            try:
+                conversion = UnitConversion.objects.get(
+                    from_unit=unit,
+                    to_unit=self.base_unit,
+                    is_active=True
+                )
+                return float(self.wholesale_price) * float(conversion.conversion_factor)
+            except UnitConversion.DoesNotExist:
+                return None
+
+    def get_cost_price_in_unit(self, unit):
+        """Get cost price in a specific unit (converted from base unit)"""
+        if unit == self.base_unit:
+            return self.cost_price
+        
+        # Find conversion from base unit to requested unit
+        try:
+            conversion = UnitConversion.objects.get(
+                from_unit=self.base_unit,
+                to_unit=unit,
+                is_active=True
+            )
+            return float(self.cost_price) * float(conversion.conversion_factor)
+        except UnitConversion.DoesNotExist:
+            # Try reverse conversion
+            try:
+                conversion = UnitConversion.objects.get(
+                    from_unit=unit,
+                    to_unit=self.base_unit,
+                    is_active=True
+                )
+                return float(self.cost_price) * float(conversion.conversion_factor)
+            except UnitConversion.DoesNotExist:
+                return None
+
+    def get_default_unit(self):
+        """Get the default unit for this product"""
+        try:
+            default_product_unit = self.compatible_units.filter(is_default=True).first()
+            return default_product_unit.unit if default_product_unit else self.base_unit
+        except:
+            return self.base_unit
+
+    def get_display_quantity(self, display_unit=None):
+        """Get stock quantity in display unit (default unit if not specified)"""
+        if display_unit is None:
+            display_unit = self.get_default_unit()
+        
+        return self.get_stock_in_unit(display_unit)
+
+    def get_display_price(self, display_unit=None):
+        """Get price in display unit (default unit if not specified)"""
+        if display_unit is None:
+            display_unit = self.get_default_unit()
+        
+        return self.get_price_in_unit(display_unit)
+
+    def get_display_wholesale_price(self, display_unit=None):
+        """Get wholesale price in display unit (default unit if not specified)"""
+        if display_unit is None:
+            display_unit = self.get_default_unit()
+        
+        return self.get_wholesale_price_in_unit(display_unit)
+
+    def get_display_cost_price(self, display_unit=None):
+        """Get cost price in display unit (default unit if not specified)"""
+        if display_unit is None:
+            display_unit = self.get_default_unit()
+        
+        return self.get_cost_price_in_unit(display_unit)
+
 class StockMovement(models.Model):
     MOVEMENT_TYPES = [
         ('in', 'Stock In'),
@@ -209,8 +325,8 @@ class StockMovement(models.Model):
 
     product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name='stock_movements')
     movement_type = models.CharField(max_length=20, choices=MOVEMENT_TYPES)
-    quantity = models.PositiveIntegerField()
-    unit = models.ForeignKey(Unit, on_delete=models.PROTECT, related_name='stock_movements', null=True, blank=True)
+    quantity = models.FloatField(validators=[MinValueValidator(0.0)], help_text="Quantity in base unit")
+    unit = models.ForeignKey(Unit, on_delete=models.PROTECT, related_name='stock_movements', null=True, blank=True, help_text="Unit used for this movement (for display purposes)")
     reference_number = models.CharField(max_length=100, blank=True)
     notes = models.TextField(blank=True)
     created_by = models.ForeignKey('core.User', on_delete=models.SET_NULL, null=True)
@@ -218,6 +334,35 @@ class StockMovement(models.Model):
 
     def __str__(self):
         return f"{self.product.name} - {self.movement_type} {self.quantity} {self.unit.symbol if self.unit else 'units'}"
+    
+    def get_quantity_in_unit(self, unit=None):
+        """Get quantity in a specific unit (defaults to the unit used in this movement)"""
+        if unit is None:
+            unit = self.unit or self.product.base_unit
+        
+        if unit == self.product.base_unit:
+            return self.quantity
+        
+        # Convert from base unit to the requested unit
+        try:
+            conversion = UnitConversion.objects.get(
+                from_unit=self.product.base_unit,
+                to_unit=unit,
+                is_active=True
+            )
+            # For quantities: base / factor = display (e.g., 10.75 pieces / 12 = 0.896 12-packs)
+            return self.quantity / float(conversion.conversion_factor)
+        except UnitConversion.DoesNotExist:
+            try:
+                conversion = UnitConversion.objects.get(
+                    from_unit=unit,
+                    to_unit=self.product.base_unit,
+                    is_active=True
+                )
+                # For quantities: base / factor = display
+                return self.quantity / float(conversion.conversion_factor)
+            except UnitConversion.DoesNotExist:
+                return self.quantity
 
     class Meta:
         ordering = ['-created_at']
