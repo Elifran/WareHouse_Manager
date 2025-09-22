@@ -54,15 +54,19 @@ def generate_sales_report(request):
     include_details = data['include_details']
     group_by = data['group_by']
     
-    # Base queryset
+    # Base queryset (include completed sales and pending sales with paid amounts, exclude canceled sales)
     sales = Sale.objects.filter(
         created_at__date__range=[start_date, end_date],
-        status='completed'
+        status__in=['completed', 'pending'],  # Include completed and pending sales
+        sale_type__in=['sale', 'return']  # Include both regular sales and return sales
+    ).exclude(
+        status='pending',
+        paid_amount=0  # Exclude pending sales with no payment
     )
     
     # Summary data
     summary = sales.aggregate(
-        total_sales=Sum('total_amount'),
+        total_sales=Sum('paid_amount'),  # Use paid_amount as revenue (money actually received)
         total_count=Count('id'),
         total_items=Sum('items__quantity')
     )
@@ -145,9 +149,11 @@ def generate_inventory_report(request):
         products = products.filter(stock_quantity=0)
     
     # Calculate summary
+    from django.db.models import DecimalField
+    
     summary = products.aggregate(
         total_products=Count('id'),
-        total_value=Sum(F('stock_quantity') * F('cost_price')),
+        total_value=Sum(F('stock_quantity') * F('cost_price'), output_field=DecimalField(max_digits=15, decimal_places=2)),
         low_stock_count=Count('id', filter=Q(stock_quantity__lte=F('min_stock_level'))),
         out_of_stock_count=Count('id', filter=Q(stock_quantity=0))
     )
@@ -259,14 +265,18 @@ def dashboard_data(request):
             start_date = this_month
             end_date = today
     
-    # Sales summary for selected period
+    # Sales summary for selected period (include completed sales and pending sales with paid amounts, exclude canceled sales)
     period_sales = Sale.objects.filter(
         created_at__date__range=[start_date, end_date],
-        status='completed'
+        status__in=['completed', 'pending'],  # Include completed and pending sales
+        sale_type__in=['sale', 'return']  # Include both regular sales and return sales
+    ).exclude(
+        status='pending',
+        paid_amount=0  # Exclude pending sales with no payment
     ).aggregate(
-        total_sales=Sum('total_amount'),
+        total_sales=Sum('paid_amount'),  # Use paid_amount as revenue (money actually received)
         total_count=Count('id'),
-        total_cost=Sum('cost_amount')  # Use cost_amount from sales (tax-inclusive pricing)
+        total_cost=Sum('cost_amount')  # Use cost_amount from sales (calculated from stored sale item costs)
     )
     
     # Get total cost from sales cost_amount field (already calculated with tax-inclusive pricing)
@@ -280,16 +290,24 @@ def dashboard_data(request):
         date = today - timedelta(days=i)
         daily_sales = Sale.objects.filter(
             created_at__date=date,
-            status='completed'
+            status__in=['completed', 'pending'],  # Include completed and pending sales
+            sale_type__in=['sale', 'return']  # Include both regular sales and return sales
+        ).exclude(
+            status='pending',
+            paid_amount=0  # Exclude pending sales with no payment
         ).aggregate(
-            total_sales=Sum('total_amount'),
+            total_sales=Sum('paid_amount'),  # Use paid_amount as revenue (money actually received)
             total_count=Count('id')
         )
         
         # Calculate daily cost from sales cost_amount field
         daily_cost_data = Sale.objects.filter(
             created_at__date=date,
-            status='completed'
+            status__in=['completed', 'pending'],  # Include completed and pending sales
+            sale_type__in=['sale', 'return']  # Include both regular sales and return sales
+        ).exclude(
+            status='pending',
+            paid_amount=0  # Exclude pending sales with no payment
         ).aggregate(total_cost=Sum('cost_amount'))
         daily_cost = float(daily_cost_data['total_cost'] or 0)
         
@@ -304,17 +322,23 @@ def dashboard_data(request):
     chart_data.reverse()  # Show oldest to newest
     
     # Inventory summary with cost data
+    from django.db.models import DecimalField
+    
     inventory_summary = Product.objects.filter(is_active=True).aggregate(
         total_products=Count('id'),
         low_stock_count=Count('id', filter=Q(stock_quantity__lte=F('min_stock_level'))),
         out_of_stock_count=Count('id', filter=Q(stock_quantity=0)),
-        total_inventory_value=Sum(F('stock_quantity') * F('cost_price')),
-        total_retail_value=Sum(F('stock_quantity') * F('price'))
+        total_inventory_value=Sum(F('stock_quantity') * F('cost_price'), output_field=DecimalField(max_digits=15, decimal_places=2)),
+        total_retail_value=Sum(F('stock_quantity') * F('price'), output_field=DecimalField(max_digits=15, decimal_places=2))
     )
     
-    # Recent sales
+    # Recent sales (include completed sales and pending sales with paid amounts, exclude canceled sales)
     recent_sales = Sale.objects.filter(
-        status='completed'
+        status__in=['completed', 'pending'],  # Include completed and pending sales
+        sale_type__in=['sale', 'return']  # Include both regular sales and return sales
+    ).exclude(
+        status='pending',
+        paid_amount=0  # Exclude pending sales with no payment
     ).select_related('sold_by').order_by('-created_at')[:5]
     
     recent_sales_data = []
@@ -330,8 +354,12 @@ def dashboard_data(request):
     
     # Top selling products with cost data and unit information
     top_products = SaleItem.objects.filter(
-        sale__status='completed',
-        sale__created_at__date__range=[start_date, end_date]
+        sale__status__in=['completed', 'pending'],  # Include completed and pending sales
+        sale__created_at__date__range=[start_date, end_date],
+        sale__sale_type__in=['sale', 'return']  # Include both regular sales and return sales
+    ).exclude(
+        sale__status='pending',
+        sale__paid_amount=0  # Exclude pending sales with no payment
     ).select_related('product', 'unit', 'product__tax_class').values(
         'product__name', 'product__sku', 'product__tax_class__tax_rate', 'unit__name', 'unit__symbol'
     ).annotate(

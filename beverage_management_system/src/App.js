@@ -2,6 +2,7 @@ import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import Navbar from './components/Navbar';
+import ConnectionStatus from './components/ConnectionStatus';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import Inventory from './pages/Inventory';
@@ -12,6 +13,7 @@ import SystemManagement from './pages/SystemManagement';
 import PrinterSettings from './pages/PrinterSettings';
 import StockMovement from './pages/StockMovement';
 import SalesManagement from './pages/SalesManagement';
+import PendingSales from './pages/PendingSales';
 import PurchaseOrders from './pages/PurchaseOrders';
 import Suppliers from './pages/Suppliers';
 import Reports from './pages/Reports';
@@ -67,6 +69,7 @@ const AppRoutes = () => {
   return (
     <Router>
       <div className="app">
+        <ConnectionStatus />
         {isAuthenticated && <Navbar />}
         <main className="app-main">
           <Routes>
@@ -125,7 +128,7 @@ const AppRoutes = () => {
             <Route 
               path="/printer-settings" 
               element={
-                <RoleProtectedRoute allowedRoles={['admin']}>
+                <RoleProtectedRoute allowedRoles={['admin', 'manager']}>
                   <PrinterSettings />
                 </RoleProtectedRoute>
               } 
@@ -143,6 +146,14 @@ const AppRoutes = () => {
               element={
                 <RoleProtectedRoute allowedRoles={['admin', 'manager']}>
                   <SalesManagement />
+                </RoleProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/pending-sales" 
+              element={
+                <RoleProtectedRoute allowedRoles={['admin', 'manager', 'sales']}>
+                  <PendingSales />
                 </RoleProtectedRoute>
               } 
             />

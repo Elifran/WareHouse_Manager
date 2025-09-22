@@ -62,7 +62,7 @@ const generateInventoryContent = (data) => {
             <td>${item.sku || 'N/A'}</td>
             <td>${item.stock_quantity || 0}</td>
             <td>${item.base_unit?.name || item.base_unit?.symbol || 'piece'}</td>
-            <td>$${parseFloat(item.price || 0).toFixed(2)}</td>
+            <td>${parseFloat(item.price || 0).toFixed(2)} MGA</td>
             <td>${item.category?.name || 'N/A'}</td>
           </tr>
         `).join('') : '<tr><td colspan="6">No products found</td></tr>'}
@@ -108,15 +108,15 @@ const generatePurchaseOrderContent = (data) => {
             <td>${item.product?.name || 'N/A'}</td>
             <td>${item.quantity_ordered || 0}</td>
             <td>${item.unit?.name || item.unit?.symbol || 'piece'}</td>
-            <td>$${parseFloat(item.unit_cost || 0).toFixed(2)}</td>
-            <td>$${parseFloat((item.quantity_ordered || 0) * (item.unit_cost || 0)).toFixed(2)}</td>
+            <td>${parseFloat(item.unit_cost || 0).toFixed(2)} MGA</td>
+            <td>${parseFloat((item.quantity_ordered || 0) * (item.unit_cost || 0)).toFixed(2)} MGA</td>
           </tr>
         `).join('') : ''}
       </tbody>
       <tfoot>
         <tr class="total-row">
           <td colspan="4">Total Amount:</td>
-          <td>$${parseFloat(data.total_amount || 0).toFixed(2)}</td>
+          <td>${parseFloat(data.total_amount || 0).toFixed(2)} MGA</td>
         </tr>
       </tfoot>
     </table>
@@ -160,15 +160,15 @@ const generateDeliveryContent = (data) => {
             <td>${item.product?.name || 'N/A'}</td>
             <td>${item.quantity_received || 0}</td>
             <td>${item.unit?.name || item.unit?.symbol || 'piece'}</td>
-            <td>$${parseFloat(item.unit_cost || 0).toFixed(2)}</td>
-            <td>$${parseFloat((item.quantity_received || 0) * (item.unit_cost || 0)).toFixed(2)}</td>
+            <td>${parseFloat(item.unit_cost || 0).toFixed(2)} MGA</td>
+            <td>${parseFloat((item.quantity_received || 0) * (item.unit_cost || 0)).toFixed(2)} MGA</td>
           </tr>
         `).join('') : ''}
       </tbody>
       <tfoot>
         <tr class="total-row">
           <td colspan="4">Total Amount:</td>
-          <td>$${parseFloat(data.total_amount || 0).toFixed(2)}</td>
+          <td>${parseFloat(data.total_amount || 0).toFixed(2)} MGA</td>
         </tr>
       </tfoot>
     </table>
@@ -178,6 +178,9 @@ const generateDeliveryContent = (data) => {
 const generateSaleContent = (data) => {
   // Debug: Log the data being processed
   console.log('generateSaleContent - Data received:', data);
+  console.log('generateSaleContent - Payment status:', data.payment_status);
+  console.log('generateSaleContent - Paid amount:', data.paid_amount);
+  console.log('generateSaleContent - Remaining amount:', data.remaining_amount);
   console.log('generateSaleContent - Items array:', data.items);
   console.log('generateSaleContent - Items length:', data.items ? data.items.length : 'No items');
   
@@ -219,6 +222,31 @@ const generateSaleContent = (data) => {
         <span class="info-label">Status:</span>
         <span class="info-value">${data.status || 'N/A'}</span>
       </div>
+      <div class="info-row">
+        <span class="info-label">Payment Status:</span>
+        <span class="info-value">${data.payment_status === 'paid' ? 'Paid' : 
+                                   data.payment_status === 'partial' ? 'Partial Payment' : 
+                                   data.payment_status === 'pending' ? 'Pending Payment' : 
+                                   'N/A'}</span>
+      </div>
+      <div class="info-row">
+        <span class="info-label">Total Amount:</span>
+        <span class="info-value">${parseFloat(data.total_amount || 0).toFixed(2)} MGA</span>
+      </div>
+      <div class="info-row">
+        <span class="info-label">Paid Amount:</span>
+        <span class="info-value">${parseFloat(data.paid_amount || 0).toFixed(2)} MGA</span>
+      </div>
+      ${data.payment_status === 'partial' ? `
+        <div class="info-row payment-warning">
+          <span class="info-label">Remaining Amount:</span>
+          <span class="info-value">${parseFloat(data.remaining_amount || 0).toFixed(2)} MGA</span>
+        </div>
+        <div class="info-row payment-warning">
+          <span class="info-label">Due Date:</span>
+          <span class="info-value">${data.due_date || 'To be determined'}</span>
+        </div>
+      ` : ''}
     </div>
     <table>
       <thead>
@@ -234,17 +262,17 @@ const generateSaleContent = (data) => {
         ${items && Array.isArray(items) ? items.map(item => `
           <tr>
             <td>${item.product_name || 'N/A'}</td>
-            <td>${item.quantity || 0}</td>
+            <td>${item.quantity_display || item.quantity || 0}</td>
             <td>${item.unit_name || 'piece'}</td>
-            <td>$${parseFloat(item.unit_price || 0).toFixed(2)}</td>
-            <td>$${parseFloat(item.total_price || 0).toFixed(2)}</td>
+            <td>${parseFloat(item.unit_price || 0).toFixed(2)} MGA</td>
+            <td>${parseFloat(item.total_price || 0).toFixed(2)} MGA</td>
           </tr>
         `).join('') : '<tr><td colspan="5">No items found</td></tr>'}
       </tbody>
       <tfoot>
         <tr class="total-row">
           <td colspan="4">Total Amount:</td>
-          <td>$${parseFloat(data.total_amount || 0).toFixed(2)}</td>
+          <td>${parseFloat(data.total_amount || 0).toFixed(2)} MGA</td>
         </tr>
       </tfoot>
     </table>
@@ -294,7 +322,7 @@ const generateSalesHistoryContent = (data) => {
       </div>
       <div class="info-row">
         <span class="info-label">Total Revenue:</span>
-        <span class="info-value">$${Array.isArray(sales) ? sales.reduce((sum, sale) => sum + parseFloat(sale.total_amount || 0), 0).toFixed(2) : '0.00'}</span>
+        <span class="info-value">${Array.isArray(sales) ? sales.reduce((sum, sale) => sum + parseFloat(sale.total_amount || 0), 0).toFixed(2) : '0.00'} MGA</span>
       </div>
     </div>
     <table>
@@ -313,7 +341,7 @@ const generateSalesHistoryContent = (data) => {
             <td>${sale.sale_number || 'N/A'}</td>
             <td>${sale.customer_name || 'Walk-in Customer'}</td>
             <td>${sale.created_at ? new Date(sale.created_at).toLocaleDateString() : 'N/A'}</td>
-            <td>$${parseFloat(sale.total_amount || 0).toFixed(2)}</td>
+            <td>${parseFloat(sale.total_amount || 0).toFixed(2)} MGA</td>
             <td>${sale.status || 'N/A'}</td>
           </tr>
         `).join('') : ''}
@@ -545,13 +573,23 @@ const PrintButton = ({
       printWindow.document.close();
       
       // Wait for content to load then print
-      printWindow.onload = () => {
+      const printAfterLoad = () => {
         console.log('Print window loaded, starting print...');
         printWindow.focus();
         printWindow.print();
-        printWindow.close();
-        console.log('Print completed');
+        // Close the window after a short delay to allow printing
+        setTimeout(() => {
+          printWindow.close();
+          console.log('Print completed');
+        }, 1000);
       };
+      
+      // Check if window is already loaded
+      if (printWindow.document.readyState === 'complete') {
+        printAfterLoad();
+      } else {
+        printWindow.onload = printAfterLoad;
+      }
       
       // Fallback timeout
       setTimeout(() => {

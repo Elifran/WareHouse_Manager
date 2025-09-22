@@ -44,6 +44,7 @@ const Navbar = () => {
       icon: '💰',
       items: [
         { name: 'Point of Sale', path: '/pos', icon: '🛒' },
+        { name: 'Pending Sales', path: '/pending-sales', icon: '⏳' },
         { name: 'Sales Management', path: '/sales-management', icon: '📊', adminOnly: true }
       ]
     },

@@ -37,6 +37,20 @@
   }
 }
 
+/* Print content styles */
+.payment-warning {
+  background-color: #fef3c7 !important;
+  border: 1px solid #f59e0b !important;
+  color: #92400e !important;
+  font-weight: bold !important;
+}
+
+.payment-warning .info-label,
+.payment-warning .info-value {
+  color: #92400e !important;
+  font-weight: bold !important;
+}
+
 /* Animation for print options */
 .print-options {
   animation: slideDown 0.2s ease-out;

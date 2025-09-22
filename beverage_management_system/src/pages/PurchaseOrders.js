@@ -57,7 +57,7 @@ const EditDeliveryModal = ({ delivery, onClose, onSubmit }) => {
         items: formData.items.filter(item => item.quantity_received > 0).map(item => ({
           id: item.id,
           product_id: parseInt(item.product_id),
-          quantity_received: parseInt(item.quantity_received),
+          quantity_received: parseFloat(item.quantity_received),
           unit_cost: parseFloat(item.unit_cost),
           tax_class_id: item.tax_class_id ? parseInt(item.tax_class_id) : null,
           condition_notes: item.condition_notes
@@ -181,17 +181,17 @@ const EditDeliveryModal = ({ delivery, onClose, onSubmit }) => {
                     value={item.condition_notes}
                     onChange={(e) => handleItemChange(index, 'condition_notes', e.target.value)}
                   />
-                  <span>${calculateItemTotal(item).toFixed(2)}</span>
-                  <span>${calculateTaxAmount(item).toFixed(2)}</span>
+                  <span>{calculateItemTotal(item).toFixed(2)} MGA</span>
+                  <span>{calculateTaxAmount(item).toFixed(2)} MGA</span>
                 </div>
               );
             })}
           </div>
 
           <div className="order-summary">
-            <div>Subtotal: ${totals.subtotal.toFixed(2)}</div>
-            <div>Tax: ${totals.taxAmount.toFixed(2)}</div>
-            <div className="total-amount">Total: ${totals.total.toFixed(2)}</div>
+            <div>Subtotal: {totals.subtotal.toFixed(2)} MGA</div>
+            <div>Tax: {totals.taxAmount.toFixed(2)} MGA</div>
+            <div className="total-amount">Total: {totals.total.toFixed(2)} MGA</div>
           </div>
 
           <div className="modal-actions">
@@ -223,6 +223,7 @@ const PurchaseOrders = () => {
   const [allDeliveries, setAllDeliveries] = useState([]);
   const [pendingDeliveries, setPendingDeliveries] = useState([]);
   const [activeTab, setActiveTab] = useState('orders'); // 'orders', 'pending', 'history'
+  const [orderFilter, setOrderFilter] = useState('active'); // 'active', 'archived'
   const api = useApi();
 
   useEffect(() => {
@@ -302,6 +303,43 @@ const PurchaseOrders = () => {
       } catch (error) {
         console.error('Error archiving purchase order:', error);
         alert('Error archiving purchase order: ' + (error.response?.data?.detail || error.message));
+      }
+    }
+  };
+
+  const handleDeleteOrder = async (orderId) => {
+    if (window.confirm('Are you sure you want to permanently delete this archived purchase order? This action cannot be undone.')) {
+      try {
+        await api.delete(`/purchases/purchase-orders/${orderId}/`);
+        fetchData();
+        alert('Purchase order deleted successfully');
+      } catch (error) {
+        console.error('Error deleting purchase order:', error);
+        alert('Error deleting purchase order: ' + (error.response?.data?.detail || error.message));
+      }
+    }
+  };
+
+  const handleDeleteAllArchived = async () => {
+    const archivedOrders = purchaseOrders.filter(order => order.status === 'archived');
+    if (archivedOrders.length === 0) {
+      alert('No archived orders to delete');
+      return;
+    }
+
+    const confirmMessage = `Are you sure you want to permanently delete ALL ${archivedOrders.length} archived purchase orders? This action cannot be undone.`;
+    if (window.confirm(confirmMessage)) {
+      try {
+        // Delete all archived orders
+        const deletePromises = archivedOrders.map(order => 
+          api.delete(`/purchases/purchase-orders/${order.id}/`)
+        );
+        await Promise.all(deletePromises);
+        fetchData();
+        alert(`Successfully deleted ${archivedOrders.length} archived purchase orders`);
+      } catch (error) {
+        console.error('Error deleting archived orders:', error);
+        alert('Error deleting archived orders: ' + (error.response?.data?.detail || error.message));
       }
     }
   };
@@ -389,7 +427,7 @@ const PurchaseOrders = () => {
     {
       key: 'total_amount',
       label: 'Total Amount',
-      render: (value) => `$${parseFloat(value).toFixed(2)}`
+      render: (value) => `${parseFloat(value).toFixed(2)} MGA`
     },
     {
       key: 'actions',
@@ -442,6 +480,15 @@ const PurchaseOrders = () => {
           >
             View Order
           </Button>
+          {row.status === 'archived' && (
+            <Button
+              size="small"
+              variant="danger"
+              onClick={() => handleDeleteOrder(row.id)}
+            >
+              Delete
+            </Button>
+          )}
         </div>
       )
     }
@@ -471,7 +518,7 @@ const PurchaseOrders = () => {
     {
       key: 'total_amount',
       label: 'Total Amount',
-      render: (value) => `$${parseFloat(value).toFixed(2)}`
+      render: (value) => `${parseFloat(value).toFixed(2)} MGA`
     },
     {
       key: 'actions',
@@ -550,7 +597,7 @@ const PurchaseOrders = () => {
     {
       key: 'total_amount',
       label: 'Total Amount',
-      render: (value) => `$${parseFloat(value).toFixed(2)}`
+      render: (value) => `${parseFloat(value).toFixed(2)} MGA`
     },
     {
       key: 'received_by',
@@ -598,7 +645,14 @@ const PurchaseOrders = () => {
   const getCurrentData = () => {
     switch (activeTab) {
       case 'orders':
-        return { data: purchaseOrders, columns: purchaseOrderColumns, emptyMessage: "No purchase orders found" };
+        const filteredOrders = orderFilter === 'archived' 
+          ? purchaseOrders.filter(order => order.status === 'archived')
+          : purchaseOrders.filter(order => order.status !== 'archived');
+        return { 
+          data: filteredOrders, 
+          columns: purchaseOrderColumns, 
+          emptyMessage: orderFilter === 'archived' ? "No archived purchase orders found" : "No active purchase orders found" 
+        };
       case 'pending':
         return { data: pendingDeliveries, columns: deliveryColumns, emptyMessage: "No pending deliveries" };
       case 'history':
@@ -664,6 +718,49 @@ const PurchaseOrders = () => {
               {activeTab === 'history' && 'Delivery History'}
             </h2>
           </div>
+
+          {/* Order Filter Section - Only show for orders tab */}
+          {activeTab === 'orders' && (
+            <div className="order-filter-section">
+              <div className="filter-buttons">
+                <button 
+                  type="button"
+                  className={`filter-btn ${orderFilter === 'active' ? 'active' : ''}`}
+                  onClick={() => setOrderFilter('active')}
+                >
+                  <span className="filter-icon">📋</span>
+                  Active Orders
+                  <span className="filter-count">
+                    ({purchaseOrders.filter(order => order.status !== 'archived').length})
+                  </span>
+                </button>
+                <button 
+                  type="button"
+                  className={`filter-btn ${orderFilter === 'archived' ? 'active' : ''}`}
+                  onClick={() => setOrderFilter('archived')}
+                >
+                  <span className="filter-icon">📁</span>
+                  Archived Orders
+                  <span className="filter-count">
+                    ({purchaseOrders.filter(order => order.status === 'archived').length})
+                  </span>
+                </button>
+              </div>
+              
+              {/* Delete All Archived Button - Only show when viewing archived orders */}
+              {orderFilter === 'archived' && purchaseOrders.filter(order => order.status === 'archived').length > 0 && (
+                <div className="bulk-actions">
+                  <Button
+                    variant="danger"
+                    size="small"
+                    onClick={handleDeleteAllArchived}
+                  >
+                    🗑️ Delete All Archived
+                  </Button>
+                </div>
+              )}
+            </div>
+          )}
           
           <div className="table-container">
             <Table
@@ -798,9 +895,9 @@ const ViewOrderModal = ({ order, onClose }) => {
                     <span>{item.product?.name}</span>
                     <span>{item.product?.sku}</span>
                     <span>{item.quantity_ordered}</span>
-                    <span>${parseFloat(item.unit_cost).toFixed(2)}</span>
+                    <span>{parseFloat(item.unit_cost).toFixed(2)} MGA</span>
                     <span>{item.tax_class ? `${item.tax_class.name} (${item.tax_class.tax_rate}%)` : 'No Tax'}</span>
-                    <span>${parseFloat(item.line_total).toFixed(2)}</span>
+                    <span>{parseFloat(item.line_total).toFixed(2)} MGA</span>
                   </div>
                 ))}
               </div>
@@ -811,15 +908,15 @@ const ViewOrderModal = ({ order, onClose }) => {
               <div className="summary-grid">
                 <div className="summary-item">
                   <label>Subtotal:</label>
-                  <span>${parseFloat(order.subtotal).toFixed(2)}</span>
+                  <span>{parseFloat(order.subtotal).toFixed(2)} MGA</span>
                 </div>
                 <div className="summary-item">
                   <label>Tax Amount:</label>
-                  <span>${parseFloat(order.tax_amount).toFixed(2)}</span>
+                  <span>{parseFloat(order.tax_amount).toFixed(2)} MGA</span>
                 </div>
                 <div className="summary-item total">
                   <label>Total Amount:</label>
-                  <span>${parseFloat(order.total_amount).toFixed(2)}</span>
+                  <span>{parseFloat(order.total_amount).toFixed(2)} MGA</span>
                 </div>
               </div>
             </div>

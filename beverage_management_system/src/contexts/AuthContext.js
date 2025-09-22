@@ -50,9 +50,19 @@ export const AuthProvider = ({ children }) => {
       return { success: true, user: userData };
     } catch (error) {
       console.error('Login failed:', error);
+      
+      // Handle connection errors
+      if (error.code === 'ECONNREFUSED' || error.message.includes('Network Error') || error.message.includes('ERR_CONNECTION_REFUSED')) {
+        return { 
+          success: false, 
+          error: 'Cannot connect to server. Please check if the backend server is running.' 
+        };
+      }
+      
+      // Handle other errors
       return { 
         success: false, 
-        error: error.response?.data?.detail || 'Login failed' 
+        error: error.response?.data?.detail || error.response?.data?.non_field_errors?.[0] || 'Login failed' 
       };
     }
   };

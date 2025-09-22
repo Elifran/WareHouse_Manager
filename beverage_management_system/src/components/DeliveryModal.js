@@ -9,7 +9,7 @@ const DeliveryModal = ({ purchaseOrder, action = 'create', onClose, onSubmit }) 
     items: (purchaseOrder?.items || []).map(item => ({
       purchase_order_item_id: item.id,
       product_id: item.product.id,
-      quantity_received: item.quantity_ordered,
+      quantity_received: item.quantity_display || item.quantity_ordered, // Use display quantity if available
       unit_id: item.unit?.id || item.unit || '',
       unit_cost: item.unit_cost,
       tax_class_id: item.tax_class?.id || '',
@@ -56,7 +56,7 @@ const DeliveryModal = ({ purchaseOrder, action = 'create', onClose, onSubmit }) 
           ...item,
           purchase_order_item_id: parseInt(item.purchase_order_item_id),
           product_id: parseInt(item.product_id),
-          quantity_received: parseInt(item.quantity_received),
+          quantity_received: parseFloat(item.quantity_received),
           unit_id: item.unit_id ? parseInt(item.unit_id) : null,
           unit_cost: parseFloat(item.unit_cost),
           tax_class_id: item.tax_class_id ? parseInt(item.tax_class_id) : null
@@ -159,7 +159,7 @@ const DeliveryModal = ({ purchaseOrder, action = 'create', onClose, onSubmit }) 
                         <div className="product-name">{originalItem.product.name}</div>
                         <div className="product-sku">SKU: {originalItem.product.sku}</div>
                         <div className="ordered-quantity">
-                          Ordered: {originalItem.quantity_ordered} units
+                          Ordered: {originalItem.quantity_display || originalItem.quantity_ordered} {originalItem.unit?.name || 'units'}
                         </div>
                       </div>
                     </div>
@@ -168,108 +168,23 @@ const DeliveryModal = ({ purchaseOrder, action = 'create', onClose, onSubmit }) 
                       <input
                         type="number"
                         min="0"
-                        max={originalItem.quantity_ordered}
+                        max={originalItem.quantity_display || originalItem.quantity_ordered}
                         value={item.quantity_received}
                         onChange={(e) => handleItemChange(index, 'quantity_received', e.target.value)}
-                        placeholder={`Max: ${originalItem.quantity_ordered}`}
+                        placeholder={`Max: ${originalItem.quantity_display || originalItem.quantity_ordered}`}
                         required
                       />
                     </div>
                     <div className="item-unit">
                       <label>Unit</label>
-                      <select
-                        value={item.unit_id}
-                        onChange={(e) => {
-                          const unitId = e.target.value;
-                          handleItemChange(index, 'unit_id', unitId);
-                          
-                          // Auto-set unit cost based on selected unit's price
-                          if (unitId) {
-                            const selectedUnit = originalItem.product?.compatible_units?.find(u => {
-                              const unit = u.unit || u;
-                              const unitIdFromData = unit?.id || unit;
-                              return unitIdFromData === parseInt(unitId);
-                            });
-                            if (selectedUnit) {
-                              // Calculate unit price based on conversion factor
-                              let unitPrice = originalItem.product?.price || 0;
-                              
-                              // If this is not the base unit, calculate converted price
-                              const unit = selectedUnit.unit || selectedUnit;
-                              const isBaseUnit = unit?.is_base_unit || selectedUnit.unit_is_base;
-                              
-                              if (!isBaseUnit) {
-                                // Find conversion factor from base unit to this unit
-                                const stockInfo = originalItem.product?.stock_in_units?.find(s => s.unit_id === parseInt(unitId));
-                                if (stockInfo) {
-                                  // Use the conversion factor from stock_in_units if available
-                                  const baseQuantity = originalItem.product.stock_quantity || 1;
-                                  const convertedQuantity = stockInfo.quantity || 1;
-                                  const conversionFactor = baseQuantity / convertedQuantity;
-                                  unitPrice = parseFloat(originalItem.product.price) * conversionFactor;
-                                } else {
-                                  // Fallback: try to find conversion in available_units
-                                  const availableUnit = originalItem.product?.available_units?.find(au => au.id === parseInt(unitId));
-                                  if (availableUnit?.conversion_factor) {
-                                    unitPrice = parseFloat(originalItem.product.price) * availableUnit.conversion_factor;
-                                  }
-                                }
-                              }
-                              
-                              handleItemChange(index, 'unit_cost', parseFloat(unitPrice).toFixed(2));
-                            }
-                          }
-                        }}
-                      >
-                        <option value="">Select unit</option>
+                      <div className="readonly-field">
                         {(() => {
-                          if (!originalItem.product?.compatible_units || originalItem.product.compatible_units.length === 0) {
-                            return <option value="">No compatible units available</option>;
-                          }
-                          
-                          return originalItem.product.compatible_units.map(compatibleUnit => {
-                            // Handle both ProductUnit structure (with nested unit) and direct unit structure
-                            const unit = compatibleUnit.unit || compatibleUnit;
-                            const unitId = unit?.id || unit; // unit might be just an ID
-                            const unitName = unit?.name || compatibleUnit.unit_name;
-                            const unitSymbol = unit?.symbol || compatibleUnit.unit_symbol;
-                            
-                            // If unit is just an ID, use the direct fields from compatibleUnit
-                            if (!unitName || !unitSymbol) {
-                              console.warn('Invalid unit data:', compatibleUnit);
-                              return null;
-                            }
-                            
-                            // Calculate unit price based on conversion factor
-                            let unitPrice = originalItem.product?.price || 0;
-                            
-                            // If this is not the base unit, calculate converted price
-                            if (!compatibleUnit.unit_is_base) {
-                              // Find conversion factor from base unit to this unit
-                              const stockInfo = originalItem.product?.stock_in_units?.find(s => s.unit_id === unitId);
-                              if (stockInfo) {
-                                // Use the conversion factor from stock_in_units if available
-                                const baseQuantity = originalItem.product.stock_quantity || 1;
-                                const convertedQuantity = stockInfo.quantity || 1;
-                                const conversionFactor = baseQuantity / convertedQuantity;
-                                unitPrice = parseFloat(originalItem.product.price) * conversionFactor;
-                              } else {
-                                // Fallback: try to find conversion in available_units
-                                const availableUnit = originalItem.product?.available_units?.find(au => au.id === unitId);
-                                if (availableUnit?.conversion_factor) {
-                                  unitPrice = parseFloat(originalItem.product.price) * availableUnit.conversion_factor;
-                                }
-                              }
-                            }
-                            
-                            return (
-                              <option key={unitId} value={unitId}>
-                                {unitName} ({unitSymbol}) - ${parseFloat(unitPrice).toFixed(2)}
-                              </option>
-                            );
-                          }).filter(Boolean);
+                          // Find the unit name from the original purchase order item
+                          const unitName = originalItem.unit?.name || 'Unknown Unit';
+                          const unitSymbol = originalItem.unit?.symbol || '';
+                          return `${unitName} (${unitSymbol})`;
                         })()}
-                      </select>
+                      </div>
                     </div>
                     <div className="item-cost">
                       <label>Unit Cost *</label>
@@ -285,10 +200,10 @@ const DeliveryModal = ({ purchaseOrder, action = 'create', onClose, onSubmit }) 
                     <div className="item-total">
                       <label>Line Total</label>
                       <div className="total-display">
-                        ${calculateItemTotal(item).toFixed(2)}
+                        {calculateItemTotal(item).toFixed(2)} MGA
                         {originalItem.tax_class && (
                           <span className="tax-amount">
-                            + ${calculateTaxAmount(item).toFixed(2)} tax
+                            + {calculateTaxAmount(item).toFixed(2)} MGA tax
                           </span>
                         )}
                       </div>
@@ -312,15 +227,15 @@ const DeliveryModal = ({ purchaseOrder, action = 'create', onClose, onSubmit }) 
             <div className="totals-section">
               <div className="totals-row">
                 <span>Subtotal:</span>
-                <span>${totals.subtotal.toFixed(2)}</span>
+                <span>{totals.subtotal.toFixed(2)} MGA</span>
               </div>
               <div className="totals-row">
                 <span>Tax Amount:</span>
-                <span>${totals.taxAmount.toFixed(2)}</span>
+                <span>{totals.taxAmount.toFixed(2)} MGA</span>
               </div>
               <div className="totals-row total-row">
                 <span>Total Amount:</span>
-                <span>${totals.total.toFixed(2)}</span>
+                <span>{totals.total.toFixed(2)} MGA</span>
               </div>
             </div>
           )}

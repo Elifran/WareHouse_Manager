@@ -303,8 +303,26 @@ const SystemManagement = () => {
   // Units Functions
   const fetchUnits = async () => {
     try {
-      const response = await api.get('/products/units/');
-      setUnits(response.data.results || response.data);
+      let allUnits = [];
+      let nextUrl = '/products/units/';
+      
+      // Fetch all pages of units to ensure we get all base units (including inactive ones)
+      while (nextUrl) {
+        const response = await api.get(nextUrl);
+        const data = response.data;
+        
+        if (data.results) {
+          // Paginated response
+          allUnits = [...allUnits, ...data.results];
+          nextUrl = data.next;
+        } else {
+          // Non-paginated response
+          allUnits = data;
+          nextUrl = null;
+        }
+      }
+      
+      setUnits(allUnits);
     } catch (err) {
       console.error('Units error:', err);
     }
@@ -408,8 +426,26 @@ const SystemManagement = () => {
   // Unit Conversions Functions
   const fetchUnitConversions = async () => {
     try {
-      const response = await api.get('/products/unit-conversions/');
-      setUnitConversions(response.data.results || response.data);
+      let allConversions = [];
+      let nextUrl = '/products/unit-conversions/';
+      
+      // Fetch all pages of unit conversions
+      while (nextUrl) {
+        const response = await api.get(nextUrl);
+        const data = response.data;
+        
+        if (data.results) {
+          // Paginated response
+          allConversions = [...allConversions, ...data.results];
+          nextUrl = data.next;
+        } else {
+          // Non-paginated response
+          allConversions = data;
+          nextUrl = null;
+        }
+      }
+      
+      setUnitConversions(allConversions);
     } catch (err) {
       console.error('Unit conversions error:', err);
     }
@@ -1128,11 +1164,18 @@ const SystemManagement = () => {
                   required
                 >
                   <option value="">Select From Unit</option>
-                  {units.map(unit => (
-                    <option key={unit.id} value={unit.id}>
-                      {unit.name} ({unit.symbol})
-                    </option>
-                  ))}
+                  {units
+                    .sort((a, b) => {
+                      // Sort base units first, then by name
+                      if (a.is_base_unit && !b.is_base_unit) return -1;
+                      if (!a.is_base_unit && b.is_base_unit) return 1;
+                      return a.name.localeCompare(b.name);
+                    })
+                    .map(unit => (
+                      <option key={unit.id} value={unit.id} disabled={!unit.is_active}>
+                        {unit.name} ({unit.symbol}){unit.is_base_unit ? ' - BASE UNIT' : ''}{!unit.is_active ? ' - INACTIVE' : ''}
+                      </option>
+                    ))}
                 </select>
               </div>
 
@@ -1145,11 +1188,18 @@ const SystemManagement = () => {
                   required
                 >
                   <option value="">Select To Unit</option>
-                  {units.map(unit => (
-                    <option key={unit.id} value={unit.id}>
-                      {unit.name} ({unit.symbol})
-                    </option>
-                  ))}
+                  {units
+                    .sort((a, b) => {
+                      // Sort base units first, then by name
+                      if (a.is_base_unit && !b.is_base_unit) return -1;
+                      if (!a.is_base_unit && b.is_base_unit) return 1;
+                      return a.name.localeCompare(b.name);
+                    })
+                    .map(unit => (
+                      <option key={unit.id} value={unit.id} disabled={!unit.is_active}>
+                        {unit.name} ({unit.symbol}){unit.is_base_unit ? ' - BASE UNIT' : ''}{!unit.is_active ? ' - INACTIVE' : ''}
+                      </option>
+                    ))}
                 </select>
               </div>
 

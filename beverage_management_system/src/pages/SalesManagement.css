@@ -227,9 +227,210 @@
   color: #3730a3;
 }
 
+.status-refunded {
+  background-color: #fef3c7;
+  color: #92400e;
+}
+
+.status-partial {
+  background-color: #fef3c7;
+  color: #92400e;
+}
+
 .action-buttons {
   display: flex;
   gap: 0.5rem;
+}
+
+.payment-info {
+  background-color: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.5rem;
+  padding: 1rem;
+  margin-bottom: 1rem;
+}
+
+.payment-info p {
+  margin: 0.5rem 0;
+  font-size: 0.9rem;
+}
+
+.payment-info strong {
+  color: #374151;
+}
+
+.payment-status-indicator {
+  margin-top: 0.5rem;
+  padding: 0.25rem 0.5rem;
+  background-color: #fef3c7;
+  border: 1px solid #f59e0b;
+  border-radius: 0.25rem;
+  font-size: 0.75rem;
+}
+
+.payment-warning {
+  color: #92400e;
+  font-weight: 500;
+}
+
+.status-container {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.sale-status {
+  display: flex;
+  align-items: center;
+}
+
+.payment-status {
+  display: flex;
+  align-items: center;
+}
+
+.payment-badge {
+  display: inline-block;
+  padding: 0.125rem 0.375rem;
+  border-radius: 0.25rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.025em;
+}
+
+.payment-pending {
+  background-color: #fee2e2;
+  color: #991b1b;
+}
+
+.payment-partial {
+  background-color: #fef3c7;
+  color: #92400e;
+}
+
+.payment-paid {
+  background-color: #d1fae5;
+  color: #065f46;
+}
+
+.amount-container {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.total-amount {
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.payment-details {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+}
+
+.payment-details small {
+  font-size: 0.75rem;
+  color: #6b7280;
+}
+
+.payment-section {
+  margin-top: 1.5rem;
+  padding: 1rem;
+  background-color: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.5rem;
+}
+
+.payment-section h3 {
+  margin-top: 0;
+  margin-bottom: 1rem;
+  color: #374151;
+  font-size: 1.1rem;
+}
+
+.view-only-badge {
+  display: inline-block;
+  margin-left: 0.5rem;
+  padding: 0.25rem 0.5rem;
+  background-color: #fef3c7;
+  color: #92400e;
+  border: 1px solid #f59e0b;
+  border-radius: 0.25rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.025em;
+}
+
+.read-only-input {
+  background-color: #f9fafb !important;
+  color: #6b7280 !important;
+  cursor: not-allowed !important;
+  border-color: #d1d5db !important;
+}
+
+.read-only-input:focus {
+  outline: none !important;
+  box-shadow: none !important;
+  border-color: #d1d5db !important;
+}
+
+/* Payment Method Styles */
+.payment-method-select {
+  padding: 0.25rem 0.5rem;
+  border: 1px solid #d1d5db;
+  border-radius: 0.25rem;
+  background-color: #ffffff;
+  font-size: 0.875rem;
+  color: #374151;
+  cursor: pointer;
+  transition: border-color 0.2s ease-in-out;
+}
+
+.payment-method-select:hover {
+  border-color: #3b82f6;
+}
+
+.payment-method-select:focus {
+  outline: none;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 1px #3b82f6;
+}
+
+.payment-method-display {
+  display: inline-block;
+  padding: 0.25rem 0.5rem;
+  background-color: #f3f4f6;
+  border: 1px solid #e5e7eb;
+  border-radius: 0.25rem;
+  font-size: 0.875rem;
+  color: #374151;
+  font-weight: 500;
+}
+
+/* Payment Amount Styles */
+.payment-amount-container {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.paid-amount {
+  font-weight: 600;
+  font-size: 0.9rem;
+  color: #059669;
+}
+
+.remaining-amount {
+  font-size: 0.75rem;
+  color: #dc2626;
+}
+
+.remaining-amount small {
+  font-weight: 500;
 }
 
 /* Modal Styles */
@@ -401,4 +602,41 @@
   .modal-header {
     padding: 1rem;
   }
+}
+
+/* Price Mode Badge */
+.price-mode-badge {
+  display: inline-block;
+  padding: 0.125rem 0.375rem;
+  border-radius: 0.25rem;
+  font-size: 0.625rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  margin-left: 0.5rem;
+}
+
+.price-mode-badge.standard {
+  background-color: #dbeafe;
+  color: #1e40af;
+  border: 1px solid #93c5fd;
+}
+
+.price-mode-badge.wholesale {
+  background-color: #fef3c7;
+  color: #92400e;
+  border: 1px solid #fcd34d;
+}
+
+/* Readonly field styles */
+.readonly-field {
+  background-color: #f9fafb;
+  color: #6b7280;
+  border: 1px solid #e5e7eb;
+  cursor: not-allowed;
+}
+
+.readonly-field:focus {
+  outline: none;
+  border-color: #e5e7eb;
+  box-shadow: none;
 }

@@ -10,13 +10,14 @@ from .serializers import (
     CategorySerializer, ProductSerializer, ProductListSerializer, 
     StockMovementSerializer, TaxClassSerializer, UnitSerializer, UnitConversionSerializer, ProductUnitSerializer
 )
-from .utils import get_unit_conversion_factor
+from .utils import get_unit_conversion_factor, get_price_conversion_factor
 
 class CategoryListCreateView(generics.ListCreateAPIView):
     queryset = Category.objects.all()
     serializer_class = CategorySerializer
     permission_classes = [IsAuthenticated]
-    filter_backends = [filters.SearchFilter, filters.OrderingFilter]
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filterset_fields = ['is_sellable']
     search_fields = ['name', 'description']
     ordering_fields = ['name', 'created_at']
     ordering = ['name']
@@ -231,6 +232,79 @@ class UnitConversionDetailView(generics.RetrieveUpdateDestroyAPIView):
             return [IsAuthenticated(), IsManagerOrAdmin()]
         return [IsAuthenticated()]
 
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_product_unit_costs(request, product_id):
+    """
+    Get unit costs for a product in all its compatible units
+    """
+    try:
+        product = Product.objects.get(id=product_id)
+    except Product.DoesNotExist:
+        return Response({'error': 'Product not found'}, status=status.HTTP_404_NOT_FOUND)
+    
+    if not product.base_unit:
+        return Response({
+            'product_id': product.id,
+            'product_name': product.name,
+            'unit_costs': []
+        })
+    
+    # Get compatible units for this product
+    compatible_units = product.compatible_units.filter(is_active=True)
+    
+    unit_costs = []
+    
+    # Add base unit
+    unit_costs.append({
+        'id': product.base_unit.id,
+        'name': product.base_unit.name,
+        'symbol': product.base_unit.symbol,
+        'is_base_unit': True,
+        'is_default': False,  # Will be updated below if it's the default
+        'cost_price': float(product.cost_price)
+    })
+    
+    # Add compatible units
+    for compatible_unit in compatible_units:
+        unit = compatible_unit.unit
+        if unit.id == product.base_unit.id:
+            # Update the base unit entry to show if it's default
+            for uc in unit_costs:
+                if uc['id'] == unit.id:
+                    uc['is_default'] = compatible_unit.is_default
+                    break
+            continue
+        
+        # Calculate cost price for this unit
+        cost_in_unit = product.get_cost_price_in_unit(unit)
+        
+        unit_costs.append({
+            'id': unit.id,
+            'name': unit.name,
+            'symbol': unit.symbol,
+            'is_base_unit': False,
+            'is_default': compatible_unit.is_default,
+            'cost_price': float(cost_in_unit) if cost_in_unit else 0
+        })
+    
+    return Response({
+        'product_id': product.id,
+        'product_name': product.name,
+        'base_unit': {
+            'id': product.base_unit.id,
+            'name': product.base_unit.name,
+            'symbol': product.base_unit.symbol
+        },
+        'default_unit': {
+            'id': product.get_default_unit().id,
+            'name': product.get_default_unit().name,
+            'symbol': product.get_default_unit().symbol
+        },
+        'unit_costs': unit_costs
+    })
+
+
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def bulk_stock_availability(request):
@@ -238,6 +312,7 @@ def bulk_stock_availability(request):
     Check stock availability for multiple products at once
     """
     product_ids = request.data.get('product_ids', [])
+    
     if not product_ids:
         return Response({'error': 'product_ids is required'}, status=status.HTTP_400_BAD_REQUEST)
     
@@ -274,17 +349,22 @@ def bulk_stock_availability(request):
                     continue  # Skip base unit as it's already added
                 
                 # Get conversion factor
-                from .utils import get_unit_conversion_factor
-                conversion_factor = get_unit_conversion_factor(product.base_unit.id, unit.id)
+                from .utils import get_unit_conversion_factor, get_price_conversion_factor
+                quantity_conversion_factor = get_unit_conversion_factor(unit.id, product.base_unit.id)
+                # For pricing, we want to convert FROM base unit TO the unit (e.g., Piece -> 12-Pack)
+                price_conversion_factor = get_price_conversion_factor(product.base_unit.id, unit.id)
                 
-                if conversion_factor:
+                if quantity_conversion_factor:
                     # Calculate available quantity in this unit
                     # For pack units (e.g., 18-Pack = 18 pieces), conversion_factor is usually > 1
                     # We want to know how many packs we can make from available pieces
-                    available_quantity = int(product.stock_quantity / conversion_factor)
+                    available_quantity = float(product.stock_quantity / float(quantity_conversion_factor))
                     
-                    # Calculate price for this unit
-                    unit_price = float(product.price) * conversion_factor
+                    # Calculate price for this unit using the correct price conversion factor
+                    # Use the appropriate base price (standard or wholesale)
+                    from decimal import Decimal
+                    base_price = Decimal(str(product.price))  # Convert to Decimal for consistency
+                    unit_price = float(base_price * price_conversion_factor)  # Convert result back to float
                     
                     available_units.append({
                         'id': unit.id,
@@ -292,7 +372,7 @@ def bulk_stock_availability(request):
                         'symbol': unit.symbol,
                         'price': unit_price,
                         'is_base_unit': False,
-                        'conversion_factor': conversion_factor,
+                        'conversion_factor': quantity_conversion_factor,
                         'available_quantity': available_quantity,
                         'is_available': available_quantity > 0
                     })
@@ -349,13 +429,13 @@ def check_stock_availability(request, product_id):
     for conversion in conversions_from:
         # Calculate how many of this unit are available
         # If 1 carton = 20 pieces, then available cartons = stock_pieces / 20
-        available_quantity = int(product.stock_quantity / conversion.conversion_factor)
+        available_quantity = float(product.stock_quantity / float(conversion.conversion_factor))
         
         available_units.append({
             'id': conversion.to_unit.id,
             'name': conversion.to_unit.name,
             'symbol': conversion.to_unit.symbol,
-            'price': float(product.price * conversion.conversion_factor),
+            'price': float(float(product.price) * float(conversion.conversion_factor)),
             'is_base_unit': False,
             'conversion_factor': float(conversion.conversion_factor),
             'available_quantity': available_quantity,
@@ -372,13 +452,13 @@ def check_stock_availability(request, product_id):
         if not any(unit['id'] == conversion.from_unit.id for unit in available_units):
             # Calculate how many of this unit are available
             # If 1 gony = 50 kg, then available gony = stock_kg / 50
-            available_quantity = int(product.stock_quantity / conversion.conversion_factor)
+            available_quantity = float(product.stock_quantity / float(conversion.conversion_factor))
             
             available_units.append({
                 'id': conversion.from_unit.id,
                 'name': conversion.from_unit.name,
                 'symbol': conversion.from_unit.symbol,
-                'price': float(product.price * conversion.conversion_factor),
+                'price': float(float(product.price) * float(conversion.conversion_factor)),
                 'is_base_unit': False,
                 'conversion_factor': float(conversion.conversion_factor),
                 'available_quantity': available_quantity,
@@ -455,3 +535,146 @@ def get_product_compatible_units(request, product_id):
         'product_name': product.name,
         'compatible_units': serializer.data
     })
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_product_available_units(request, product_id):
+    """Get units that can be added as compatible units for a product"""
+    try:
+        product = Product.objects.get(id=product_id)
+    except Product.DoesNotExist:
+        return Response({'error': 'Product not found'}, status=status.HTTP_404_NOT_FOUND)
+    
+    if not product.base_unit:
+        return Response({
+            'product_id': product.id,
+            'product_name': product.name,
+            'available_units': []
+        })
+    
+    # Get units that have conversions with the product's base unit
+    base_unit = product.base_unit
+    
+    # Units that can convert TO the base unit
+    conversions_to_base = UnitConversion.objects.filter(
+        to_unit=base_unit,
+        is_active=True
+    ).values_list('from_unit', flat=True)
+    
+    # Units that the base unit can convert TO (reverse conversions)
+    conversions_from_base = UnitConversion.objects.filter(
+        from_unit=base_unit,
+        is_active=True
+    ).values_list('to_unit', flat=True)
+    
+    # Combine both sets and get unique units
+    available_unit_ids = set(conversions_to_base) | set(conversions_from_base)
+    
+    # Exclude the base unit itself
+    available_unit_ids.discard(base_unit.id)
+    
+    # Get the units
+    available_units = Unit.objects.filter(
+        id__in=available_unit_ids,
+        is_active=True
+    ).order_by('name')
+    
+    serializer = UnitSerializer(available_units, many=True)
+    
+    return Response({
+        'product_id': product.id,
+        'product_name': product.name,
+        'base_unit': {
+            'id': base_unit.id,
+            'name': base_unit.name,
+            'symbol': base_unit.symbol
+        },
+        'available_units': serializer.data
+    })
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_price_conversion_factor_api(request):
+    """
+    Get price conversion factor between two units
+    """
+    from_unit_id = request.GET.get('from_unit_id')
+    to_unit_id = request.GET.get('to_unit_id')
+    
+    if not from_unit_id or not to_unit_id:
+        return Response({
+            'error': 'from_unit_id and to_unit_id are required'
+        }, status=status.HTTP_400_BAD_REQUEST)
+    
+    try:
+        from_unit = Unit.objects.get(id=from_unit_id)
+        to_unit = Unit.objects.get(id=to_unit_id)
+        
+        conversion_factor = get_price_conversion_factor(from_unit_id, to_unit_id)
+        
+        return Response({
+            'from_unit': {
+                'id': from_unit.id,
+                'name': from_unit.name,
+                'symbol': from_unit.symbol
+            },
+            'to_unit': {
+                'id': to_unit.id,
+                'name': to_unit.name,
+                'symbol': to_unit.symbol
+            },
+            'conversion_factor': float(conversion_factor)
+        })
+        
+    except Unit.DoesNotExist:
+        return Response({
+            'error': 'One or both units not found'
+        }, status=status.HTTP_404_NOT_FOUND)
+    except Exception as e:
+        return Response({
+            'error': str(e)
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_quantity_conversion_factor_api(request):
+    """
+    Get quantity conversion factor between two units
+    """
+    from_unit_id = request.GET.get('from_unit_id')
+    to_unit_id = request.GET.get('to_unit_id')
+    
+    if not from_unit_id or not to_unit_id:
+        return Response({
+            'error': 'from_unit_id and to_unit_id are required'
+        }, status=status.HTTP_400_BAD_REQUEST)
+    
+    try:
+        from_unit = Unit.objects.get(id=from_unit_id)
+        to_unit = Unit.objects.get(id=to_unit_id)
+        
+        conversion_factor = get_unit_conversion_factor(from_unit_id, to_unit_id)
+        
+        return Response({
+            'from_unit': {
+                'id': from_unit.id,
+                'name': from_unit.name,
+                'symbol': from_unit.symbol
+            },
+            'to_unit': {
+                'id': to_unit.id,
+                'name': to_unit.name,
+                'symbol': to_unit.symbol
+            },
+            'conversion_factor': float(conversion_factor)
+        })
+        
+    except Unit.DoesNotExist:
+        return Response({
+            'error': 'One or both units not found'
+        }, status=status.HTTP_404_NOT_FOUND)
+    except Exception as e:
+        return Response({
+            'error': str(e)
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+

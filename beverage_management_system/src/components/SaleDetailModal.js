@@ -38,7 +38,7 @@ const SaleDetailModal = ({ sale, onClose, loading = false }) => {
   };
 
   const formatCurrency = (amount) => {
-    return `$${parseFloat(amount).toFixed(2)}`;
+    return `${parseFloat(amount).toFixed(2)} MGA`;
   };
 
   return (
@@ -127,7 +127,9 @@ const SaleDetailModal = ({ sale, onClose, loading = false }) => {
                   <div className="col-product">Product</div>
                   <div className="col-sku">SKU</div>
                   <div className="col-quantity">Qty</div>
+                  <div className="col-unit">Unit</div>
                   <div className="col-price">Unit Price</div>
+                  <div className="col-mode">Mode</div>
                   <div className="col-total">Total</div>
                 </div>
                 {sale.items.map((item, index) => (
@@ -136,8 +138,16 @@ const SaleDetailModal = ({ sale, onClose, loading = false }) => {
                       <div className="product-name">{item.product_name}</div>
                     </div>
                     <div className="col-sku">{item.product_sku}</div>
-                    <div className="col-quantity">{item.quantity}</div>
+                    <div className="col-quantity">{item.quantity_display || item.quantity}</div>
+                    <div className="col-unit">
+                      {item.unit_name ? `${item.unit_name} (${item.unit_symbol || ''})` : 'N/A'}
+                    </div>
                     <div className="col-price">{formatCurrency(item.unit_price)}</div>
+                    <div className="col-mode">
+                      <span className={`price-mode-badge ${item.price_mode || 'standard'}`}>
+                        {item.price_mode === 'wholesale' ? 'WS' : 'STD'}
+                      </span>
+                    </div>
                     <div className="col-total">{formatCurrency(item.total_price)}</div>
                   </div>
                 ))}

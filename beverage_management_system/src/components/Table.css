@@ -44,6 +44,13 @@
   border-bottom: 1px solid #f3f4f6;
 }
 
+/* Ensure proper alignment for specific content types */
+.table-cell .sale-items {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
 .table-loading {
   display: flex;
   flex-direction: column;

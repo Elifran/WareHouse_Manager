@@ -151,17 +151,8 @@ def complete_sale(request, sale_id):
     
     # Update stock for each item
     for item in sale.items.all():
-        # Calculate quantity in base unit for stock check
-        if item.unit and item.product.base_unit:
-            # Convert quantity from sale unit to base unit
-            base_quantity = item.product.convert_quantity(item.quantity, item.unit, item.product.base_unit)
-            if base_quantity is None:
-                base_quantity = item.quantity
-            else:
-                base_quantity = int(base_quantity)
-        else:
-            # If no unit specified, assume it's already in base unit
-            base_quantity = item.quantity
+        # SaleItem.quantity is already stored in base units, no conversion needed
+        base_quantity = item.quantity
         
         if item.product.stock_quantity < base_quantity:
             return Response({
@@ -174,7 +165,7 @@ def complete_sale(request, sale_id):
             product=item.product,
             movement_type='out',
             quantity=base_quantity,
-            unit=item.product.base_unit,
+            unit=item.product.base_unit,  # Always use base unit for stock movements
             reference_number=sale.sale_number,
             notes=f'Sale {sale.sale_number}',
             created_by=request.user
@@ -182,6 +173,9 @@ def complete_sale(request, sale_id):
         
         # Ensure the product stock is updated by refreshing from database
         item.product.refresh_from_db()
+    
+    # Recalculate totals to ensure accuracy before completing
+    sale.calculate_totals()
     
     # Update sale status
     sale.status = 'completed'
@@ -193,7 +187,7 @@ def complete_sale(request, sale_id):
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def cancel_sale(request, sale_id):
-    """Cancel a sale"""
+    """Cancel a sale with different behaviors for pending vs confirmed sales"""
     try:
         sale = Sale.objects.get(id=sale_id)
     except Sale.DoesNotExist:
@@ -202,11 +196,79 @@ def cancel_sale(request, sale_id):
     if sale.status not in ['pending', 'completed']:
         return Response({'error': 'Sale cannot be cancelled'}, status=status.HTTP_400_BAD_REQUEST)
     
-    sale.status = 'cancelled'
-    sale.save()
+    if sale.status == 'pending':
+        # For pending sales: just cancel them (no database impact)
+        sale.status = 'cancelled'
+        sale.save()
+        
+    elif sale.status == 'completed':
+        # For confirmed sales: create a return to restore stock and mark as returned
+        # Create a return sale with the same items
+        return_sale = Sale.objects.create(
+            sale_type='return',
+            original_sale=sale,
+            customer_name=sale.customer_name,
+            customer_phone=sale.customer_phone,
+            customer_email=sale.customer_email,
+            payment_method=sale.payment_method,
+            status='completed',  # Mark return as completed immediately
+            sold_by=request.user
+        )
+        
+        # Generate return sale number
+        return_sale.sale_number = f"RET-{return_sale.id:06d}"
+        return_sale.save()
+        
+        # Create return items (same as original sale items)
+        for original_item in sale.items.all():
+            SaleItem.objects.create(
+                sale=return_sale,
+                product=original_item.product,
+                quantity=original_item.quantity,
+                unit=original_item.unit,
+                unit_price=original_item.unit_price,
+                unit_cost=original_item.unit_cost,
+                total_price=original_item.total_price,
+                total_cost=original_item.total_cost,
+                price_mode=original_item.price_mode,
+                original_sale_item=original_item
+            )
+            
+            # Restore stock by creating a stock movement
+            from products.models import StockMovement
+            StockMovement.objects.create(
+                product=original_item.product,
+                movement_type='return',
+                quantity=original_item.quantity,
+                unit=original_item.product.base_unit,
+                reference_number=return_sale.sale_number,
+                notes=f'Return from cancelled sale {sale.sale_number}',
+                created_by=request.user
+            )
+        
+        # Calculate return totals
+        return_sale.calculate_totals()
+        
+        # Mark original sale as refunded
+        sale.status = 'refunded'
+        sale.save()
+        
+        # Return the return sale data
+        serializer = SaleSerializer(return_sale)
+        return Response({
+            'message': 'Sale cancelled and stock restored',
+            'return_sale': serializer.data,
+            'original_sale_status': 'refunded',
+            'refund_amount': float(sale.paid_amount),  # Amount to be refunded to customer
+            'original_sale_number': sale.sale_number
+        })
     
+    # For pending sales, return the cancelled sale
     serializer = SaleSerializer(sale)
-    return Response(serializer.data)
+    return Response({
+        'message': 'Pending sale cancelled',
+        'sale': serializer.data
+    })
 
 @api_view(['DELETE'])
 @permission_classes([IsAuthenticated])
@@ -269,7 +331,9 @@ def delete_sales(request):
 @api_view(['PUT'])
 @permission_classes([IsAuthenticated])
 def edit_sale(request, sale_id):
-    """Edit a sale for returns or modifications"""
+    """Edit a sale - only allow quantity changes"""
+    from products.models import Product, StockMovement
+    
     # Only allow admin and manager roles to edit sales
     if request.user.role not in ['admin', 'manager']:
         return Response({'error': 'Permission denied'}, status=status.HTTP_403_FORBIDDEN)
@@ -282,137 +346,222 @@ def edit_sale(request, sale_id):
     if sale.status not in ['completed', 'pending']:
         return Response({'error': 'Sale cannot be edited'}, status=status.HTTP_400_BAD_REQUEST)
     
+    # Prevent editing of completed sales that are fully paid
+    if sale.status == 'completed' and sale.payment_status == 'paid':
+        return Response({'error': 'Fully paid completed sales cannot be edited'}, status=status.HTTP_400_BAD_REQUEST)
+    
     # Get the new items data
     new_items_data = request.data.get('items', [])
     if not new_items_data:
         return Response({'error': 'Items are required'}, status=status.HTTP_400_BAD_REQUEST)
     
-    # Calculate differences for stock adjustment
-    old_items = {item.id: item for item in sale.items.all()}
-    new_items = {}
+    # Get existing items for comparison
+    existing_items = list(sale.items.all())
     
-    # Process new items
-    for item_data in new_items_data:
-        product_id = item_data.get('product')
-        quantity = int(item_data.get('quantity', 0))
-        
-        if quantity <= 0:
-            continue
-            
-        if product_id in new_items:
-            new_items[product_id] += quantity
-        else:
-            new_items[product_id] = quantity
+    # Allow item removal but not addition
+    if len(new_items_data) > len(existing_items):
+        return Response({'error': 'Cannot add new items, only quantity changes and item removal allowed'}, status=status.HTTP_400_BAD_REQUEST)
     
-    # Calculate stock adjustments
+    # Calculate stock adjustments and validate changes
     stock_adjustments = {}
-    
-    # Check old items
-    for item in old_items.values():
-        product_id = item.product.id
-        old_quantity = item.quantity
-        
-        if product_id in new_items:
-            # Item exists in both old and new
-            new_quantity = new_items[product_id]
-            if new_quantity != old_quantity:
-                # Quantity changed
-                diff = new_quantity - old_quantity
-                if product_id in stock_adjustments:
-                    stock_adjustments[product_id] += diff
-                else:
-                    stock_adjustments[product_id] = diff
-        else:
-            # Item removed
-            if product_id in stock_adjustments:
-                stock_adjustments[product_id] -= old_quantity
-            else:
-                stock_adjustments[product_id] = -old_quantity
-    
-    # Check new items
-    for product_id, new_quantity in new_items.items():
-        if product_id not in [item.product.id for item in old_items.values()]:
-            # New item added
-            if product_id in stock_adjustments:
-                stock_adjustments[product_id] += new_quantity
-            else:
-                stock_adjustments[product_id] = new_quantity
-    
-    # Check stock availability for positive adjustments
-    for product_id, adjustment in stock_adjustments.items():
-        if adjustment > 0:  # Adding stock (returning items)
-            from products.models import Product
-            try:
-                product = Product.objects.get(id=product_id)
-                if product.stock_quantity < adjustment:
-                    return Response({
-                        'error': f'Insufficient stock for {product.name}. Available: {product.stock_quantity}, Required: {adjustment}'
-                    }, status=status.HTTP_400_BAD_REQUEST)
-            except Product.DoesNotExist:
-                return Response({'error': f'Product {product_id} not found'}, status=status.HTTP_400_BAD_REQUEST)
-    
-    # Update sale items
-    sale.items.all().delete()  # Remove all existing items
-    
-    # Create new items
     subtotal = 0
     total_cost = 0
     total_tax = 0
+    processed_existing_items = set()  # Track which existing items have been processed
     
     for item_data in new_items_data:
         product_id = item_data.get('product')
-        quantity = int(item_data.get('quantity', 0))
+        quantity = float(item_data.get('quantity', 0))
         unit_price = float(item_data.get('unit_price', 0))
+        unit_id = item_data.get('unit')
+        price_mode = item_data.get('price_mode', 'standard')
         
-        if quantity <= 0 or unit_price <= 0:
-            continue
+        if quantity < 0:
+            return Response({'error': 'Quantity cannot be negative'}, status=status.HTTP_400_BAD_REQUEST)
         
-        from products.models import Product
-        try:
-            product = Product.objects.get(id=product_id)
-        except Product.DoesNotExist:
-            continue
+        # If quantity is 0, update the item to have 0 quantity (don't remove it)
+        if quantity == 0:
+            # Find the corresponding existing item and update it to 0 quantity
+            for existing in existing_items:
+                if (existing.product.id == product_id and 
+                    existing.unit.id == unit_id and 
+                    existing.price_mode == price_mode):
+                    existing.quantity = 0
+                    existing.total_price = 0
+                    existing.total_cost = 0
+                    existing.save()
+                    processed_existing_items.add(existing.id)
+                    break
+            continue  # Skip to next item (already processed)
         
-        # Create sale item
-        SaleItem.objects.create(
-            sale=sale,
-            product=product,
-            quantity=quantity,
-            unit_price=unit_price
-        )
+        # Find the corresponding existing item
+        existing_item = None
+        for existing in existing_items:
+            if (existing.product.id == product_id and 
+                existing.unit.id == unit_id and 
+                existing.price_mode == price_mode):
+                existing_item = existing
+                processed_existing_items.add(existing.id)
+                break
+        
+        if not existing_item:
+            return Response({'error': 'Cannot change product, unit, or price mode - only quantity changes allowed'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Check if unit price matches (should not change)
+        from decimal import Decimal
+        if abs(float(existing_item.unit_price) - unit_price) > 0.01:  # Allow small floating point differences
+            return Response({'error': 'Cannot change unit price - only quantity changes allowed'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Calculate quantity difference in display unit first
+        original_display_quantity = existing_item.get_quantity_in_unit(existing_item.unit)
+        quantity_diff_display = quantity - original_display_quantity
+        
+        # Convert quantity difference from display unit to base unit
+        from products.models import UnitConversion
+        product = existing_item.product
+        unit = existing_item.unit
+        
+        if unit != product.base_unit:
+            try:
+                conversion = UnitConversion.objects.get(
+                    from_unit=unit,
+                    to_unit=product.base_unit,
+                    is_active=True
+                )
+                # Convert display unit quantity difference to base unit quantity difference
+                quantity_diff_base = quantity_diff_display * float(conversion.conversion_factor)
+            except UnitConversion.DoesNotExist:
+                try:
+                    conversion = UnitConversion.objects.get(
+                        from_unit=product.base_unit,
+                        to_unit=unit,
+                        is_active=True
+                    )
+                    # Convert display unit quantity difference to base unit quantity difference
+                    quantity_diff_base = quantity_diff_display * float(conversion.conversion_factor)
+                except UnitConversion.DoesNotExist:
+                    quantity_diff_base = quantity_diff_display
+        else:
+            quantity_diff_base = quantity_diff_display
+        
+        # Add to stock adjustments
+        if quantity_diff_base != 0:
+            if product_id in stock_adjustments:
+                stock_adjustments[product_id] += quantity_diff_base
+            else:
+                stock_adjustments[product_id] = quantity_diff_base
+        
+        # Convert new quantity from display unit to base unit for storage
+        if unit != product.base_unit:
+            try:
+                conversion = UnitConversion.objects.get(
+                    from_unit=unit,
+                    to_unit=product.base_unit,
+                    is_active=True
+                )
+                # Convert display unit quantity to base unit quantity
+                base_quantity = quantity * float(conversion.conversion_factor)
+            except UnitConversion.DoesNotExist:
+                try:
+                    conversion = UnitConversion.objects.get(
+                        from_unit=product.base_unit,
+                        to_unit=unit,
+                        is_active=True
+                    )
+                    # Convert display unit quantity to base unit quantity
+                    base_quantity = quantity * float(conversion.conversion_factor)
+                except UnitConversion.DoesNotExist:
+                    base_quantity = quantity
+        else:
+            base_quantity = quantity
+        
+        # Update the existing item quantity (store in base units)
+        existing_item.quantity = base_quantity
+        existing_item.save()
         
         # Calculate totals
         item_total = quantity * unit_price
         subtotal += item_total
         
         # Calculate cost and tax for this item
-        if product.tax_class and product.tax_class.is_active:
+        if existing_item.product.tax_class and existing_item.product.tax_class.is_active and existing_item.product.tax_class.tax_rate > 0:
             # Tax-inclusive pricing
-            item_tax = (item_total * product.tax_class.tax_rate) / (100 + product.tax_class.tax_rate)
-            item_cost = (item_total * 100) / (100 + product.tax_class.tax_rate)
+            item_tax = (item_total * existing_item.product.tax_class.tax_rate) / (100 + existing_item.product.tax_class.tax_rate)
+            item_cost = (item_total * 100) / (100 + existing_item.product.tax_class.tax_rate)
             total_tax += item_tax
             total_cost += item_cost
         else:
-            total_cost += item_total
+            # No tax or 0% tax rate, use the stored unit cost
+            total_cost += existing_item.total_cost
+    
+    # Handle removed items (existing items not in new_items_data)
+    for existing_item in existing_items:
+        if existing_item.id not in processed_existing_items:
+            # This item was removed - add negative stock adjustment
+            product_id = existing_item.product.id
+            if product_id in stock_adjustments:
+                stock_adjustments[product_id] -= existing_item.quantity
+            else:
+                stock_adjustments[product_id] = -existing_item.quantity
+            
+            # Delete the removed item
+            existing_item.delete()
+    
+    # Note: Stock validation is handled in the frontend by disabling the update button
     
     # Update sale totals
-    sale.subtotal = subtotal
-    sale.cost_amount = total_cost
-    sale.tax_amount = total_tax
-    sale.total_amount = subtotal - sale.discount_amount
+    from decimal import Decimal
+    from datetime import date, timedelta
+    sale.subtotal = Decimal(str(subtotal))
+    sale.cost_amount = Decimal(str(total_cost))
+    sale.tax_amount = Decimal(str(total_tax))
+    sale.total_amount = Decimal(str(subtotal)) - sale.discount_amount
+    
+    # Handle payment amount if provided
+    paid_amount = request.data.get('paid_amount')
+    if paid_amount is not None:
+        try:
+            paid_amount = Decimal(str(paid_amount))
+            sale.paid_amount = paid_amount
+            sale.remaining_amount = sale.total_amount - paid_amount
+            
+            # Update payment status
+            if paid_amount >= sale.total_amount:
+                sale.payment_status = 'paid'
+                sale.due_date = None
+            elif paid_amount > 0:
+                sale.payment_status = 'partial'
+                if not sale.due_date:
+                    sale.due_date = date.today() + timedelta(days=30)
+            else:
+                sale.payment_status = 'pending'
+                sale.due_date = None
+        except (ValueError, TypeError):
+            return Response({'error': 'Invalid paid amount'}, status=status.HTTP_400_BAD_REQUEST)
+    
     sale.save()
     
     # Apply stock adjustments
     for product_id, adjustment in stock_adjustments.items():
         if adjustment != 0:
-            from products.models import Product, StockMovement
             product = Product.objects.get(id=product_id)
             
-            movement_type = 'return' if adjustment > 0 else 'out'
+            # Determine movement type and quantity
+            if adjustment > 0:
+                # Stock decrease (additional sale - more quantity sold)
+                movement_type = 'out'
+                movement_quantity = adjustment
+            else:
+                # Stock increase (return - less quantity sold)
+                movement_type = 'in'
+                movement_quantity = abs(adjustment)  # adjustment is negative
+            
+            # Create stock movement record (this will automatically update product stock via save method)
             StockMovement.objects.create(
                 product=product,
                 movement_type=movement_type,
-                quantity=abs(adjustment),
+                quantity=movement_quantity,
+                unit=product.base_unit,  # Always use base unit for stock movements
                 reference_number=f'EDIT-{sale.sale_number}',
                 notes=f'Stock adjustment from sale edit {sale.sale_number}',
                 created_by=request.user
@@ -421,3 +570,106 @@ def edit_sale(request, sale_id):
     # Return updated sale
     serializer = SaleSerializer(sale)
     return Response(serializer.data)
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def pending_sales(request):
+    """Get all pending sales with their items"""
+    try:
+        sales = Sale.objects.filter(status='pending').select_related('sold_by').prefetch_related(
+            'items__product', 'items__unit'
+        ).order_by('-created_at')
+        
+        serializer = SaleSerializer(sales, many=True)
+        return Response(serializer.data)
+    except Exception as e:
+        return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+@api_view(['PATCH'])
+@permission_classes([IsAuthenticated])
+def update_payment_method(request, sale_id):
+    """Update payment method for a sale"""
+    try:
+        sale = Sale.objects.get(id=sale_id)
+    except Sale.DoesNotExist:
+        return Response({'error': 'Sale not found'}, status=status.HTTP_404_NOT_FOUND)
+    
+    # Only allow updating payment method for pending sales
+    if sale.status != 'pending':
+        return Response({'error': 'Payment method can only be updated for pending sales'}, status=status.HTTP_400_BAD_REQUEST)
+    
+    payment_method = request.data.get('payment_method')
+    if not payment_method:
+        return Response({'error': 'Payment method is required'}, status=status.HTTP_400_BAD_REQUEST)
+    
+    # Validate payment method
+    valid_methods = [choice[0] for choice in Sale.PAYMENT_METHODS]
+    if payment_method not in valid_methods:
+        return Response({'error': 'Invalid payment method'}, status=status.HTTP_400_BAD_REQUEST)
+    
+    sale.payment_method = payment_method
+    sale.save()
+    
+    serializer = SaleSerializer(sale)
+    return Response(serializer.data)
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def make_payment(request, sale_id):
+    """Make a payment for a sale (full payment only for edit management)"""
+    from decimal import Decimal
+    
+    try:
+        sale = Sale.objects.get(id=sale_id)
+    except Sale.DoesNotExist:
+        return Response({'error': 'Sale not found'}, status=status.HTTP_404_NOT_FOUND)
+    
+    payment_amount = request.data.get('payment_amount')
+    if not payment_amount:
+        return Response({'error': 'Payment amount is required'}, status=status.HTTP_400_BAD_REQUEST)
+    
+    try:
+        payment_amount = Decimal(str(payment_amount))
+    except (ValueError, TypeError):
+        return Response({'error': 'Invalid payment amount'}, status=status.HTTP_400_BAD_REQUEST)
+    
+    if payment_amount <= 0:
+        return Response({'error': 'Payment amount must be greater than 0'}, status=status.HTTP_400_BAD_REQUEST)
+    
+    # Check if this is a full payment (for edit management)
+    is_full_payment = request.data.get('is_full_payment', False)
+    
+    if is_full_payment:
+        # For edit management, only allow full payment
+        if payment_amount != sale.remaining_amount:
+            return Response({'error': 'Payment amount must equal the remaining amount for full payment'}, status=status.HTTP_400_BAD_REQUEST)
+    else:
+        # For POS, allow partial payments
+        if payment_amount > sale.remaining_amount:
+            return Response({'error': 'Payment amount cannot exceed remaining amount'}, status=status.HTTP_400_BAD_REQUEST)
+    
+    # Update payment amounts
+    sale.paid_amount += payment_amount
+    sale.remaining_amount = sale.total_amount - sale.paid_amount
+    
+    # Update payment status and due date
+    if sale.paid_amount >= sale.total_amount:
+        sale.payment_status = 'paid'
+        sale.due_date = None  # No due date for fully paid sales
+    elif sale.paid_amount > 0:
+        sale.payment_status = 'partial'
+        # Set due date to 30 days from now if not already set
+        if not sale.due_date:
+            from datetime import date, timedelta
+            sale.due_date = date.today() + timedelta(days=30)
+    else:
+        sale.payment_status = 'pending'
+        sale.due_date = None  # No due date for pending sales
+    
+    sale.save()
+    
+    serializer = SaleSerializer(sale)
+    return Response({
+        'message': 'Payment processed successfully',
+        'sale': serializer.data
+    })

@@ -17,11 +17,61 @@ class PurchaseOrderItemSerializer(serializers.ModelSerializer):
     unit_id = serializers.IntegerField(write_only=True, required=False, allow_null=True)
     tax_class = TaxClassSerializer(read_only=True)
     tax_class_id = serializers.IntegerField(write_only=True, required=False, allow_null=True)
+    quantity_display = serializers.SerializerMethodField()
     
     class Meta:
         model = PurchaseOrderItem
         fields = '__all__'
         read_only_fields = ['line_total', 'tax_amount', 'purchase_order']
+    
+    def get_quantity_display(self, obj):
+        """Get quantity in the display unit"""
+        return obj.get_quantity_in_unit(obj.unit or obj.product.base_unit)
+    
+    def to_representation(self, instance):
+        """Override to show quantity in display unit"""
+        data = super().to_representation(instance)
+        # Show quantity in the unit used for this order item
+        data['quantity_ordered'] = instance.get_quantity_in_unit(instance.unit or instance.product.base_unit)
+        return data
+    
+    def to_internal_value(self, data):
+        """Override to convert quantity to base unit for storage"""
+        # Convert quantity from display unit to base unit
+        if 'quantity_ordered' in data and 'unit_id' in data and 'product_id' in data:
+            try:
+                from products.models import Unit, Product, UnitConversion
+                
+                unit = Unit.objects.get(id=data['unit_id'])
+                product = Product.objects.get(id=data['product_id'])
+                
+                if unit != product.base_unit:
+                    # Convert from display unit to base unit
+                    try:
+                        conversion = UnitConversion.objects.get(
+                            from_unit=unit,
+                            to_unit=product.base_unit,
+                            is_active=True
+                        )
+                        # For stock quantities, multiply when converting to base unit
+                        # If 1 12-Pack = 12 Pieces, then 10 12-Packs = 10 × 12 = 120 Pieces
+                        data['quantity_ordered'] = float(data['quantity_ordered']) * float(conversion.conversion_factor)
+                    except UnitConversion.DoesNotExist:
+                        try:
+                            conversion = UnitConversion.objects.get(
+                                from_unit=product.base_unit,
+                                to_unit=unit,
+                                is_active=True
+                            )
+                            # For stock quantities, divide when converting to base unit
+                            # If 1 Piece = 1/12 12-Pack, then 10 Pieces = 10 ÷ 12 = 0.83 12-Packs
+                            data['quantity_ordered'] = float(data['quantity_ordered']) / float(conversion.conversion_factor)
+                        except UnitConversion.DoesNotExist:
+                            pass  # Keep original value if no conversion found
+            except (Unit.DoesNotExist, Product.DoesNotExist, ValueError):
+                pass  # Keep original value if conversion fails
+        
+        return super().to_internal_value(data)
     
     def validate_product_id(self, value):
         from products.models import Product
@@ -80,7 +130,21 @@ class PurchaseOrderCreateSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         items_data = validated_data.pop('items')
         # Get the user from the context (set by the view)
-        user = self.context['request'].user
+        request = self.context.get('request')
+        user = getattr(request, 'user', None) if request else None
+        
+        # Generate unique order number if not provided
+        if 'order_number' not in validated_data:
+            from django.utils import timezone
+            import uuid
+            order_number = f"PO-{timezone.now().strftime('%Y%m%d')}-{str(uuid.uuid4())[:8].upper()}"
+            
+            # Ensure the order number is unique
+            while PurchaseOrder.objects.filter(order_number=order_number).exists():
+                order_number = f"PO-{timezone.now().strftime('%Y%m%d')}-{str(uuid.uuid4())[:8].upper()}"
+            
+            validated_data['order_number'] = order_number
+        
         purchase_order = PurchaseOrder.objects.create(
             created_by=user,
             **validated_data
@@ -101,11 +165,61 @@ class DeliveryItemSerializer(serializers.ModelSerializer):
     unit_id = serializers.IntegerField(write_only=True, required=False, allow_null=True)
     tax_class = TaxClassSerializer(read_only=True)
     tax_class_id = serializers.IntegerField(write_only=True, required=False, allow_null=True)
+    quantity_display = serializers.SerializerMethodField()
     
     class Meta:
         model = DeliveryItem
         fields = '__all__'
         read_only_fields = ['line_total', 'tax_amount', 'delivery']
+    
+    def get_quantity_display(self, obj):
+        """Get quantity in the display unit"""
+        return obj.get_quantity_in_unit(obj.unit or obj.product.base_unit)
+    
+    def to_representation(self, instance):
+        """Override to show quantity in display unit"""
+        data = super().to_representation(instance)
+        # Show quantity in the unit used for this delivery item
+        data['quantity_received'] = instance.get_quantity_in_unit(instance.unit or instance.product.base_unit)
+        return data
+    
+    def to_internal_value(self, data):
+        """Override to convert quantity to base unit for storage"""
+        # Convert quantity from display unit to base unit
+        if 'quantity_received' in data and 'unit_id' in data and 'product_id' in data:
+            try:
+                from products.models import Unit, Product, UnitConversion
+                
+                unit = Unit.objects.get(id=data['unit_id'])
+                product = Product.objects.get(id=data['product_id'])
+                
+                if unit != product.base_unit:
+                    # Convert from display unit to base unit
+                    try:
+                        conversion = UnitConversion.objects.get(
+                            from_unit=unit,
+                            to_unit=product.base_unit,
+                            is_active=True
+                        )
+                        # For stock quantities, multiply when converting to base unit
+                        # If 1 12-Pack = 12 Pieces, then 10 12-Packs = 10 × 12 = 120 Pieces
+                        data['quantity_received'] = float(data['quantity_received']) * float(conversion.conversion_factor)
+                    except UnitConversion.DoesNotExist:
+                        try:
+                            conversion = UnitConversion.objects.get(
+                                from_unit=product.base_unit,
+                                to_unit=unit,
+                                is_active=True
+                            )
+                            # For stock quantities, divide when converting to base unit
+                            # If 1 Piece = 1/12 12-Pack, then 10 Pieces = 10 ÷ 12 = 0.83 12-Packs
+                            data['quantity_received'] = float(data['quantity_received']) / float(conversion.conversion_factor)
+                        except UnitConversion.DoesNotExist:
+                            pass  # Keep original value if no conversion found
+            except (Unit.DoesNotExist, Product.DoesNotExist, ValueError):
+                pass  # Keep original value if conversion fails
+        
+        return super().to_internal_value(data)
     
     def validate_purchase_order_item_id(self, value):
         try:

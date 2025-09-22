@@ -134,7 +134,7 @@ const Dashboard = () => {
           <div className="metric-content">
             <h3>Total Revenue</h3>
             <p className="metric-value">
-              ${dashboardData?.sales?.total_sales?.toFixed(2) || '0.00'}
+              {dashboardData?.sales?.total_sales?.toFixed(2) || '0.00'} MGA
             </p>
             <p className="metric-label">
               {dashboardData?.sales?.total_count || 0} transactions
@@ -153,7 +153,7 @@ const Dashboard = () => {
               <div className="metric-content">
                 <h3>Total Cost</h3>
                 <p className="metric-value">
-                  ${dashboardData?.sales?.total_cost?.toFixed(2) || '0.00'}
+                  {dashboardData?.sales?.total_cost?.toFixed(2) || '0.00'} MGA
                 </p>
                 <p className="metric-label">
                   Cost of goods sold
@@ -170,7 +170,7 @@ const Dashboard = () => {
               <div className="metric-content">
                 <h3>Profit</h3>
                 <p className="metric-value">
-                  ${dashboardData?.sales?.profit?.toFixed(2) || '0.00'}
+                  {dashboardData?.sales?.profit?.toFixed(2) || '0.00'} MGA
                 </p>
                 <p className="metric-label">
                   {dashboardData?.sales?.profit_margin?.toFixed(1) || '0.0'}% margin
@@ -191,7 +191,7 @@ const Dashboard = () => {
             <p className="metric-value">
               {isSalesTeam 
                 ? dashboardData?.inventory?.total_products || 0
-                : `$${dashboardData?.inventory?.total_inventory_value?.toFixed(2) || '0.00'}`
+                : `${dashboardData?.inventory?.total_inventory_value?.toFixed(2) || '0.00'} MGA`
               }
             </p>
             <p className="metric-label">
@@ -213,7 +213,7 @@ const Dashboard = () => {
             <div className="metric-content">
               <h3>Retail Value</h3>
               <p className="metric-value">
-                ${dashboardData?.inventory?.total_retail_value?.toFixed(2) || '0.00'}
+                {dashboardData?.inventory?.total_retail_value?.toFixed(2) || '0.00'} MGA
               </p>
               <p className="metric-label">
                 {dashboardData?.inventory?.low_stock_count || 0} low stock
@@ -252,20 +252,20 @@ const Dashboard = () => {
                         <div 
                           className="bar sales-bar" 
                           style={{ height: `${Math.max(5, (day.sales / Math.max(...dashboardData.chart_data.map(d => d.sales))) * 100)}%` }}
-                          title={`Sales: $${day.sales.toFixed(2)}`}
+                          title={`Sales: ${day.sales.toFixed(2)} MGA`}
                         ></div>
                         <div 
                           className="bar cost-bar" 
                           style={{ height: `${Math.max(5, (day.cost / Math.max(...dashboardData.chart_data.map(d => d.sales))) * 100)}%` }}
-                          title={`Cost: $${day.cost.toFixed(2)}`}
+                          title={`Cost: ${day.cost.toFixed(2)} MGA`}
                         ></div>
                       </div>
                       <div className="bar-label">
                         {new Date(day.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                       </div>
                       <div className="bar-values">
-                        <div className="value sales">${day.sales.toFixed(0)}</div>
-                        <div className="value cost">${day.cost.toFixed(0)}</div>
+                        <div className="value sales">{day.sales.toFixed(0)} MGA</div>
+                        <div className="value cost">{day.cost.toFixed(0)} MGA</div>
                       </div>
                     </div>
                   ))}
@@ -323,7 +323,7 @@ const Dashboard = () => {
                     <p>{sale.customer_name || 'Walk-in Customer'}</p>
                   </div>
                   <div className="sale-amount">
-                    <span>${sale.total_amount.toFixed(2)}</span>
+                    <span>{sale.total_amount.toFixed(2)} MGA</span>
                     <small>{new Date(sale.created_at).toLocaleDateString()}</small>
                   </div>
                   <div className="sale-arrow">
@@ -359,17 +359,17 @@ const Dashboard = () => {
                     </div>
                     <div className="stat-row">
                       <span className="stat-label">Revenue:</span>
-                      <span className="stat-value">${product.total_revenue.toFixed(2)}</span>
+                      <span className="stat-value">{product.total_revenue.toFixed(2)} MGA</span>
                     </div>
                     {!isSalesTeam && (
                       <>
                         <div className="stat-row">
                           <span className="stat-label">Cost:</span>
-                          <span className="stat-value">${product.total_cost?.toFixed(2) || '0.00'}</span>
+                          <span className="stat-value">{product.total_cost?.toFixed(2) || '0.00'} MGA</span>
                         </div>
                         <div className="stat-row">
                           <span className="stat-label">Profit:</span>
-                          <span className="stat-value profit">${product.profit?.toFixed(2) || '0.00'}</span>
+                          <span className="stat-value profit">{product.profit?.toFixed(2) || '0.00'} MGA</span>
                         </div>
                         <div className="stat-row">
                           <span className="stat-label">Margin:</span>

@@ -53,6 +53,8 @@
   background: #f9fafb;
   border-radius: 0.375rem;
   border: 1px solid #e5e7eb;
+  flex-wrap: wrap;
+  align-items: flex-end;
 }
 
 .pos-filters .filter-group {
@@ -80,7 +82,118 @@
   min-width: 200px;
 }
 
+/* Price Mode Toggle */
+.price-mode-toggle {
+  display: flex;
+  border: 1px solid #d1d5db;
+  border-radius: 0.375rem;
+  overflow: hidden;
+  background: white;
+}
+
+.price-mode-btn {
+  flex: 1;
+  padding: 0.5rem 1rem;
+  border: none;
+  background: white;
+  color: #6b7280;
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border-right: 1px solid #d1d5db;
+}
+
+.price-mode-btn:last-child {
+  border-right: none;
+}
+
+.price-mode-btn:hover {
+  background: #f9fafb;
+  color: #374151;
+}
+
+.price-mode-btn.active {
+  background: #3b82f6;
+  color: white;
+}
+
+.price-mode-btn.active:hover {
+  background: #2563eb;
+}
+
+/* Sale Mode Toggle */
+.sale-mode-toggle {
+  display: flex;
+  border: 1px solid #d1d5db;
+  border-radius: 0.375rem;
+  overflow: hidden;
+  background: white;
+}
+
+.sale-mode-btn {
+  flex: 1;
+  padding: 0.5rem 1rem;
+  border: none;
+  background: white;
+  color: #6b7280;
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border-right: 1px solid #d1d5db;
+}
+
+.sale-mode-btn:last-child {
+  border-right: none;
+}
+
+.sale-mode-btn:hover {
+  background: #f9fafb;
+  color: #374151;
+}
+
+.sale-mode-btn.active {
+  background: #10b981;
+  color: white;
+}
+
+.sale-mode-btn.active:hover {
+  background: #059669;
+}
+
+/* Print Receipt Toggle - More compact */
+.print-receipt-group {
+  min-width: 0;
+  flex-shrink: 1;
+}
+
+.print-receipt-toggle {
+  min-width: 80px;
+}
+
+.print-receipt-btn {
+  padding: 0.5rem 0.75rem !important;
+  font-size: 0.75rem !important;
+  min-width: 0;
+}
+
+
 /* Responsive design for POS filters */
+@media (max-width: 1200px) {
+  .pos-filters {
+    gap: 0.75rem;
+  }
+  
+  .pos-filters .filter-group {
+    flex-shrink: 1;
+  }
+  
+  .pos-filters .filter-group input {
+    min-width: 150px;
+  }
+}
+
 @media (max-width: 768px) {
   .pos-filters {
     flex-direction: column;
@@ -332,6 +445,17 @@
   font-style: italic;
 }
 
+.empty-cart-hint {
+  font-size: 0.875rem;
+  color: #9ca3af;
+  margin-top: 0.5rem;
+}
+
+.required-field {
+  border-color: #ef4444 !important;
+  box-shadow: 0 0 0 1px #ef4444 !important;
+}
+
 .cart-table-header {
   display: grid;
   grid-template-columns: 2fr 0.8fr 1fr 1.5fr 1fr 0.5fr;
@@ -572,6 +696,38 @@
   font-weight: 600;
 }
 
+.payment-types {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-top: 1rem;
+}
+
+.payment-type {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem;
+  border: 1px solid #d1d5db;
+  border-radius: 0.375rem;
+  cursor: pointer;
+  transition: all 0.2s ease-in-out;
+}
+
+.payment-type:hover {
+  border-color: #3b82f6;
+  background-color: #f8fafc;
+}
+
+.payment-type input[type="radio"] {
+  margin: 0;
+}
+
+.payment-type input[type="radio"]:checked + span {
+  color: #3b82f6;
+  font-weight: 600;
+}
+
 .checkout-actions {
   display: flex;
   flex-direction: column;
@@ -704,4 +860,27 @@
   .payment-methods {
     grid-template-columns: 1fr;
   }
+}
+
+/* Price Mode Badge */
+.price-mode-badge {
+  display: inline-block;
+  padding: 0.125rem 0.375rem;
+  border-radius: 0.25rem;
+  font-size: 0.625rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  margin-top: 0.25rem;
+}
+
+.price-mode-badge.standard {
+  background-color: #dbeafe;
+  color: #1e40af;
+  border: 1px solid #93c5fd;
+}
+
+.price-mode-badge.wholesale {
+  background-color: #fef3c7;
+  color: #92400e;
+  border: 1px solid #fcd34d;
 }

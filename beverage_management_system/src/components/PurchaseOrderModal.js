@@ -26,7 +26,29 @@ const PurchaseOrderModal = ({ suppliers, onClose, onSubmit }) => {
         api.get('/products/'),
         api.get('/products/tax-classes/')
       ]);
-      setProducts(productsResponse.data.results || productsResponse.data);
+      
+      const products = productsResponse.data.results || productsResponse.data;
+      
+      // Fetch unit costs for each product
+      const productsWithUnitCosts = await Promise.all(
+        products.map(async (product) => {
+          try {
+            const unitCostsResponse = await api.get(`/products/${product.id}/unit-costs/`);
+            return {
+              ...product,
+              unit_costs: unitCostsResponse.data.unit_costs || []
+            };
+          } catch (error) {
+            console.error(`Error fetching unit costs for product ${product.id}:`, error);
+            return {
+              ...product,
+              unit_costs: []
+            };
+          }
+        })
+      );
+      
+      setProducts(productsWithUnitCosts);
       setTaxClasses(taxResponse.data.results || taxResponse.data);
     } catch (error) {
       console.error('Error fetching products and tax classes:', error);
@@ -87,32 +109,21 @@ const PurchaseOrderModal = ({ suppliers, onClose, onSubmit }) => {
                 const unit = defaultUnit.unit || defaultUnit;
                 const unitId = unit?.id || unit; // unit might be just an ID
                 
-                if (unitId) {
-                  updatedItem.unit_id = unitId;
+                // For compatible_units structure, unit is just the ID number
+                const actualUnitId = typeof unitId === 'number' ? unitId : (unit?.id || unitId);
+                
+                if (actualUnitId) {
+                  updatedItem.unit_id = actualUnitId;
                   
-                  // Calculate unit price based on conversion factor
-                  let unitPrice = selectedProduct?.price || 0;
-                  
-                  // If this is not the base unit, calculate converted price
-                  if (!defaultUnit.unit_is_base) {
-                    // Find conversion factor from base unit to this unit
-                    const stockInfo = selectedProduct?.stock_in_units?.find(s => s.unit_id === unitId);
-                    if (stockInfo) {
-                      // Use the conversion factor from stock_in_units if available
-                      const baseQuantity = selectedProduct.stock_quantity || 1;
-                      const convertedQuantity = stockInfo.quantity || 1;
-                      const conversionFactor = baseQuantity / convertedQuantity;
-                      unitPrice = parseFloat(selectedProduct.price) * conversionFactor;
-                    } else {
-                      // Fallback: try to find conversion in available_units
-                      const availableUnit = selectedProduct?.available_units?.find(au => au.id === unitId);
-                      if (availableUnit?.conversion_factor) {
-                        unitPrice = parseFloat(selectedProduct.price) * availableUnit.conversion_factor;
-                      }
-                    }
+                  // Use the unit costs from the API response
+                  // The unit_costs array contains the correct cost for each unit
+                  const unitCostData = selectedProduct?.unit_costs?.find(uc => uc.id === actualUnitId);
+                  if (unitCostData) {
+                    updatedItem.unit_cost = parseFloat(unitCostData.cost_price).toFixed(2);
+                  } else {
+                    // Fallback to the stored cost_price if unit_costs not available
+                    updatedItem.unit_cost = parseFloat(selectedProduct?.cost_price || 0).toFixed(2);
                   }
-                  
-                  updatedItem.unit_cost = parseFloat(unitPrice).toFixed(2);
                 }
               }
             }
@@ -149,7 +160,7 @@ const PurchaseOrderModal = ({ suppliers, onClose, onSubmit }) => {
       items: formData.items.map(item => ({
         ...item,
         product_id: parseInt(item.product_id),
-        quantity_ordered: parseInt(item.quantity_ordered),
+        quantity_ordered: parseFloat(item.quantity_ordered),
         unit_id: item.unit_id ? parseInt(item.unit_id) : null,
         unit_cost: parseFloat(item.unit_cost),
         tax_class_id: item.tax_class_id ? parseInt(item.tax_class_id) : null
@@ -169,6 +180,8 @@ const PurchaseOrderModal = ({ suppliers, onClose, onSubmit }) => {
   const calculateItemTotal = (item) => {
     const quantity = parseFloat(item.quantity_ordered) || 0;
     const unitCost = parseFloat(item.unit_cost) || 0;
+    
+    // Since unit cost is now the cost for the selected unit, just multiply by quantity
     return quantity * unitCost;
   };
 
@@ -293,41 +306,14 @@ const PurchaseOrderModal = ({ suppliers, onClose, onSubmit }) => {
                           const unitId = e.target.value;
                           handleItemChange(index, 'unit_id', unitId);
                           
-                          // Auto-set unit cost based on selected unit's price
+                          // Auto-set unit cost based on selected unit's cost from API
                           if (unitId) {
                             const selectedProduct = products.find(p => p.id === parseInt(item.product_id));
-                            const selectedUnit = selectedProduct?.compatible_units?.find(u => {
-                              const unit = u.unit || u;
-                              const unitIdFromData = unit?.id || unit;
-                              return unitIdFromData === parseInt(unitId);
-                            });
-                            if (selectedUnit) {
-                              // Calculate unit price based on conversion factor
-                              let unitPrice = selectedProduct?.price || 0;
-                              
-                              // If this is not the base unit, calculate converted price
-                              const unit = selectedUnit.unit || selectedUnit;
-                              const isBaseUnit = unit?.is_base_unit || selectedUnit.unit_is_base;
-                              
-                              if (!isBaseUnit) {
-                                // Find conversion factor from base unit to this unit
-                                const stockInfo = selectedProduct?.stock_in_units?.find(s => s.unit_id === parseInt(unitId));
-                                if (stockInfo) {
-                                  // Use the conversion factor from stock_in_units if available
-                                  const baseQuantity = selectedProduct.stock_quantity || 1;
-                                  const convertedQuantity = stockInfo.quantity || 1;
-                                  const conversionFactor = baseQuantity / convertedQuantity;
-                                  unitPrice = parseFloat(selectedProduct.price) * conversionFactor;
-                                } else {
-                                  // Fallback: try to find conversion in available_units
-                                  const availableUnit = selectedProduct?.available_units?.find(au => au.id === parseInt(unitId));
-                                  if (availableUnit?.conversion_factor) {
-                                    unitPrice = parseFloat(selectedProduct.price) * availableUnit.conversion_factor;
-                                  }
-                                }
+                            if (selectedProduct?.unit_costs) {
+                              const unitCostData = selectedProduct.unit_costs.find(uc => uc.id === parseInt(unitId));
+                              if (unitCostData) {
+                                handleItemChange(index, 'unit_cost', parseFloat(unitCostData.cost_price).toFixed(2));
                               }
-                              
-                              handleItemChange(index, 'unit_cost', parseFloat(unitPrice).toFixed(2));
                             }
                           }
                         }}
@@ -346,37 +332,22 @@ const PurchaseOrderModal = ({ suppliers, onClose, onSubmit }) => {
                             const unitName = unit?.name || compatibleUnit.unit_name;
                             const unitSymbol = unit?.symbol || compatibleUnit.unit_symbol;
                             
+                            // For compatible_units structure, unit is just the ID number
+                            const actualUnitId = typeof unitId === 'number' ? unitId : (unit?.id || unitId);
+                            
                             // If unit is just an ID, use the direct fields from compatibleUnit
                             if (!unitName || !unitSymbol) {
                               console.warn('Invalid unit data:', compatibleUnit);
                               return null;
                             }
                             
-                            // Calculate unit price based on conversion factor
-                            let unitPrice = selectedProduct?.price || 0;
-                            
-                            // If this is not the base unit, calculate converted price
-                            if (!compatibleUnit.unit_is_base) {
-                              // Find conversion factor from base unit to this unit
-                              const stockInfo = selectedProduct?.stock_in_units?.find(s => s.unit_id === unitId);
-                              if (stockInfo) {
-                                // Use the conversion factor from stock_in_units if available
-                                const baseQuantity = selectedProduct.stock_quantity || 1;
-                                const convertedQuantity = stockInfo.quantity || 1;
-                                const conversionFactor = baseQuantity / convertedQuantity;
-                                unitPrice = parseFloat(selectedProduct.price) * conversionFactor;
-                              } else {
-                                // Fallback: try to find conversion in available_units
-                                const availableUnit = selectedProduct?.available_units?.find(au => au.id === unitId);
-                                if (availableUnit?.conversion_factor) {
-                                  unitPrice = parseFloat(selectedProduct.price) * availableUnit.conversion_factor;
-                                }
-                              }
-                            }
+                            // Get unit cost from the API data
+                            const unitCostData = selectedProduct?.unit_costs?.find(uc => uc.id === actualUnitId);
+                            const unitCost = unitCostData ? unitCostData.cost_price : 0;
                             
                             return (
-                              <option key={unitId} value={unitId}>
-                                {unitName} ({unitSymbol}) - ${parseFloat(unitPrice).toFixed(2)}
+                              <option key={actualUnitId} value={actualUnitId}>
+                                {unitName} ({unitSymbol}) - {parseFloat(unitCost).toFixed(2)} MGA
                               </option>
                             );
                           }).filter(Boolean);
@@ -411,10 +382,10 @@ const PurchaseOrderModal = ({ suppliers, onClose, onSubmit }) => {
                     <div className="item-total">
                       <label>Line Total</label>
                       <div className="total-display">
-                        ${calculateItemTotal(item).toFixed(2)}
+                        {calculateItemTotal(item).toFixed(2)} MGA
                         {item.tax_class_id && (
                           <span className="tax-amount">
-                            + ${calculateTaxAmount(item).toFixed(2)} tax
+                            + {calculateTaxAmount(item).toFixed(2)} MGA tax
                           </span>
                         )}
                       </div>
@@ -438,15 +409,15 @@ const PurchaseOrderModal = ({ suppliers, onClose, onSubmit }) => {
             <div className="totals-section">
               <div className="totals-row">
                 <span>Subtotal:</span>
-                <span>${totals.subtotal.toFixed(2)}</span>
+                <span>{totals.subtotal.toFixed(2)} MGA</span>
               </div>
               <div className="totals-row">
                 <span>Tax Amount:</span>
-                <span>${totals.taxAmount.toFixed(2)}</span>
+                <span>{totals.taxAmount.toFixed(2)} MGA</span>
               </div>
               <div className="totals-row total-row">
                 <span>Total Amount:</span>
-                <span>${totals.total.toFixed(2)}</span>
+                <span>{totals.total.toFixed(2)} MGA</span>
               </div>
             </div>
           )}

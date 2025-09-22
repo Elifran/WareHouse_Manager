@@ -286,24 +286,24 @@
   border-radius: 0.5rem;
 }
 
-table {
+.reports-page table {
   width: 100%;
   border-collapse: collapse;
   font-size: 0.875rem;
 }
 
-thead {
+.reports-page thead {
   background-color: #f9fafb;
 }
 
-th,
-td {
+.reports-page th,
+.reports-page td {
   padding: 0.75rem 1rem;
   text-align: left;
   border-bottom: 1px solid #e5e7eb;
 }
 
-th {
+.reports-page th {
   color: #374151;
   font-weight: 600;
   font-size: 0.75rem;
@@ -311,11 +311,11 @@ th {
   letter-spacing: 0.05em;
 }
 
-td {
+.reports-page td {
   color: #1f2937;
 }
 
-tbody tr:hover {
+.reports-page tbody tr:hover {
   background-color: #f9fafb;
 }
 

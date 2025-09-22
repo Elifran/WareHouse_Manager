@@ -7,7 +7,7 @@ class CategorySerializer(serializers.ModelSerializer):
     
     class Meta:
         model = Category
-        fields = ['id', 'name', 'description', 'products_count', 'created_at', 'updated_at']
+        fields = ['id', 'name', 'description', 'is_sellable', 'products_count', 'created_at', 'updated_at']
         read_only_fields = ['id', 'created_at', 'updated_at']
     
     def get_products_count(self, obj):
@@ -135,11 +135,30 @@ class ProductUnitSerializer(serializers.ModelSerializer):
     unit_name = serializers.CharField(source='unit.name', read_only=True)
     unit_symbol = serializers.CharField(source='unit.symbol', read_only=True)
     unit_is_base = serializers.BooleanField(source='unit.is_base_unit', read_only=True)
+    unit = serializers.PrimaryKeyRelatedField(queryset=Unit.objects.all(), write_only=True)
+    unit_detail = serializers.SerializerMethodField(read_only=True)
     
     class Meta:
         model = ProductUnit
-        fields = ['id', 'unit', 'unit_name', 'unit_symbol', 'unit_is_base', 'is_default', 'is_active', 'created_at', 'updated_at']
+        fields = ['id', 'unit', 'unit_detail', 'unit_name', 'unit_symbol', 'unit_is_base', 'is_default', 'is_active', 'created_at', 'updated_at']
         read_only_fields = ['id', 'created_at', 'updated_at']
+    
+    def get_unit_detail(self, obj):
+        """Return unit as a nested object"""
+        return {
+            'id': obj.unit.id,
+            'name': obj.unit.name,
+            'symbol': obj.unit.symbol,
+            'is_base_unit': obj.unit.is_base_unit
+        }
+    
+    def to_representation(self, instance):
+        """Override to_representation to include unit details"""
+        data = super().to_representation(instance)
+        # Add unit as a nested object for frontend compatibility
+        data['unit'] = self.get_unit_detail(instance)
+        return data
+    
     
     def create(self, validated_data):
         # Automatically set the product from the context
@@ -179,9 +198,28 @@ class ProductUnitSerializer(serializers.ModelSerializer):
                 is_active=True
             ).exclude(id=self.instance.id if self.instance else None)
             if existing_default.exists():
-                raise serializers.ValidationError("Only one unit can be set as default per product.")
+                # If this is an update operation and we're setting a new default,
+                # we need to clear the old default first
+                if self.instance:
+                    # This will be handled in the update method
+                    pass
+                else:
+                    raise serializers.ValidationError("Only one unit can be set as default per product.")
         
         return data
+    
+    def update(self, instance, validated_data):
+        # If we're setting this unit as default, first clear any existing default
+        if validated_data.get('is_default', False):
+            product = instance.product
+            # Clear existing default units for this product
+            ProductUnit.objects.filter(
+                product=product,
+                is_default=True,
+                is_active=True
+            ).exclude(id=instance.id).update(is_default=False)
+        
+        return super().update(instance, validated_data)
 
 class ProductSerializer(serializers.ModelSerializer):
     category_name = serializers.CharField(source='category.name', read_only=True)
@@ -196,11 +234,19 @@ class ProductSerializer(serializers.ModelSerializer):
     compatible_units = ProductUnitSerializer(many=True, read_only=True)
     stock_in_units = serializers.SerializerMethodField()
     
+    # Display fields - these show values in the default unit for reading, but accept input for writing
+    price = serializers.FloatField()
+    wholesale_price = serializers.FloatField(allow_null=True, required=False)
+    cost_price = serializers.FloatField()
+    stock_quantity = serializers.FloatField()
+    min_stock_level = serializers.FloatField()
+    max_stock_level = serializers.FloatField()
+    
     class Meta:
         model = Product
         fields = [
             'id', 'name', 'description', 'category', 'category_name', 'tax_class', 'tax_class_name', 'tax_rate',
-            'sku', 'price', 'cost_price', 'stock_quantity', 'min_stock_level', 
+            'sku', 'price', 'wholesale_price', 'cost_price', 'stock_quantity', 'min_stock_level', 
             'max_stock_level', 'unit', 'base_unit', 'base_unit_name', 'base_unit_symbol', 
             'available_units', 'compatible_units', 'stock_in_units', 'is_active', 'profit_margin', 
             'is_low_stock', 'is_out_of_stock', 'created_at', 'updated_at'
@@ -218,52 +264,54 @@ class ProductSerializer(serializers.ModelSerializer):
         if not obj.base_unit:
             return []
         
-        from .utils import calculate_unit_price
+        units = []
         
-        units = [{
-            'id': obj.base_unit.id, 
-            'name': obj.base_unit.name, 
-            'symbol': obj.base_unit.symbol,
-            'price': float(obj.price),
-            'is_base_unit': True
-        }]
-        
-        # Add units that can be converted from base unit
-        conversions_from = UnitConversion.objects.filter(
-            from_unit=obj.base_unit,
-            is_active=True
-        ).select_related('to_unit')
-        
-        for conversion in conversions_from:
-            unit_price = calculate_unit_price(obj.price, obj.base_unit.id, conversion.to_unit.id)
+        # Get all compatible units
+        for compatible_unit in obj.compatible_units.all():
+            unit = compatible_unit.unit
+            unit_price = obj.get_price_in_unit(unit)
+            unit_cost = obj.get_cost_price_in_unit(unit)
+            
             units.append({
-                'id': conversion.to_unit.id,
-                'name': conversion.to_unit.name,
-                'symbol': conversion.to_unit.symbol,
-                'price': unit_price,
-                'is_base_unit': False,
-                'conversion_factor': float(conversion.conversion_factor)
+                'id': unit.id,
+                'name': unit.name,
+                'symbol': unit.symbol,
+                'price': float(unit_price) if unit_price else 0,
+                'cost_price': float(unit_cost) if unit_cost else 0,
+                'is_base_unit': unit == obj.base_unit,
+                'is_default': compatible_unit.is_default,
+                'conversion_factor': self._get_conversion_factor(obj, unit)
             })
         
-        # Add units that can be converted to base unit
-        conversions_to = UnitConversion.objects.filter(
-            to_unit=obj.base_unit,
-            is_active=True
-        ).select_related('from_unit')
-        
-        for conversion in conversions_to:
-            if not any(unit['id'] == conversion.from_unit.id for unit in units):
-                unit_price = calculate_unit_price(obj.price, obj.base_unit.id, conversion.from_unit.id)
-                units.append({
-                    'id': conversion.from_unit.id,
-                    'name': conversion.from_unit.name,
-                    'symbol': conversion.from_unit.symbol,
-                    'price': unit_price,
-                    'is_base_unit': False,
-                    'conversion_factor': float(conversion.conversion_factor)
-                })
-        
         return units
+    
+    def _get_conversion_factor(self, obj, unit):
+        """Get conversion factor from base unit to the given unit for display purposes"""
+        if unit == obj.base_unit:
+            return 1.0
+        
+        try:
+            # Try direct conversion from base unit to target unit
+            conversion = UnitConversion.objects.get(
+                from_unit=obj.base_unit,
+                to_unit=unit,
+                is_active=True
+            )
+            # For display purposes, we want to show how many base units are in the target unit
+            return float(conversion.conversion_factor)
+        except UnitConversion.DoesNotExist:
+            try:
+                # Try reverse conversion (this is the common case)
+                conversion = UnitConversion.objects.get(
+                    from_unit=unit,
+                    to_unit=obj.base_unit,
+                    is_active=True
+                )
+                # If 1 pack = 12 pieces, then the conversion factor should be 12
+                # This means 1 pack contains 12 pieces
+                return float(conversion.conversion_factor)
+            except UnitConversion.DoesNotExist:
+                return 1.0
     
     def get_stock_in_units(self, obj):
         """Get stock quantity in all compatible units for this product"""
@@ -308,15 +356,110 @@ class ProductSerializer(serializers.ModelSerializer):
         if product.base_unit:
             product.unit = product.base_unit.symbol
             product.save(update_fields=['unit'])
+            
+            # Automatically create a ProductUnit record for the base unit and set it as default
+            from .models import ProductUnit
+            ProductUnit.objects.get_or_create(
+                product=product,
+                unit=product.base_unit,
+                defaults={
+                    'is_default': True,
+                    'is_active': True
+                }
+            )
         return product
     
     def update(self, instance, validated_data):
-        """Update product and set unit field based on base_unit"""
+        """Update product and convert display unit values back to base unit"""
+        # Get the default unit for this product
+        default_unit = instance.get_default_unit()
+        conversion_factor = 1.0
+        
+        # Calculate conversion factor from default unit to base unit
+        if default_unit != instance.base_unit:
+            try:
+                conversion = UnitConversion.objects.get(
+                    from_unit=default_unit,
+                    to_unit=instance.base_unit,
+                    is_active=True
+                )
+                conversion_factor = float(conversion.conversion_factor)
+            except UnitConversion.DoesNotExist:
+                # Try reverse conversion
+                try:
+                    conversion = UnitConversion.objects.get(
+                        from_unit=instance.base_unit,
+                        to_unit=default_unit,
+                        is_active=True
+                    )
+                    conversion_factor = 1.0 / float(conversion.conversion_factor)
+                except UnitConversion.DoesNotExist:
+                    conversion_factor = 1.0
+        
+        # Convert display unit values to base unit values
+        if 'price' in validated_data:
+            validated_data['price'] = float(validated_data['price']) / conversion_factor
+        if 'wholesale_price' in validated_data and validated_data['wholesale_price'] is not None:
+            validated_data['wholesale_price'] = float(validated_data['wholesale_price']) / conversion_factor
+        if 'cost_price' in validated_data:
+            validated_data['cost_price'] = float(validated_data['cost_price']) / conversion_factor
+        if 'stock_quantity' in validated_data:
+            validated_data['stock_quantity'] = float(validated_data['stock_quantity']) * conversion_factor
+        if 'min_stock_level' in validated_data:
+            validated_data['min_stock_level'] = float(validated_data['min_stock_level']) * conversion_factor
+        if 'max_stock_level' in validated_data:
+            validated_data['max_stock_level'] = float(validated_data['max_stock_level']) * conversion_factor
+        
         product = super().update(instance, validated_data)
         if product.base_unit:
             product.unit = product.base_unit.symbol
             product.save(update_fields=['unit'])
         return product
+    
+    def to_representation(self, instance):
+        """Convert base unit values to display unit values for reading"""
+        data = super().to_representation(instance)
+        
+        # Convert base unit values to display unit values
+        default_unit = instance.get_default_unit()
+        if default_unit != instance.base_unit:
+            try:
+                conversion = UnitConversion.objects.get(
+                    from_unit=default_unit,
+                    to_unit=instance.base_unit,
+                    is_active=True
+                )
+                conversion_factor = float(conversion.conversion_factor)
+            except UnitConversion.DoesNotExist:
+                try:
+                    conversion = UnitConversion.objects.get(
+                        from_unit=instance.base_unit,
+                        to_unit=default_unit,
+                        is_active=True
+                    )
+                    conversion_factor = float(conversion.conversion_factor)
+                except UnitConversion.DoesNotExist:
+                    conversion_factor = 1.0
+            
+            # Convert values to display unit
+            data['price'] = float(instance.price) * conversion_factor
+            data['cost_price'] = float(instance.cost_price) * conversion_factor
+            data['stock_quantity'] = float(instance.stock_quantity) / conversion_factor
+            data['min_stock_level'] = float(instance.min_stock_level) / conversion_factor if instance.min_stock_level > 0 else 0
+            data['max_stock_level'] = float(instance.max_stock_level) / conversion_factor if instance.max_stock_level > 0 else 0
+            if instance.wholesale_price:
+                data['wholesale_price'] = float(instance.wholesale_price) * conversion_factor
+        else:
+            # Already in base unit, just convert to float
+            data['price'] = float(instance.price)
+            data['cost_price'] = float(instance.cost_price)
+            data['stock_quantity'] = float(instance.stock_quantity)
+            data['min_stock_level'] = float(instance.min_stock_level)
+            data['max_stock_level'] = float(instance.max_stock_level)
+            if instance.wholesale_price:
+                data['wholesale_price'] = float(instance.wholesale_price)
+        
+        return data
     
     def validate_sku(self, value):
         if self.instance and self.instance.sku == value:
@@ -350,14 +493,24 @@ class ProductListSerializer(serializers.ModelSerializer):
     tax_rate = serializers.ReadOnlyField()
     is_low_stock = serializers.SerializerMethodField()
     is_out_of_stock = serializers.SerializerMethodField()
+    base_unit_name = serializers.CharField(source='base_unit.name', read_only=True)
+    base_unit_symbol = serializers.CharField(source='base_unit.symbol', read_only=True)
     available_units = serializers.SerializerMethodField()
     compatible_units = ProductUnitSerializer(many=True, read_only=True)
+    stock_quantity = serializers.SerializerMethodField()
+    min_stock_level = serializers.SerializerMethodField()
+    max_stock_level = serializers.SerializerMethodField()
+    price = serializers.SerializerMethodField()
+    wholesale_price = serializers.SerializerMethodField()
+    cost_price = serializers.SerializerMethodField()
     
     class Meta:
         model = Product
         fields = [
-            'id', 'name', 'category_name', 'tax_class', 'tax_class_name', 'tax_rate', 'sku', 'price', 'stock_quantity', 
-            'unit', 'base_unit', 'is_active', 'is_low_stock', 'is_out_of_stock', 'available_units', 'compatible_units'
+            'id', 'name', 'description', 'category', 'category_name', 'tax_class', 'tax_class_name', 'tax_rate', 
+            'sku', 'price', 'wholesale_price', 'cost_price', 'stock_quantity', 'min_stock_level', 'max_stock_level',
+            'unit', 'base_unit', 'base_unit_name', 'base_unit_symbol', 'is_active', 'is_low_stock', 'is_out_of_stock', 
+            'available_units', 'compatible_units'
         ]
     
     def get_is_low_stock(self, obj):
@@ -365,6 +518,41 @@ class ProductListSerializer(serializers.ModelSerializer):
     
     def get_is_out_of_stock(self, obj):
         return obj.is_out_of_stock
+    
+    def get_stock_quantity(self, obj):
+        """Get stock quantity in the default unit"""
+        return obj.get_display_quantity()
+    
+    def get_min_stock_level(self, obj):
+        """Get min stock level in the default unit"""
+        default_unit = obj.get_default_unit()
+        if default_unit == obj.base_unit:
+            return obj.min_stock_level
+        # Convert min stock level from base unit to default unit
+        return obj.convert_quantity(obj.min_stock_level, obj.base_unit, default_unit) if obj.min_stock_level > 0 else 0
+    
+    def get_max_stock_level(self, obj):
+        """Get max stock level in the default unit"""
+        default_unit = obj.get_default_unit()
+        if default_unit == obj.base_unit:
+            return obj.max_stock_level
+        # Convert max stock level from base unit to default unit
+        return obj.convert_quantity(obj.max_stock_level, obj.base_unit, default_unit) if obj.max_stock_level > 0 else 0
+    
+    def get_price(self, obj):
+        """Get price in the default unit"""
+        default_unit = obj.get_default_unit()
+        return obj.get_price_in_unit(default_unit)
+    
+    def get_wholesale_price(self, obj):
+        """Get wholesale price in the default unit"""
+        default_unit = obj.get_default_unit()
+        return obj.get_wholesale_price_in_unit(default_unit)
+    
+    def get_cost_price(self, obj):
+        """Get cost price in the default unit"""
+        default_unit = obj.get_default_unit()
+        return obj.get_cost_price_in_unit(default_unit)
     
     def get_available_units(self, obj):
         """Get all available units for this product with pricing information"""
