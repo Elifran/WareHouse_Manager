@@ -156,6 +156,57 @@ class SaleSerializer(serializers.ModelSerializer):
     
     def get_items_count(self, obj):
         return obj.items.count()
+    
+    def update(self, instance, validated_data):
+        # Get items data from the request data (passed through context)
+        items_data = None
+        if hasattr(self, 'context') and self.context.get('request'):
+            request = self.context.get('request')
+            if hasattr(request, 'data'):
+                items_data = request.data.get('items', None)
+        
+        # Handle items update if provided
+        if items_data is not None:
+            # Update existing items
+            for item_data in items_data:
+                item_id = item_data.get('id')
+                if item_id:
+                    try:
+                        item = SaleItem.objects.get(id=item_id, sale=instance)
+                        
+                        # Get the new quantity and convert it to base unit if needed
+                        new_quantity = item_data.get('quantity', item.quantity)
+                        if new_quantity != item.quantity:
+                            # The frontend is sending quantity in display unit, convert to base unit
+                            if item.unit != item.product.base_unit:
+                                # Convert from display unit to base unit using the product's conversion method
+                                base_quantity = item.product.convert_quantity(new_quantity, item.unit, item.product.base_unit)
+                                item.quantity = base_quantity
+                            else:
+                                # Already in base unit
+                                item.quantity = new_quantity
+                        
+                        # Update other fields (price_mode is read-only)
+                        from decimal import Decimal
+                        unit_price = item_data.get('unit_price', item.unit_price)
+                        if unit_price is not None:
+                            item.unit_price = Decimal(str(unit_price))
+                        
+                        unit_cost = item_data.get('unit_cost', item.unit_cost)
+                        if unit_cost is not None:
+                            item.unit_cost = Decimal(str(unit_cost))
+                        
+                        item.save()
+                    except SaleItem.DoesNotExist:
+                        pass  # Skip items that don't exist
+                    except Exception as e:
+                        raise e
+            
+            # Recalculate sale totals after updating items
+            instance.calculate_totals()
+        
+        # Update the sale instance with other fields
+        return super().update(instance, validated_data)
 
 class SaleCreateSerializer(serializers.ModelSerializer):
     items = SaleItemCreateSerializer(many=True)

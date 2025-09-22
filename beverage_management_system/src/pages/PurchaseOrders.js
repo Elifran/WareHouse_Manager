@@ -223,6 +223,7 @@ const PurchaseOrders = () => {
   const [allDeliveries, setAllDeliveries] = useState([]);
   const [pendingDeliveries, setPendingDeliveries] = useState([]);
   const [activeTab, setActiveTab] = useState('orders'); // 'orders', 'pending', 'history'
+  const [orderFilter, setOrderFilter] = useState('active'); // 'active', 'archived'
   const api = useApi();
 
   useEffect(() => {
@@ -302,6 +303,43 @@ const PurchaseOrders = () => {
       } catch (error) {
         console.error('Error archiving purchase order:', error);
         alert('Error archiving purchase order: ' + (error.response?.data?.detail || error.message));
+      }
+    }
+  };
+
+  const handleDeleteOrder = async (orderId) => {
+    if (window.confirm('Are you sure you want to permanently delete this archived purchase order? This action cannot be undone.')) {
+      try {
+        await api.delete(`/purchases/purchase-orders/${orderId}/`);
+        fetchData();
+        alert('Purchase order deleted successfully');
+      } catch (error) {
+        console.error('Error deleting purchase order:', error);
+        alert('Error deleting purchase order: ' + (error.response?.data?.detail || error.message));
+      }
+    }
+  };
+
+  const handleDeleteAllArchived = async () => {
+    const archivedOrders = purchaseOrders.filter(order => order.status === 'archived');
+    if (archivedOrders.length === 0) {
+      alert('No archived orders to delete');
+      return;
+    }
+
+    const confirmMessage = `Are you sure you want to permanently delete ALL ${archivedOrders.length} archived purchase orders? This action cannot be undone.`;
+    if (window.confirm(confirmMessage)) {
+      try {
+        // Delete all archived orders
+        const deletePromises = archivedOrders.map(order => 
+          api.delete(`/purchases/purchase-orders/${order.id}/`)
+        );
+        await Promise.all(deletePromises);
+        fetchData();
+        alert(`Successfully deleted ${archivedOrders.length} archived purchase orders`);
+      } catch (error) {
+        console.error('Error deleting archived orders:', error);
+        alert('Error deleting archived orders: ' + (error.response?.data?.detail || error.message));
       }
     }
   };
@@ -442,6 +480,15 @@ const PurchaseOrders = () => {
           >
             View Order
           </Button>
+          {row.status === 'archived' && (
+            <Button
+              size="small"
+              variant="danger"
+              onClick={() => handleDeleteOrder(row.id)}
+            >
+              Delete
+            </Button>
+          )}
         </div>
       )
     }
@@ -598,7 +645,14 @@ const PurchaseOrders = () => {
   const getCurrentData = () => {
     switch (activeTab) {
       case 'orders':
-        return { data: purchaseOrders, columns: purchaseOrderColumns, emptyMessage: "No purchase orders found" };
+        const filteredOrders = orderFilter === 'archived' 
+          ? purchaseOrders.filter(order => order.status === 'archived')
+          : purchaseOrders.filter(order => order.status !== 'archived');
+        return { 
+          data: filteredOrders, 
+          columns: purchaseOrderColumns, 
+          emptyMessage: orderFilter === 'archived' ? "No archived purchase orders found" : "No active purchase orders found" 
+        };
       case 'pending':
         return { data: pendingDeliveries, columns: deliveryColumns, emptyMessage: "No pending deliveries" };
       case 'history':
@@ -664,6 +718,49 @@ const PurchaseOrders = () => {
               {activeTab === 'history' && 'Delivery History'}
             </h2>
           </div>
+
+          {/* Order Filter Section - Only show for orders tab */}
+          {activeTab === 'orders' && (
+            <div className="order-filter-section">
+              <div className="filter-buttons">
+                <button 
+                  type="button"
+                  className={`filter-btn ${orderFilter === 'active' ? 'active' : ''}`}
+                  onClick={() => setOrderFilter('active')}
+                >
+                  <span className="filter-icon">📋</span>
+                  Active Orders
+                  <span className="filter-count">
+                    ({purchaseOrders.filter(order => order.status !== 'archived').length})
+                  </span>
+                </button>
+                <button 
+                  type="button"
+                  className={`filter-btn ${orderFilter === 'archived' ? 'active' : ''}`}
+                  onClick={() => setOrderFilter('archived')}
+                >
+                  <span className="filter-icon">📁</span>
+                  Archived Orders
+                  <span className="filter-count">
+                    ({purchaseOrders.filter(order => order.status === 'archived').length})
+                  </span>
+                </button>
+              </div>
+              
+              {/* Delete All Archived Button - Only show when viewing archived orders */}
+              {orderFilter === 'archived' && purchaseOrders.filter(order => order.status === 'archived').length > 0 && (
+                <div className="bulk-actions">
+                  <Button
+                    variant="danger"
+                    size="small"
+                    onClick={handleDeleteAllArchived}
+                  >
+                    🗑️ Delete All Archived
+                  </Button>
+                </div>
+              )}
+            </div>
+          )}
           
           <div className="table-container">
             <Table

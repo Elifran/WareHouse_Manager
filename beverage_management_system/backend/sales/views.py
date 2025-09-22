@@ -174,6 +174,9 @@ def complete_sale(request, sale_id):
         # Ensure the product stock is updated by refreshing from database
         item.product.refresh_from_db()
     
+    # Recalculate totals to ensure accuracy before completing
+    sale.calculate_totals()
+    
     # Update sale status
     sale.status = 'completed'
     sale.save()
@@ -456,3 +459,17 @@ def edit_sale(request, sale_id):
     # Return updated sale
     serializer = SaleSerializer(sale)
     return Response(serializer.data)
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def pending_sales(request):
+    """Get all pending sales with their items"""
+    try:
+        sales = Sale.objects.filter(status='pending').select_related('sold_by').prefetch_related(
+            'items__product', 'items__unit'
+        ).order_by('-created_at')
+        
+        serializer = SaleSerializer(sales, many=True)
+        return Response(serializer.data)
+    except Exception as e:
+        return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

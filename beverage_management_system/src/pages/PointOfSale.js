@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import api from '../services/api';
 import Button from '../components/Button';
-import PrintButton, { generatePrintContent } from '../components/PrintButton';
+import { generatePrintContent } from '../components/PrintButton';
 import './PointOfSale.css';
 
 const PointOfSale = () => {
@@ -32,6 +32,8 @@ const PointOfSale = () => {
   const searchTimeoutRef = useRef(null); // Ref for search timeout
   const [showSellableToggle, setShowSellableToggle] = useState(false); // Show/hide sellable toggle
   const [priceMode, setPriceMode] = useState('standard'); // 'standard' or 'wholesale'
+  const [saleMode, setSaleMode] = useState('complete'); // 'complete' or 'pending'
+  const [printReceipt, setPrintReceipt] = useState(true); // true or false
 
   // Function to get the current price based on price mode
   const getCurrentPrice = (product) => {
@@ -324,6 +326,7 @@ const PointOfSale = () => {
     }
   };
 
+
   const fetchStockAvailability = async (productId) => {
     try {
       const response = await api.get(`/products/${productId}/stock-availability/`);
@@ -352,31 +355,34 @@ const PointOfSale = () => {
       unit = { id: product.base_unit?.id || product.base_unit, name: 'Piece', symbol: 'piece' };
     }
     
-    // Check if stock availability data is loaded
-    if (!stockAvailability[product.id]) {
-      setError('Loading stock information... Please try again.');
-      return;
-    }
-    
-    // Check updated stock availability for the selected unit
-    const updatedStockInfo = getUpdatedStockAvailability(product.id);
-    const unitStockInfo = updatedStockInfo?.find(u => u.id === unit.id);
-    
-    
-    if (!unitStockInfo) {
-      setError(`Unit ${unit.name} not found in stock information`);
-      return;
-    }
-    
-    if (!unitStockInfo.is_available) {
-      setError(`${unit.name} is out of stock`);
-      return;
-    }
-    
-    // Check if there's enough stock for the selected unit
-    if (unitStockInfo.available_quantity <= 0) {
-      setError(`No ${unit.name} stock left`);
-      return;
+    // Skip stock validation for pending sales since stock won't be removed until completion
+    if (saleMode === 'complete') {
+      // Check if stock availability data is loaded
+      if (!stockAvailability[product.id]) {
+        setError('Loading stock information... Please try again.');
+        return;
+      }
+
+      // Check updated stock availability for the selected unit
+      const updatedStockInfo = getUpdatedStockAvailability(product.id);
+      const unitStockInfo = updatedStockInfo?.find(u => u.id === unit.id);
+      
+      
+      if (!unitStockInfo) {
+        setError(`Unit ${unit.name} not found in stock information`);
+        return;
+      }
+      
+      if (!unitStockInfo.is_available) {
+        setError(`${unit.name} is out of stock`);
+        return;
+      }
+      
+      // Check if there's enough stock for the selected unit
+      if (unitStockInfo.available_quantity <= 0) {
+        setError(`No ${unit.name} stock left`);
+        return;
+      }
     }
     
     const existingItem = cart.find(item => 
@@ -385,10 +391,14 @@ const PointOfSale = () => {
       item.price_mode === priceMode
     );
     if (existingItem) {
-      // Check if adding 1 more would exceed available quantity
-      if (existingItem.quantity + 1 > unitStockInfo.available_quantity) {
-        setError(`Not enough ${unit.name} available. Only ${unitStockInfo.available_quantity} left.`);
-        return;
+      // Check if adding 1 more would exceed available quantity (only for complete sales)
+      if (saleMode === 'complete') {
+        const updatedStockInfo = getUpdatedStockAvailability(product.id);
+        const unitStockInfo = updatedStockInfo?.find(u => u.id === unit.id);
+        if (unitStockInfo && existingItem.quantity + 1 > unitStockInfo.available_quantity) {
+          setError(`Not enough ${unit.name} available. Only ${unitStockInfo.available_quantity} left.`);
+          return;
+        }
       }
       setCart(cart.map(item =>
         item.id === product.id && item.unit_id === unit.id && item.price_mode === priceMode
@@ -396,11 +406,19 @@ const PointOfSale = () => {
           : item
       ));
     } else {
-      // Check if adding 1 would exceed available quantity
-      if (1 > unitStockInfo.available_quantity) {
-        setError(`Not enough ${unit.name} available. Only ${unitStockInfo.available_quantity} left.`);
-        return;
+      // Check if adding 1 would exceed available quantity (only for complete sales)
+      if (saleMode === 'complete') {
+        const updatedStockInfo = getUpdatedStockAvailability(product.id);
+        const unitStockInfo = updatedStockInfo?.find(u => u.id === unit.id);
+        if (unitStockInfo && 1 > unitStockInfo.available_quantity) {
+          setError(`Not enough ${unit.name} available. Only ${unitStockInfo.available_quantity} left.`);
+          return;
+        }
       }
+      // Get unit stock info for price calculation
+      const updatedStockInfo = getUpdatedStockAvailability(product.id);
+      const unitStockInfo = updatedStockInfo?.find(u => u.id === unit.id);
+      
       const newCartItem = {
         ...product,
         quantity: 1,
@@ -419,26 +437,29 @@ const PointOfSale = () => {
     if (quantity <= 0) {
       setCart(cart.filter(item => !(item.id === productId && item.unit_id === unitId && item.price_mode === priceMode)));
     } else {
-      // Check updated stock availability for the selected unit
-      const updatedStockInfo = getUpdatedStockAvailability(productId);
-      const unitStockInfo = updatedStockInfo?.find(u => u.id === unitId);
-      
-      if (!unitStockInfo || !unitStockInfo.is_available) {
-        setError(`Unit is out of stock`);
-        return;
-      }
-      
-      // For updateQuantity, we need to consider the current cart quantity
-      const currentCartQuantity = cart
-        .filter(item => item.id === productId && item.unit_id === unitId && item.price_mode === priceMode)
-        .reduce((sum, item) => sum + item.quantity, 0);
-      
-      // Calculate how much we can add (available + what's already in cart)
-      const maxAllowed = unitStockInfo.available_quantity + currentCartQuantity;
-      
-      if (quantity > maxAllowed) {
-        setError(`Not enough stock available. Max: ${maxAllowed}`);
-        return;
+      // Skip stock validation for pending sales since stock won't be removed until completion
+      if (saleMode === 'complete') {
+        // Check updated stock availability for the selected unit
+        const updatedStockInfo = getUpdatedStockAvailability(productId);
+        const unitStockInfo = updatedStockInfo?.find(u => u.id === unitId);
+        
+        if (!unitStockInfo || !unitStockInfo.is_available) {
+          setError(`Unit is out of stock`);
+          return;
+        }
+        
+        // For updateQuantity, we need to consider the current cart quantity
+        const currentCartQuantity = cart
+          .filter(item => item.id === productId && item.unit_id === unitId && item.price_mode === priceMode)
+          .reduce((sum, item) => sum + item.quantity, 0);
+        
+        // Calculate how much we can add (available + what's already in cart)
+        const maxAllowed = unitStockInfo.available_quantity + currentCartQuantity;
+        
+        if (quantity > maxAllowed) {
+          setError(`Not enough stock available. Max: ${maxAllowed}`);
+          return;
+        }
       }
       
       setCart(cart.map(item =>
@@ -486,9 +507,9 @@ const PointOfSale = () => {
   };
 
 
-  const autoPrintReceipt = async (saleNumber, saleData) => {
+  const autoPrintReceipt = async (saleNumber, saleData, saleStatus = 'completed') => {
     try {
-      // Create print content for the completed sale
+      // Create print content for the sale
       const printData = {
         sale_number: saleNumber,
         customer_name: customerInfo.name || 'Walk-in Customer',
@@ -499,7 +520,7 @@ const PointOfSale = () => {
         created_at: new Date().toISOString(),
         print_timestamp: new Date().toISOString(),
         print_id: `PRINT-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-        status: 'completed',
+        status: saleStatus,
         total_amount: calculateSubtotal(),
         items: cart.map(item => ({
           product_name: item.name,
@@ -520,7 +541,7 @@ const PointOfSale = () => {
       printWindow.document.close();
       
       // Wait for content to load then print
-      printWindow.onload = () => {
+      const printAfterLoad = () => {
         printWindow.focus();
         printWindow.print();
         // Close the window after a short delay
@@ -528,6 +549,13 @@ const PointOfSale = () => {
           printWindow.close();
         }, 1000);
       };
+      
+      // Check if window is already loaded
+      if (printWindow.document.readyState === 'complete') {
+        printAfterLoad();
+      } else {
+        printWindow.onload = printAfterLoad;
+      }
       
     } catch (error) {
       console.error('Auto-print error:', error);
@@ -544,12 +572,12 @@ const PointOfSale = () => {
     setProcessing(true);
     setError('');
 
-      try {
-        const saleData = {
-          customer_name: customerInfo.name,
-          customer_phone: customerInfo.phone,
-          customer_email: customerInfo.email,
-          payment_method: paymentMethod,
+    try {
+      const saleData = {
+        customer_name: customerInfo.name,
+        customer_phone: customerInfo.phone,
+        customer_email: customerInfo.email,
+        payment_method: paymentMethod,
           items: cart.map(item => {
             // More robust unit ID extraction
             let unitId = item.unit_id;
@@ -558,7 +586,7 @@ const PointOfSale = () => {
             }
             
             return {
-              product: item.id,
+          product: item.id,
               quantity: parseFloat(item.quantity),
               unit: parseInt(unitId),
               unit_price: parseFloat(item.unit_price),
@@ -572,12 +600,60 @@ const PointOfSale = () => {
       const saleId = response.data.id;
       const saleNumber = response.data.sale_number;
       
-      try {
-        // Complete the sale
-        await api.post(`/sales/${saleId}/complete/`);
+      if (saleMode === 'complete') {
+        // Complete the sale immediately
+        try {
+          await api.post(`/sales/${saleId}/complete/`);
+          
+          // Auto-print the receipt after successful sale completion (only if printReceipt is true)
+          if (printReceipt) {
+            await autoPrintReceipt(saleNumber, response.data, 'completed');
+          }
+      
+      // Clear cart and customer info
+      setCart([]);
+      setCustomerInfo({ name: '', phone: '', email: '' });
+      
+          // Reset price mode to standard after sale
+          setPriceMode('standard');
+          
+          // Wait a moment for the backend to process stock movements
+          await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second
+          
+          // Refresh product data to update stock quantities
+          await fetchProducts();
+          
+          // Wait another moment for stock availability to be updated
+          await new Promise(resolve => setTimeout(resolve, 500)); // Wait 0.5 seconds
+          
+          // Refresh stock availability for all products
+          refreshStockAvailability();
+          
+          alert(`Sale completed successfully! Sale Number: ${saleNumber}`);
+        } catch (completeError) {
+          // Sale was created but completion failed
+          console.error('Sale completion error:', completeError);
+          setError(`Sale created (${saleNumber}) but completion failed: ${completeError.response?.data?.error || completeError.message}`);
+          
+          // Still clear the cart since the sale was created
+          setCart([]);
+          setCustomerInfo({ name: '', phone: '', email: '' });
+          
+          // Wait for backend to process any completed stock movements
+          await new Promise(resolve => setTimeout(resolve, 1000));
+          
+          // Refresh data
+          await fetchProducts();
+          await new Promise(resolve => setTimeout(resolve, 500));
+          refreshStockAvailability();
+        }
+      } else {
+        // Create pending sale (don't complete it)
         
-        // Auto-print the receipt after successful sale completion
-        await autoPrintReceipt(saleNumber, response.data);
+        // Print receipt for pending sale if requested
+        if (printReceipt) {
+          await autoPrintReceipt(saleNumber, response.data, 'pending');
+        }
         
         // Clear cart and customer info
         setCart([]);
@@ -586,35 +662,7 @@ const PointOfSale = () => {
         // Reset price mode to standard after sale
         setPriceMode('standard');
         
-        // Wait a moment for the backend to process stock movements
-        await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second
-        
-        // Refresh product data to update stock quantities
-        await fetchProducts();
-        
-        // Wait another moment for stock availability to be updated
-        await new Promise(resolve => setTimeout(resolve, 500)); // Wait 0.5 seconds
-        
-        // Refresh stock availability for all products
-        refreshStockAvailability();
-        
-        alert(`Sale completed successfully! Sale Number: ${saleNumber}`);
-      } catch (completeError) {
-        // Sale was created but completion failed
-        console.error('Sale completion error:', completeError);
-        setError(`Sale created (${saleNumber}) but completion failed: ${completeError.response?.data?.error || completeError.message}`);
-        
-        // Still clear the cart since the sale was created
-        setCart([]);
-        setCustomerInfo({ name: '', phone: '', email: '' });
-        
-        // Wait for backend to process any completed stock movements
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        
-        // Refresh data
-        await fetchProducts();
-        await new Promise(resolve => setTimeout(resolve, 500));
-        refreshStockAvailability();
+        alert(`Pending sale created! Sale Number: ${saleNumber}\nYou can complete it later in Sales Management.`);
       }
     } catch (err) {
       setError(err.response?.data?.detail || 'Failed to create sale');
@@ -635,9 +683,9 @@ const PointOfSale = () => {
       setSearchInput(value);
     } else {
       // For other filters (like category), update immediately
-      const newFilters = { ...filters, [filterType]: value };
-      setFilters(newFilters);
-      fetchProducts(newFilters);
+    const newFilters = { ...filters, [filterType]: value };
+    setFilters(newFilters);
+    fetchProducts(newFilters);
     }
   };
 
@@ -685,28 +733,31 @@ const PointOfSale = () => {
       return;
     }
     
-    // Check updated stock availability for the selected unit
-    const updatedStockInfo = getUpdatedStockAvailability(item.id);
-    const unitStockInfo = updatedStockInfo?.find(u => u.id === item.unit_id);
-    
-    if (!unitStockInfo || !unitStockInfo.is_available) {
-      setError(`Unit is out of stock`);
-      setEditingQuantity(null);
-      return;
-    }
-    
-    // For handleQuantitySubmit, we need to consider the current cart quantity
-    const currentCartQuantity = cart
-      .filter(cartItem => cartItem.id === item.id && cartItem.unit_id === item.unit_id && cartItem.price_mode === item.price_mode)
-      .reduce((sum, cartItem) => sum + cartItem.quantity, 0);
-    
-    // Calculate how much we can add (available + what's already in cart)
-    const maxAllowed = unitStockInfo.available_quantity + currentCartQuantity;
-    
-    if (newQuantity > maxAllowed) {
-      setError(`Not enough stock available. Max: ${maxAllowed}`);
-      setEditingQuantity(null);
-      return;
+    // Skip stock validation for pending sales since stock won't be removed until completion
+    if (saleMode === 'complete') {
+      // Check updated stock availability for the selected unit
+      const updatedStockInfo = getUpdatedStockAvailability(item.id);
+      const unitStockInfo = updatedStockInfo?.find(u => u.id === item.unit_id);
+      
+      if (!unitStockInfo || !unitStockInfo.is_available) {
+        setError(`Unit is out of stock`);
+        setEditingQuantity(null);
+        return;
+      }
+      
+      // For handleQuantitySubmit, we need to consider the current cart quantity
+      const currentCartQuantity = cart
+        .filter(cartItem => cartItem.id === item.id && cartItem.unit_id === item.unit_id && cartItem.price_mode === item.price_mode)
+        .reduce((sum, cartItem) => sum + cartItem.quantity, 0);
+      
+      // Calculate how much we can add (available + what's already in cart)
+      const maxAllowed = unitStockInfo.available_quantity + currentCartQuantity;
+      
+      if (newQuantity > maxAllowed) {
+        setError(`Not enough stock available. Max: ${maxAllowed}`);
+        setEditingQuantity(null);
+        return;
+      }
     }
     
     if (newQuantity === 0) {
@@ -742,8 +793,8 @@ const PointOfSale = () => {
   };
 
   const handleProductCardClick = (product) => {
-    // Don't allow clicking on out-of-stock products
-    if (product.stock_quantity <= 0) {
+    // Don't allow clicking on out-of-stock products (only for complete sales)
+    if (saleMode === 'complete' && product.stock_quantity <= 0) {
       return;
     }
     
@@ -802,7 +853,7 @@ const PointOfSale = () => {
           <h2>Products</h2>
           
           {/* Filters */}
-          <div className="pos-filters">
+          <form className="pos-filters">
             <div className="filter-group">
               <label>Category:</label>
               <select 
@@ -830,16 +881,62 @@ const PointOfSale = () => {
               <label>Price Mode:</label>
               <div className="price-mode-toggle">
                 <button 
+                  type="button"
                   className={`price-mode-btn ${priceMode === 'standard' ? 'active' : ''}`}
                   onClick={() => setPriceMode('standard')}
                 >
                   Standard
                 </button>
                 <button 
+                  type="button"
                   className={`price-mode-btn ${priceMode === 'wholesale' ? 'active' : ''}`}
                   onClick={() => setPriceMode('wholesale')}
                 >
                   Wholesale
+                </button>
+              </div>
+            </div>
+            
+            <div className="filter-group">
+              <label>Sale Mode:</label>
+              <div className="sale-mode-toggle">
+                <button 
+                  type="button"
+                  className={`sale-mode-btn ${saleMode === 'complete' ? 'active' : ''}`}
+                  onClick={() => setSaleMode('complete')}
+                  title="Sale will be completed immediately and stock will be deducted"
+                >
+                  Complete
+                </button>
+                <button 
+                  type="button"
+                  className={`sale-mode-btn ${saleMode === 'pending' ? 'active' : ''}`}
+                  onClick={() => setSaleMode('pending')}
+                  title="Sale will be created as pending and can be completed later"
+                >
+                  Pending
+                </button>
+              </div>
+            </div>
+            
+            <div className="filter-group print-receipt-group">
+              <label>Print Receipt:</label>
+              <div className="sale-mode-toggle print-receipt-toggle">
+                <button 
+                  type="button"
+                  className={`sale-mode-btn print-receipt-btn ${printReceipt ? 'active' : ''}`}
+                  onClick={() => setPrintReceipt(true)}
+                  title="Print receipt after sale"
+                >
+                  Yes
+                </button>
+                <button 
+                  type="button"
+                  className={`sale-mode-btn print-receipt-btn ${!printReceipt ? 'active' : ''}`}
+                  onClick={() => setPrintReceipt(false)}
+                  title="Don't print receipt"
+                >
+                  No
                 </button>
               </div>
             </div>
@@ -859,7 +956,7 @@ const PointOfSale = () => {
                 Clear
               </Button>
             </div>
-          </div>
+          </form>
 
           {/* Category Management Section */}
           {showSellableToggle && (
@@ -906,7 +1003,7 @@ const PointOfSale = () => {
                     >
                       {category.is_sellable ? 'Sellable' : 'Not Sellable'}
                     </button>
-                  </div>
+          </div>
                 ))}
               </div>
             </div>
@@ -922,7 +1019,7 @@ const PointOfSale = () => {
             {products.map(product => (
               <div
                 key={product.id}
-                className={`product-card ${product.stock_quantity <= 0 ? 'out-of-stock' : ''} clickable`}
+                className={`product-card ${product.stock_quantity <= 0 && saleMode === 'complete' ? 'out-of-stock' : ''} clickable`}
                 onClick={() => handleProductCardClick(product)}
               >
                 <div className="product-info">
@@ -988,10 +1085,10 @@ const PointOfSale = () => {
                             <option 
                               key={compatibleUnit.unit?.id || compatibleUnit.unit} 
                               value={compatibleUnit.unit?.id || compatibleUnit.unit}
-                              disabled={!isAvailable}
+                              disabled={saleMode === 'complete' ? !isAvailable : false}
                             >
                               {unitName} ({unitSymbol}) - {getCurrentUnitPrice(product, unitStockInfo).toFixed(2)} MGA
-                              {!isAvailable ? ' - OUT OF STOCK' : 
+                              {!isAvailable && saleMode === 'complete' ? ' - OUT OF STOCK' : 
                                ` - ${availableQty} available`}
                             </option>
                           );
@@ -1007,6 +1104,11 @@ const PointOfSale = () => {
                       size="small"
                       onClick={() => addToCart(product)}
                       disabled={(() => {
+                        // Skip stock validation for pending sales since stock won't be removed until completion
+                        if (saleMode === 'pending') {
+                          return false; // Always allow for pending sales
+                        }
+                        
                         // Check if any unit has available stock
                         if (!stockAvailability[product.id]) {
                           return true; // Disable if stock data not loaded
@@ -1020,6 +1122,11 @@ const PointOfSale = () => {
                       {(() => {
                         if (!stockAvailability[product.id]) {
                           return 'Loading...';
+                        }
+                        
+                        // For pending sales, always show "Add to Cart" regardless of stock
+                        if (saleMode === 'pending') {
+                          return 'Add to Cart';
                         }
                         
                         return product.stock_quantity <= 0 ? 'Out of Stock' : 'Add to Cart';
@@ -1038,6 +1145,7 @@ const PointOfSale = () => {
             ))}
           </div>
         </div>
+
 
         {/* Cart and Checkout */}
         <div className="pos-cart">
@@ -1121,6 +1229,11 @@ const PointOfSale = () => {
                           variant="outline"
                           onClick={() => updateQuantity(item.id, item.unit_id, item.quantity + 1, item.price_mode)}
                           disabled={(() => {
+                            // Skip stock validation for pending sales since stock won't be removed until completion
+                            if (saleMode === 'pending') {
+                              return false; // Always allow for pending sales
+                            }
+                            
                             const updatedStockInfo = getUpdatedStockAvailability(item.id);
                             const unitStockInfo = updatedStockInfo?.find(u => u.id === item.unit_id);
                             const currentCartQuantity = cart
@@ -1174,6 +1287,7 @@ const PointOfSale = () => {
                 </div>
               </div>
 
+              <form className="checkout-form">
               <div className="customer-info">
                 <h3>Customer Information</h3>
                 <div className="form-group">
@@ -1219,47 +1333,19 @@ const PointOfSale = () => {
                   ))}
                 </div>
               </div>
+              </form>
 
               <div className="checkout-actions">
-                <PrintButton
-                  data={{
-                    sale_number: `TEMP-${Date.now()}`,
-                    customer_name: customerInfo.name || 'Walk-in Customer',
-                    customer_phone: customerInfo.phone || '',
-                    customer_email: customerInfo.email || '',
-                    user_name: user?.username || 'Unknown User',
-                    user_id: user?.id || 'unknown',
-                    created_at: new Date().toISOString(),
-                    print_timestamp: new Date().toISOString(),
-                    print_id: `PRINT-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-                    status: 'pending',
-                    total_amount: calculateSubtotal(),
-                    items: cart.map(item => ({
-                      product_name: item.name,
-                      product_sku: item.sku,
-                      quantity: item.quantity,
-                      unit_name: item.unit?.name || 'piece',
-                      unit_price: item.price,
-                      total_price: item.price * item.quantity
-                    }))
-                  }}
-                  title="Sale Receipt"
-                  type="sale"
-                  printText="Print Receipt"
-                  validateText="Validate Sale"
-                  showValidateOption={true}
-                  onValidate={handleCheckout}
-                  disabled={cart.length === 0}
-                  className="print-receipt-btn"
-                />
                 <Button
                   onClick={handleCheckout}
                   loading={processing}
                   className="validate-button"
                   size="large"
                   variant="primary"
+                  disabled={cart.length === 0}
                 >
-                  Validate Sale
+                  {saleMode === 'complete' ? 'Complete Sale' : 'Create Pending Sale'}
+                  {printReceipt && ' & Print Receipt'}
                 </Button>
               </div>
             </>

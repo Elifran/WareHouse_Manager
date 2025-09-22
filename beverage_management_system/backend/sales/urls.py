@@ -8,6 +8,7 @@ urlpatterns = [
     path('payments/', views.PaymentListCreateView.as_view(), name='payment-list-create'),
     path('summary/', views.sales_summary, name='sales-summary'),
     path('chart-data/', views.sales_chart_data, name='sales-chart-data'),
+    path('pending/', views.pending_sales, name='pending-sales'),
     path('<int:sale_id>/complete/', views.complete_sale, name='complete-sale'),
     path('<int:sale_id>/cancel/', views.cancel_sale, name='cancel-sale'),
     path('delete/', views.delete_sales, name='delete-sales'),

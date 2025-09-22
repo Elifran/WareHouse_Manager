@@ -397,7 +397,7 @@ const SalesManagement = () => {
                             </span>
                           </span>
                           <span className="item-details">
-                            {item.quantity} {item.unit_symbol || 'pcs'} × {formatCurrency(item.unit_price)}
+                            {item.quantity_display || item.quantity} {item.unit_symbol || 'pcs'} × {formatCurrency(item.unit_price)}
                           </span>
                         </div>
                       ))}

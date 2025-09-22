@@ -25,7 +25,7 @@ const PrinterSettings = () => {
   const [availablePrinters, setAvailablePrinters] = useState([]);
 
   useEffect(() => {
-    if (user && user.role === 'admin') {
+    if (user && (user.role === 'admin' || user.role === 'manager')) {
       fetchPrinters();
     }
   }, [user]);
@@ -372,7 +372,7 @@ const PrinterSettings = () => {
     }
   ];
 
-  if (user?.role !== 'admin') {
+  if (user?.role !== 'admin' && user?.role !== 'manager') {
     return (
       <div className="printer-settings">
         <div className="access-denied">

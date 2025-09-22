@@ -36,6 +36,20 @@ class Sale(models.Model):
     def __str__(self):
         return f"Sale {self.sale_number} - {self.total_amount}"
     
+    def calculate_totals(self):
+        """Calculate and update sale totals based on items"""
+        subtotal = Decimal('0')
+        cost_amount = Decimal('0')
+        
+        for item in self.items.all():
+            subtotal += item.total_price
+            cost_amount += item.total_cost
+        
+        self.subtotal = subtotal
+        self.cost_amount = cost_amount
+        self.total_amount = subtotal + self.tax_amount - self.discount_amount
+        self.save(update_fields=['subtotal', 'cost_amount', 'total_amount'])
+    
     class Meta:
         ordering = ['-created_at']
 
@@ -51,8 +65,8 @@ class SaleItem(models.Model):
     unit = models.ForeignKey('products.Unit', on_delete=models.PROTECT, null=True, blank=True, help_text="Unit used for this sale item (for display purposes)")
     unit_price = models.DecimalField(max_digits=10, decimal_places=2, validators=[MinValueValidator(Decimal('0.01'))], help_text="Price per unit in the unit used")
     unit_cost = models.DecimalField(max_digits=10, decimal_places=2, default=0, help_text="Cost per unit in the unit used (frozen for historical accuracy)")
-    total_price = models.DecimalField(max_digits=10, decimal_places=2, validators=[MinValueValidator(Decimal('0.01'))])
-    total_cost = models.DecimalField(max_digits=10, decimal_places=2, default=0, help_text="Total cost at time of sale (frozen for historical accuracy)")
+    total_price = models.DecimalField(max_digits=15, decimal_places=2, validators=[MinValueValidator(Decimal('0.01'))])
+    total_cost = models.DecimalField(max_digits=15, decimal_places=2, default=0, help_text="Total cost at time of sale (frozen for historical accuracy)")
     price_mode = models.CharField(max_length=20, choices=PRICE_MODE_CHOICES, default='standard', help_text="Price mode used for this sale item")
     
     def __str__(self):
@@ -89,11 +103,41 @@ class SaleItem(models.Model):
                 return self.quantity
     
     def save(self, *args, **kwargs):
-        from decimal import Decimal
+        from decimal import Decimal, ROUND_HALF_UP
         # Calculate total price and cost based on the display unit quantity
-        display_quantity = self.get_quantity_in_unit(self.unit or self.product.base_unit)
-        self.total_price = Decimal(str(display_quantity)) * self.unit_price
-        self.total_cost = Decimal(str(display_quantity)) * self.unit_cost
+        # We need to use the display quantity, not the base quantity
+        if self.unit_price:
+            # Convert unit_price to Decimal to ensure consistent arithmetic
+            unit_price_decimal = Decimal(str(self.unit_price))
+            
+            # Get the display quantity (quantity in the unit used for this sale item)
+            if self.unit and self.unit != self.product.base_unit:
+                # Convert from base unit to display unit
+                display_quantity = self.get_quantity_in_unit(self.unit)
+            else:
+                # Already in base unit or no unit specified
+                display_quantity = self.quantity
+            
+            quantity_decimal = Decimal(str(display_quantity))
+            calculated_total = quantity_decimal * unit_price_decimal
+            # Round to 2 decimal places to match the field constraints
+            self.total_price = calculated_total.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+            
+        if self.unit_cost:
+            # Convert unit_cost to Decimal to ensure consistent arithmetic
+            unit_cost_decimal = Decimal(str(self.unit_cost))
+            
+            # Get the display quantity for cost calculation too
+            if self.unit and self.unit != self.product.base_unit:
+                display_quantity = self.get_quantity_in_unit(self.unit)
+            else:
+                display_quantity = self.quantity
+                
+            quantity_decimal = Decimal(str(display_quantity))
+            calculated_cost = quantity_decimal * unit_cost_decimal
+            # Round to 2 decimal places to match the field constraints
+            self.total_cost = calculated_cost.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+            
         super().save(*args, **kwargs)
     
     class Meta:

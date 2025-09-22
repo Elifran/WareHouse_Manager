@@ -138,7 +138,7 @@ const SaleDetailModal = ({ sale, onClose, loading = false }) => {
                       <div className="product-name">{item.product_name}</div>
                     </div>
                     <div className="col-sku">{item.product_sku}</div>
-                    <div className="col-quantity">{item.quantity}</div>
+                    <div className="col-quantity">{item.quantity_display || item.quantity}</div>
                     <div className="col-unit">
                       {item.unit_name ? `${item.unit_name} (${item.unit_symbol || ''})` : 'N/A'}
                     </div>

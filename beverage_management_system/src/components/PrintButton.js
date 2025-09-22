@@ -234,7 +234,7 @@ const generateSaleContent = (data) => {
         ${items && Array.isArray(items) ? items.map(item => `
           <tr>
             <td>${item.product_name || 'N/A'}</td>
-            <td>${item.quantity || 0}</td>
+            <td>${item.quantity_display || item.quantity || 0}</td>
             <td>${item.unit_name || 'piece'}</td>
             <td>${parseFloat(item.unit_price || 0).toFixed(2)} MGA</td>
             <td>${parseFloat(item.total_price || 0).toFixed(2)} MGA</td>
@@ -545,13 +545,23 @@ const PrintButton = ({
       printWindow.document.close();
       
       // Wait for content to load then print
-      printWindow.onload = () => {
+      const printAfterLoad = () => {
         console.log('Print window loaded, starting print...');
         printWindow.focus();
         printWindow.print();
-        printWindow.close();
-        console.log('Print completed');
+        // Close the window after a short delay to allow printing
+        setTimeout(() => {
+          printWindow.close();
+          console.log('Print completed');
+        }, 1000);
       };
+      
+      // Check if window is already loaded
+      if (printWindow.document.readyState === 'complete') {
+        printAfterLoad();
+      } else {
+        printWindow.onload = printAfterLoad;
+      }
       
       // Fallback timeout
       setTimeout(() => {
