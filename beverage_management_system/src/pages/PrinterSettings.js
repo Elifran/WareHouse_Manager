@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useAuth } from '../contexts/AuthContext';
 import Button from '../components/Button';
 import Table from '../components/Table';
 import './PrinterSettings.css';
 
 const PrinterSettings = () => {
+  const { t } = useTranslation();
   const { user } = useAuth();
   
   const [loading, setLoading] = useState(true);
@@ -386,7 +388,7 @@ const PrinterSettings = () => {
   return (
     <div className="printer-settings">
       <div className="page-header">
-        <h1>Printer Settings</h1>
+        <h1>{t('titles.printer_settings')}</h1>
         <p>Manage network and local printers for the system</p>
       </div>
 
@@ -442,7 +444,7 @@ const PrinterSettings = () => {
         data={printers}
         columns={printerColumns}
         loading={loading}
-        emptyMessage="No printers found"
+        emptyMessage={t('empty_messages.no_printers_found')}
       />
 
       {/* Add/Edit Printer Modal */}
@@ -492,7 +494,7 @@ const PrinterSettings = () => {
                   type="text"
                   value={formData.name}
                   onChange={(e) => setFormData({...formData, name: e.target.value})}
-                  placeholder="Enter printer name"
+                  placeholder={t('forms.enter_printer_name')}
                 />
               </div>
               

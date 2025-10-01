@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useAuth } from '../contexts/AuthContext';
 import { useApi } from '../hooks/useApi';
 import Button from '../components/Button';
@@ -6,6 +7,7 @@ import Table from '../components/Table';
 import './StockMovement.css';
 
 const StockMovement = () => {
+  const { t } = useTranslation();
   const { user } = useAuth();
   const api = useApi();
   const [stockMovements, setStockMovements] = useState([]);
@@ -180,7 +182,7 @@ const StockMovement = () => {
   return (
     <div className="stock-movement">
       <div className="stock-header">
-        <h1>Stock Movement History</h1>
+        <h1>{t('titles.stock_movement_history')}</h1>
         <p>Track all stock movements including purchases, sales, and adjustments</p>
       </div>
 
@@ -261,7 +263,7 @@ const StockMovement = () => {
 
       <div className="stock-content">
         <div className="content-header">
-          <h2>Stock Movements</h2>
+          <h2>{t('titles.stock_movements')}</h2>
           <div className="movement-summary">
             <div className="summary-item">
               <span className="summary-label">Total Movements:</span>

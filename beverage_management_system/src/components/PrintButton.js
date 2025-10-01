@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import Button from './Button';
 import './PrintButton.css';
 
@@ -38,7 +39,7 @@ const generateInventoryContent = (data) => {
   
   return `
     <div class="info-section">
-      <h3>Inventory Summary</h3>
+      <h3>{t('titles.inventory_summary')}</h3>
       <div class="info-row">
         <span class="info-label">Total Products:</span>
         <span class="info-value">${Array.isArray(products) ? products.length : 0}</span>
@@ -175,7 +176,7 @@ const generateDeliveryContent = (data) => {
   `;
 };
 
-const generateSaleContent = (data) => {
+const generateSaleContent = (data, t) => {
   // Debug: Log the data being processed
   console.log('generateSaleContent - Data received:', data);
   console.log('generateSaleContent - Payment status:', data.payment_status);
@@ -224,10 +225,10 @@ const generateSaleContent = (data) => {
       </div>
       <div class="info-row">
         <span class="info-label">Payment Status:</span>
-        <span class="info-value">${data.payment_status === 'paid' ? 'Paid' : 
-                                   data.payment_status === 'partial' ? 'Partial Payment' : 
-                                   data.payment_status === 'pending' ? 'Pending Payment' : 
-                                   'N/A'}</span>
+        <span class="info-value">${data.payment_status === 'paid' ? t('payment_status.paid') : 
+                                   data.payment_status === 'partial' ? t('payment_status.partial_payment') : 
+                                   data.payment_status === 'pending' ? t('payment_status.pending_payment') : 
+                                   t('payment_status.unknown')}</span>
       </div>
       <div class="info-row">
         <span class="info-label">Total Amount:</span>
@@ -244,7 +245,7 @@ const generateSaleContent = (data) => {
         </div>
         <div class="info-row payment-warning">
           <span class="info-label">Due Date:</span>
-          <span class="info-value">${data.due_date || 'To be determined'}</span>
+          <span class="info-value">${data.due_date || t('payment_status.to_be_determined')}</span>
         </div>
       ` : ''}
     </div>
@@ -371,7 +372,7 @@ const generateDefaultContent = (data) => {
 };
 
 // Export the generatePrintContent function
-export const generatePrintContent = (data, title, type) => {
+export const generatePrintContent = (data, title, type, t) => {
   console.log('generatePrintContent called with:', { data, title, type });
   
   const currentDate = new Date().toLocaleDateString();
@@ -496,7 +497,7 @@ export const generatePrintContent = (data, title, type) => {
       break;
     case 'sale':
       console.log('Generating sale content');
-      content += generateSaleContent(data);
+      content += generateSaleContent(data, t);
       break;
     case 'sales_history':
       console.log('Generating sales history content');
@@ -533,6 +534,7 @@ const PrintButton = ({
   disabled = false,
   showValidateOption = false
 }) => {
+  const { t } = useTranslation();
   const [isPrinting, setIsPrinting] = useState(false);
   const [showPrintOptions, setShowPrintOptions] = useState(false);
 
@@ -556,7 +558,7 @@ const PrintButton = ({
     try {
       // Create print content
       console.log('Generating print content...');
-      const printContent = generatePrintContent(data, title, type);
+      const printContent = generatePrintContent(data, title, type, t);
       console.log('Generated print content length:', printContent.length);
       console.log('Generated print content preview:', printContent.substring(0, 500) + '...');
       

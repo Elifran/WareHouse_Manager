@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import Button from './Button';
 import './SupplierModal.css';
 
 const SupplierModal = ({ supplier, onClose, onSubmit }) => {
+  const { t } = useTranslation();
   const [formData, setFormData] = useState({
     name: '',
     contact_person: '',
@@ -41,7 +43,7 @@ const SupplierModal = ({ supplier, onClose, onSubmit }) => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!formData.name.trim()) {
-      alert('Please enter a supplier name');
+      alert(t('modals.please_enter_supplier_name'));
       return;
     }
 
@@ -59,7 +61,7 @@ const SupplierModal = ({ supplier, onClose, onSubmit }) => {
     <div className="modal-overlay">
       <div className="modal-content supplier-modal">
         <div className="modal-header">
-          <h2>{supplier ? 'Edit Supplier' : 'Add New Supplier'}</h2>
+          <h2>{supplier ? t('modals.edit_supplier') : t('modals.add_new_supplier')}</h2>
           <button className="close-button" onClick={onClose}>×</button>
         </div>
 
@@ -67,7 +69,7 @@ const SupplierModal = ({ supplier, onClose, onSubmit }) => {
           <div className="form-section">
             <div className="form-row">
               <div className="form-group">
-                <label htmlFor="name">Supplier Name *</label>
+                <label htmlFor="name">{t('modals.supplier_name')} *</label>
                 <input
                   type="text"
                   id="name"
@@ -75,61 +77,61 @@ const SupplierModal = ({ supplier, onClose, onSubmit }) => {
                   value={formData.name}
                   onChange={handleInputChange}
                   required
-                  placeholder="Enter supplier name"
+                  placeholder={t('modals.enter_supplier_name')}
                 />
               </div>
               <div className="form-group">
-                <label htmlFor="contact_person">Contact Person</label>
+                <label htmlFor="contact_person">{t('modals.contact_person')}</label>
                 <input
                   type="text"
                   id="contact_person"
                   name="contact_person"
                   value={formData.contact_person}
                   onChange={handleInputChange}
-                  placeholder="Enter contact person name"
+                  placeholder={t('modals.enter_contact_person_name')}
                 />
               </div>
             </div>
 
             <div className="form-row">
               <div className="form-group">
-                <label htmlFor="email">Email</label>
+                <label htmlFor="email">{t('common.email')}</label>
                 <input
                   type="email"
                   id="email"
                   name="email"
                   value={formData.email}
                   onChange={handleInputChange}
-                  placeholder="Enter email address"
+                  placeholder={t('modals.enter_email_address')}
                 />
               </div>
               <div className="form-group">
-                <label htmlFor="phone">Phone</label>
+                <label htmlFor="phone">{t('common.phone')}</label>
                 <input
                   type="tel"
                   id="phone"
                   name="phone"
                   value={formData.phone}
                   onChange={handleInputChange}
-                  placeholder="Enter phone number"
+                  placeholder={t('modals.enter_phone_number')}
                 />
               </div>
             </div>
 
             <div className="form-row">
               <div className="form-group">
-                <label htmlFor="tax_number">Tax Number</label>
+                <label htmlFor="tax_number">{t('modals.tax_number')}</label>
                 <input
                   type="text"
                   id="tax_number"
                   name="tax_number"
                   value={formData.tax_number}
                   onChange={handleInputChange}
-                  placeholder="Enter tax identification number"
+                  placeholder={t('modals.enter_tax_number')}
                 />
               </div>
               <div className="form-group">
-                <label htmlFor="payment_terms">Payment Terms</label>
+                <label htmlFor="payment_terms">{t('modals.payment_terms')}</label>
                 <input
                   type="text"
                   id="payment_terms"
@@ -142,14 +144,14 @@ const SupplierModal = ({ supplier, onClose, onSubmit }) => {
             </div>
 
             <div className="form-group">
-              <label htmlFor="address">Address</label>
+              <label htmlFor="address">{t('modals.address')}</label>
               <textarea
                 id="address"
                 name="address"
                 value={formData.address}
                 onChange={handleInputChange}
                 rows="3"
-                placeholder="Enter supplier address"
+                placeholder={t('modals.enter_supplier_address')}
               />
             </div>
 
@@ -161,7 +163,7 @@ const SupplierModal = ({ supplier, onClose, onSubmit }) => {
                   checked={formData.is_active}
                   onChange={handleInputChange}
                 />
-                <span className="checkbox-text">Active Supplier</span>
+                <span className="checkbox-text">{t('modals.active_supplier')}</span>
               </label>
             </div>
           </div>
@@ -169,7 +171,7 @@ const SupplierModal = ({ supplier, onClose, onSubmit }) => {
 
         <div className="modal-footer">
           <Button type="button" variant="secondary" onClick={onClose}>
-            Cancel
+            {t('modals.cancel')}
           </Button>
           <Button
             type="submit"
@@ -177,7 +179,7 @@ const SupplierModal = ({ supplier, onClose, onSubmit }) => {
             onClick={handleSubmit}
             disabled={loading || !formData.name.trim()}
           >
-            {loading ? (supplier ? 'Updating...' : 'Creating...') : (supplier ? 'Update Supplier' : 'Create Supplier')}
+            {loading ? (supplier ? t('modals.updating') : t('modals.creating')) : (supplier ? t('modals.update_supplier') : t('modals.create_supplier'))}
           </Button>
         </div>
       </div>

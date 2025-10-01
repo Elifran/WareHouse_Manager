@@ -1,9 +1,11 @@
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import Button from './Button';
 import PrintButton from './PrintButton';
 import './DeliveryModal.css';
 
 const DeliveryModal = ({ purchaseOrder, action = 'create', onClose, onSubmit }) => {
+  const { t } = useTranslation();
   const [formData, setFormData] = useState({
     notes: '',
     items: (purchaseOrder?.items || []).map(item => ({
@@ -42,7 +44,7 @@ const DeliveryModal = ({ purchaseOrder, action = 'create', onClose, onSubmit }) 
     // Validate that at least one item has quantity > 0
     const hasItems = formData.items.some(item => item.quantity_received > 0);
     if (!hasItems) {
-      alert('Please specify quantities for at least one item');
+      alert(t('modals.please_specify_quantities'));
       return;
     }
 
@@ -101,22 +103,22 @@ const DeliveryModal = ({ purchaseOrder, action = 'create', onClose, onSubmit }) 
       <div className="modal-content delivery-modal">
         <div className="modal-header">
           <h2>
-            {action === 'create_and_archive' ? 'Create Delivery & Archive Order' : 'Create Delivery'}
+            {action === 'create_and_archive' ? t('modals.create_delivery_archive') : t('modals.create_delivery')}
           </h2>
           <button className="close-button" onClick={onClose}>×</button>
         </div>
 
         <div className="delivery-info">
           <div className="info-row">
-            <span className="label">Purchase Order:</span>
+            <span className="label">{t('modals.purchase_order')}:</span>
             <span className="value">{purchaseOrder.order_number}</span>
           </div>
           <div className="info-row">
-            <span className="label">Supplier:</span>
+            <span className="label">{t('modals.supplier')}:</span>
             <span className="value">{purchaseOrder.supplier.name}</span>
           </div>
           <div className="info-row">
-            <span className="label">Order Date:</span>
+            <span className="label">{t('modals.order_date')}:</span>
             <span className="value">{new Date(purchaseOrder.order_date).toLocaleDateString()}</span>
           </div>
         </div>
@@ -130,22 +132,22 @@ const DeliveryModal = ({ purchaseOrder, action = 'create', onClose, onSubmit }) 
         <form onSubmit={handleSubmit} className="modal-body">
           <div className="form-section">
             <div className="form-group">
-              <label htmlFor="notes">Delivery Notes</label>
+              <label htmlFor="notes">{t('modals.delivery_notes')}</label>
               <textarea
                 id="notes"
                 name="notes"
                 value={formData.notes}
                 onChange={handleInputChange}
                 rows="3"
-                placeholder="Notes about this delivery..."
+                placeholder={t('modals.delivery_notes_placeholder')}
               />
             </div>
           </div>
 
           <div className="form-section">
-            <h3>Received Items</h3>
+            <h3>{t('modals.received_items')}</h3>
             <p className="section-description">
-              Quantities are pre-filled with ordered amounts. Modify as needed based on what was actually received.
+              {t('modals.quantities_prefilled_description')}
             </p>
 
             <div className="items-list">
@@ -154,17 +156,17 @@ const DeliveryModal = ({ purchaseOrder, action = 'create', onClose, onSubmit }) 
                 return (
                   <div key={index} className="item-row">
                     <div className="item-product">
-                      <label>Product</label>
+                      <label>{t('common.name')}</label>
                       <div className="product-info">
                         <div className="product-name">{originalItem.product.name}</div>
                         <div className="product-sku">SKU: {originalItem.product.sku}</div>
                         <div className="ordered-quantity">
-                          Ordered: {originalItem.quantity_display || originalItem.quantity_ordered} {originalItem.unit?.name || 'units'}
+                          {t('modals.ordered')}: {originalItem.quantity_display || originalItem.quantity_ordered} {originalItem.unit?.name || t('modals.units')}
                         </div>
                       </div>
                     </div>
                     <div className="item-quantity">
-                      <label>Quantity Received *</label>
+                      <label>{t('modals.quantity_received')} *</label>
                       <input
                         type="number"
                         min="0"
@@ -176,18 +178,18 @@ const DeliveryModal = ({ purchaseOrder, action = 'create', onClose, onSubmit }) 
                       />
                     </div>
                     <div className="item-unit">
-                      <label>Unit</label>
+                      <label>{t('common.unit')}</label>
                       <div className="readonly-field">
                         {(() => {
                           // Find the unit name from the original purchase order item
-                          const unitName = originalItem.unit?.name || 'Unknown Unit';
+                          const unitName = originalItem.unit?.name || t('modals.unknown_unit');
                           const unitSymbol = originalItem.unit?.symbol || '';
                           return `${unitName} (${unitSymbol})`;
                         })()}
                       </div>
                     </div>
                     <div className="item-cost">
-                      <label>Unit Cost *</label>
+                      <label>{t('modals.unit_cost')} *</label>
                       <input
                         type="number"
                         min="0"
@@ -198,23 +200,23 @@ const DeliveryModal = ({ purchaseOrder, action = 'create', onClose, onSubmit }) 
                       />
                     </div>
                     <div className="item-total">
-                      <label>Line Total</label>
+                      <label>{t('modals.line_total')}</label>
                       <div className="total-display">
                         {calculateItemTotal(item).toFixed(2)} MGA
                         {originalItem.tax_class && (
                           <span className="tax-amount">
-                            + {calculateTaxAmount(item).toFixed(2)} MGA tax
+                            + {calculateTaxAmount(item).toFixed(2)} MGA {t('modals.tax')}
                           </span>
                         )}
                       </div>
                     </div>
                     <div className="item-condition">
-                      <label>Condition Notes</label>
+                      <label>{t('modals.condition_notes')}</label>
                       <textarea
                         value={item.condition_notes}
                         onChange={(e) => handleItemChange(index, 'condition_notes', e.target.value)}
                         rows="2"
-                        placeholder="Notes about item condition..."
+                        placeholder={t('modals.condition_notes_placeholder')}
                       />
                     </div>
                   </div>
@@ -226,15 +228,15 @@ const DeliveryModal = ({ purchaseOrder, action = 'create', onClose, onSubmit }) 
           {formData.items.some(item => item.quantity_received > 0) && (
             <div className="totals-section">
               <div className="totals-row">
-                <span>Subtotal:</span>
+                <span>{t('modals.subtotal')}:</span>
                 <span>{totals.subtotal.toFixed(2)} MGA</span>
               </div>
               <div className="totals-row">
-                <span>Tax Amount:</span>
+                <span>{t('modals.tax_amount')}:</span>
                 <span>{totals.taxAmount.toFixed(2)} MGA</span>
               </div>
               <div className="totals-row total-row">
-                <span>Total Amount:</span>
+                <span>{t('modals.total_amount')}:</span>
                 <span>{totals.total.toFixed(2)} MGA</span>
               </div>
             </div>
@@ -253,13 +255,13 @@ const DeliveryModal = ({ purchaseOrder, action = 'create', onClose, onSubmit }) 
                   unit_name: purchaseOrder?.items?.find(poItem => poItem.id === item.purchase_order_item_id)?.unit?.name,
                   ordered_quantity: purchaseOrder?.items?.find(poItem => poItem.id === item.purchase_order_item_id)?.quantity_ordered,
                   delivered_quantity: item.quantity_received,
-                  status: item.quantity_received > 0 ? 'Delivered' : 'Pending'
+                  status: item.quantity_received > 0 ? t('modals.delivered') : t('modals.pending')
                 }))
               }}
-              title="Delivery Receipt"
+              title={t('titles.delivery_receipt')}
               type="delivery"
-              printText="Print Receipt"
-              validateText="Validate & Print"
+              printText={t('buttons.print_receipt')}
+              validateText={t('modals.validate_print')}
               showValidateOption={true}
               onValidate={handleSubmit}
               disabled={!formData.items.some(item => item.quantity_received > 0)}
@@ -267,7 +269,7 @@ const DeliveryModal = ({ purchaseOrder, action = 'create', onClose, onSubmit }) 
           </div>
           <div className="footer-right">
             <Button type="button" variant="secondary" onClick={onClose}>
-              Cancel
+              {t('modals.cancel')}
             </Button>
             <Button
               type="submit"
@@ -276,8 +278,8 @@ const DeliveryModal = ({ purchaseOrder, action = 'create', onClose, onSubmit }) 
               disabled={loading || !formData.items.some(item => item.quantity_received > 0)}
             >
               {loading 
-                ? (action === 'create_and_archive' ? 'Creating & Archiving...' : 'Creating...') 
-                : (action === 'create_and_archive' ? 'Create Delivery & Archive Order' : 'Create Delivery')
+                ? (action === 'create_and_archive' ? t('modals.creating_archiving') : t('modals.creating')) 
+                : (action === 'create_and_archive' ? t('modals.create_delivery_archive') : t('modals.create_delivery'))
               }
             </Button>
           </div>

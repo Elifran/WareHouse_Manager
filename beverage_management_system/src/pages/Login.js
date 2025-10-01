@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { useAuth } from '../contexts/AuthContext';
 import Button from '../components/Button';
+import LanguageSelector from '../components/LanguageSelector';
 import './Login.css';
 
 const Login = () => {
@@ -13,6 +15,7 @@ const Login = () => {
   const [error, setError] = useState('');
 
   const { login, isAuthenticated } = useAuth();
+  const { t } = useTranslation();
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -47,10 +50,13 @@ const Login = () => {
 
   return (
     <div className="login-container">
+      <div className="login-language-selector">
+        <LanguageSelector />
+      </div>
       <div className="login-card">
         <div className="login-header">
-          <h1>Beverage Manager</h1>
-          <p>Sign in to your account</p>
+          <h1>{t('app.title')}</h1>
+          <p>{t('auth.login')}</p>
         </div>
 
         <form onSubmit={handleSubmit} className="login-form">
@@ -61,7 +67,7 @@ const Login = () => {
           )}
 
           <div className="form-group">
-            <label htmlFor="username">Username</label>
+            <label htmlFor="username">{t('auth.username')}</label>
             <input
               type="text"
               id="username"
@@ -74,7 +80,7 @@ const Login = () => {
           </div>
 
           <div className="form-group">
-            <label htmlFor="password">Password</label>
+            <label htmlFor="password">{t('auth.password')}</label>
             <input
               type="password"
               id="password"
@@ -91,15 +97,15 @@ const Login = () => {
             loading={loading}
             className="login-button"
           >
-            Sign In
+            {t('auth.login')}
           </Button>
         </form>
 
         <div className="login-footer">
           <p>
-            Don't have an account?{' '}
+            {t('messages.dont_have_account')}{' '}
             <Link to="/register" className="register-link">
-              Contact administrator
+              {t('messages.contact_administrator')}
             </Link>
           </p>
         </div>

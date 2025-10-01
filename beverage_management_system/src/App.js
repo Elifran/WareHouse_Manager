@@ -17,6 +17,7 @@ import PendingSales from './pages/PendingSales';
 import PurchaseOrders from './pages/PurchaseOrders';
 import Suppliers from './pages/Suppliers';
 import Reports from './pages/Reports';
+import './i18n'; // Initialize i18n
 import './App.css';
 
 const ProtectedRoute = ({ children }) => {

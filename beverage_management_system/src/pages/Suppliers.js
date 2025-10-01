@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useApi } from '../hooks/useApi';
 import Button from '../components/Button';
 import Table from '../components/Table';
@@ -6,6 +7,7 @@ import SupplierModal from '../components/SupplierModal';
 import './Suppliers.css';
 
 const Suppliers = () => {
+  const { t } = useTranslation();
   const [suppliers, setSuppliers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -132,7 +134,7 @@ const Suppliers = () => {
   return (
     <div className="suppliers">
       <div className="page-header">
-        <h1>Suppliers Management</h1>
+        <h1>{t('titles.suppliers_management')}</h1>
         <div className="header-actions">
           <Button
             variant="primary"

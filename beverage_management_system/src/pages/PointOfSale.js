@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useAuth } from '../contexts/AuthContext';
 import api from '../services/api';
 import Button from '../components/Button';
@@ -6,6 +7,7 @@ import { generatePrintContent } from '../components/PrintButton';
 import './PointOfSale.css';
 
 const PointOfSale = () => {
+  const { t } = useTranslation();
   const { user } = useAuth();
   const [products, setProducts] = useState([]);
   const [categories, setCategories] = useState([]);
@@ -564,7 +566,7 @@ const PointOfSale = () => {
       };
 
       // Generate print content using the same logic as PrintButton
-      const printContent = generatePrintContent(printData, 'Sale Receipt', 'sale');
+      const printContent = generatePrintContent(printData, 'Sale Receipt', 'sale', t);
       
       // Open print window
       const printWindow = window.open('', '_blank', 'width=800,height=600');
@@ -717,7 +719,7 @@ const PointOfSale = () => {
         // Reset price mode to standard after sale
         setPriceMode('standard');
         
-        alert(`Pending sale created! Sale Number: ${saleNumber}\nYou can complete it later in Sales Management.`);
+        alert(t('messages.pending_sale_created', { saleNumber }));
       }
     } catch (err) {
       console.error('Sale creation error:', err);
@@ -909,7 +911,7 @@ const PointOfSale = () => {
   return (
     <div className="pos">
       <div className="pos-header">
-        <h1>Point of Sale</h1>
+        <h1>{t('titles.point_of_sale')}</h1>
         <div className="pos-user">
           <span>Cashier: {user?.username}</span>
         </div>
@@ -972,7 +974,7 @@ const PointOfSale = () => {
                   type="button"
                   className={`sale-mode-btn ${saleMode === 'complete' ? 'active' : ''}`}
                   onClick={() => setSaleMode('complete')}
-                  title="Sale will be completed immediately and stock will be deducted"
+                  title={t('alerts.sale_will_be_completed')}
                 >
                   Complete
                 </button>
@@ -980,7 +982,7 @@ const PointOfSale = () => {
                   type="button"
                   className={`sale-mode-btn ${saleMode === 'pending' ? 'active' : ''}`}
                   onClick={() => setSaleMode('pending')}
-                  title="Sale will be created as pending and can be completed later"
+                  title={t('alerts.sale_will_be_created_pending')}
                 >
                   Pending
                 </button>
@@ -994,7 +996,7 @@ const PointOfSale = () => {
                   type="button"
                   className={`sale-mode-btn print-receipt-btn ${printReceipt ? 'active' : ''}`}
                   onClick={() => setPrintReceipt(true)}
-                  title="Print receipt after sale"
+                  title={t('alerts.print_receipt_after_sale')}
                 >
                   Yes
                 </button>
@@ -1290,7 +1292,7 @@ const PointOfSale = () => {
                           <span 
                             className="quantity clickable"
                             onClick={() => handleQuantityClick(item)}
-                            title="Click to edit quantity"
+                            title={t('alerts.click_to_edit_quantity')}
                           >
                             {item.quantity}
                           </span>
@@ -1326,7 +1328,7 @@ const PointOfSale = () => {
                         size="small"
                         variant="danger"
                         onClick={() => removeFromCart(item.id, item.unit_id, item.price_mode)}
-                        title="Remove item"
+                        title={t('alerts.remove_item')}
                       >
                         ×
                       </Button>
@@ -1442,7 +1444,7 @@ const PointOfSale = () => {
                         const value = parseFloat(e.target.value) || 0;
                         setPaidAmount(value);
                       }}
-                      placeholder="Enter amount to pay"
+                      placeholder={t('forms.enter_amount_to_pay')}
                     />
                     <small>Total: ${calculateTotal().toFixed(2)} | Remaining: ${(calculateTotal() - (paidAmount || 0)).toFixed(2)}</small>
                   </div>
