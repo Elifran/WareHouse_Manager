@@ -1,0 +1,82 @@
+.print-button-container {
+  position: relative;
+  display: inline-block;
+}
+
+.print-options {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  background: white;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  padding: 8px;
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 120px;
+}
+
+.print-options button {
+  white-space: nowrap;
+  font-size: 12px;
+  padding: 6px 12px;
+}
+
+.print-options button:first-child {
+  margin-bottom: 4px;
+}
+
+/* Print-specific styles */
+@media print {
+  .print-button-container,
+  .print-options {
+    display: none !important;
+  }
+}
+
+/* Print content styles */
+.payment-warning {
+  background-color: #fef3c7 !important;
+  border: 1px solid #f59e0b !important;
+  color: #92400e !important;
+  font-weight: bold !important;
+}
+
+.payment-warning .info-label,
+.payment-warning .info-value {
+  color: #92400e !important;
+  font-weight: bold !important;
+}
+
+/* Animation for print options */
+.print-options {
+  animation: slideDown 0.2s ease-out;
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+  .print-options {
+    right: auto;
+    left: 0;
+    min-width: 140px;
+  }
+  
+  .print-options button {
+    font-size: 11px;
+    padding: 8px 10px;
+  }
+}
