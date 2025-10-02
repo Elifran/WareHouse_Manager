@@ -1,0 +1,28 @@
+version: '3.8'
+
+services:
+  elif-backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      - DEBUG=False
+      - ALLOWED_HOSTS=orders.yourdomain.com,sales.yourdomain.com,admin.yourdomain.com,localhost,127.0.0.1
+      - CORS_ALLOWED_ORIGINS=https://orders.yourdomain.com,https://sales.yourdomain.com,https://admin.yourdomain.com
+    volumes:
+      - ./backend/db.sqlite3:/app/db.sqlite3
+      - ./backend/media:/app/media
+    restart: unless-stopped
+    networks:
+      - elif-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+networks:
+  elif-network:
+    external: true

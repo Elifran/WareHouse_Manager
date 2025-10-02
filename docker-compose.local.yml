@@ -1,0 +1,78 @@
+version: '3.8'
+
+services:
+  # Shared Backend API
+  elif-backend:
+    build:
+      context: ./elif-shared-backend/backend
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      - DEBUG=True
+      - ALLOWED_HOSTS=localhost,127.0.0.1,0.0.0.0,backend
+      - CORS_ALLOWED_ORIGINS=http://localhost:3000,http://localhost:3001,http://localhost:3002
+    volumes:
+      - ./elif-shared-backend/backend/db.sqlite3:/app/db.sqlite3
+      - ./elif-shared-backend/backend:/app
+    restart: unless-stopped
+    networks:
+      - elif-network
+
+  # Orders App
+  elif-orders-app:
+    build:
+      context: ./elif-orders-app/beverage_management_system
+      dockerfile: Dockerfile
+    ports:
+      - "3000:80"
+    environment:
+      - NODE_ENV=development
+      - REACT_APP_API_URL=http://localhost:8000
+    volumes:
+      - ./elif-orders-app/beverage_management_system/build:/usr/share/nginx/html
+    restart: unless-stopped
+    networks:
+      - elif-network
+    depends_on:
+      - elif-backend
+
+  # Sales App
+  elif-sales-app:
+    build:
+      context: ./elif-sales-app/beverage_management_system
+      dockerfile: Dockerfile
+    ports:
+      - "3001:80"
+    environment:
+      - NODE_ENV=development
+      - REACT_APP_API_URL=http://localhost:8000
+    volumes:
+      - ./elif-sales-app/beverage_management_system/build:/usr/share/nginx/html
+    restart: unless-stopped
+    networks:
+      - elif-network
+    depends_on:
+      - elif-backend
+
+  # Admin App
+  elif-admin-app:
+    build:
+      context: ./elif-admin-app/beverage_management_system
+      dockerfile: Dockerfile
+    ports:
+      - "3002:80"
+    environment:
+      - NODE_ENV=development
+      - REACT_APP_API_URL=http://localhost:8000
+    volumes:
+      - ./elif-admin-app/beverage_management_system/build:/usr/share/nginx/html
+    restart: unless-stopped
+    networks:
+      - elif-network
+    depends_on:
+      - elif-backend
+
+networks:
+  elif-network:
+    driver: bridge
