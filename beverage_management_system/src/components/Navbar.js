@@ -42,44 +42,39 @@ const Navbar = () => {
   }, []);
 
   const navigationCategories = {
-    sales: {
-      title: t('navigation.sales'),
-      icon: '💰',
+    orders: {
+      title: t('navigation.orders'),
+      icon: '🛒',
       items: [
         { name: t('navigation.pos'), path: '/pos', icon: '🛒' },
+        { name: t('navigation.sales_management'), path: '/sales-management', icon: '📊' },
         { name: t('navigation.pending_sales'), path: '/pending-sales', icon: '⏳' },
-        { name: t('navigation.sales_management'), path: '/sales-management', icon: '📊', adminOnly: true }
+        { name: t('navigation.returns'), path: '/returns', icon: '↩️' }
       ]
     },
-    purchases: {
-      title: t('navigation.purchase_orders'),
-      icon: '📦',
+    sales: {
+      title: t('navigation.sales'),
+      icon: '📈',
       items: [
-        { name: t('navigation.purchase_orders'), path: '/purchase-orders', icon: '📋' },
-        { name: t('navigation.suppliers'), path: '/suppliers', icon: '🏢' }
-      ],
-      salesHidden: true // Hide entire purchases section for sales users
+        { name: t('navigation.dashboard'), path: '/dashboard', icon: '🏠' },
+        { name: t('navigation.reports'), path: '/reports', icon: '📊' },
+        { name: t('navigation.analytics'), path: '/analytics', icon: '📈' }
+      ]
     },
-    inventory: {
-      title: t('navigation.inventory'),
-      icon: '📦',
-      items: [
-        { name: t('navigation.inventory'), path: '/inventory', icon: '📦' }
-      ],
-      salesHidden: true // Hide entire inventory section for sales users
-    },
-    administration: {
-      title: t('navigation.system_management'),
+    admin: {
+      title: t('navigation.admin'),
       icon: '⚙️',
       items: [
+        { name: t('navigation.inventory'), path: '/inventory', icon: '📦' },
+        { name: t('navigation.purchase_orders'), path: '/purchase-orders', icon: '📋' },
+        { name: t('navigation.suppliers'), path: '/suppliers', icon: '🏢' },
         { name: t('navigation.users'), path: '/users', icon: '👥', adminOnly: true },
         { name: t('navigation.tax_management'), path: '/tax-management', icon: '📊', adminOnly: true },
         { name: t('navigation.system_management'), path: '/system-management', icon: '🔧', adminOnly: true },
-        { name: t('navigation.printer_settings'), path: '/printer-settings', icon: '🖨️', adminOnly: true },
         { name: t('navigation.stock_movement'), path: '/stock-movement', icon: '📦', adminOnly: true },
-        { name: t('navigation.reports'), path: '/reports', icon: '📈', adminOnly: true }
+        { name: t('navigation.all_pages'), path: '/all-pages', icon: '🔗', adminOnly: true }
       ],
-      salesHidden: true // Hide entire administration section for sales users
+      salesHidden: true // Hide entire admin section for sales users
     }
   };
 
@@ -97,11 +92,6 @@ const Navbar = () => {
                 <h1>{t('app.title')}</h1>
               </Link>
               <div className={`navbar-menu ${isMenuOpen ? 'active' : ''}`}>
-                <Link to="/dashboard" className="navbar-link dashboard-link">
-                  <span className="nav-icon">🏠</span>
-                  Dashboard
-                </Link>
-                
                 {Object.entries(navigationCategories).map(([key, category]) => {
                   // Hide entire category for sales users if marked as salesHidden
                   if (isSales && category.salesHidden) {
