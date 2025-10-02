@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useApi } from '../hooks/useApi';
 import Button from '../components/Button';
 import Table from '../components/Table';
@@ -9,6 +10,7 @@ import './PurchaseOrders.css';
 
 // EditDeliveryModal Component
 const EditDeliveryModal = ({ delivery, onClose, onSubmit }) => {
+  const { t } = useTranslation();
   const [formData, setFormData] = useState({
     notes: delivery.notes || '',
     items: (delivery.items || []).map(item => ({
@@ -209,6 +211,7 @@ const EditDeliveryModal = ({ delivery, onClose, onSubmit }) => {
 };
 
 const PurchaseOrders = () => {
+  const { t } = useTranslation();
   const [purchaseOrders, setPurchaseOrders] = useState([]);
   const [suppliers, setSuppliers] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -651,14 +654,14 @@ const PurchaseOrders = () => {
         return { 
           data: filteredOrders, 
           columns: purchaseOrderColumns, 
-          emptyMessage: orderFilter === 'archived' ? "No archived purchase orders found" : "No active purchase orders found" 
+          emptyMessage: orderFilter === 'archived' ? t('empty_messages.no_archived_purchase_orders') : t('empty_messages.no_active_purchase_orders') 
         };
       case 'pending':
-        return { data: pendingDeliveries, columns: deliveryColumns, emptyMessage: "No pending deliveries" };
+        return { data: pendingDeliveries, columns: deliveryColumns, emptyMessage: t('empty_messages.no_pending_deliveries') };
       case 'history':
-        return { data: allDeliveries, columns: deliveryHistoryColumns, emptyMessage: "No delivery history found" };
+        return { data: allDeliveries, columns: deliveryHistoryColumns, emptyMessage: t('empty_messages.no_delivery_history') };
       default:
-        return { data: [], columns: [], emptyMessage: "No data found" };
+        return { data: [], columns: [], emptyMessage: t('app.no_data_available') };
     }
   };
 
@@ -667,7 +670,7 @@ const PurchaseOrders = () => {
   return (
     <div className="purchase-orders">
       <div className="page-header">
-        <h1>Purchase Orders & Delivery Management</h1>
+        <h1>{t('titles.purchase_orders_delivery')}</h1>
         <div className="header-actions">
           <Button
             variant="primary"
@@ -687,7 +690,7 @@ const PurchaseOrders = () => {
               onClick={() => setActiveTab('orders')}
             >
               <span className="tab-icon">📋</span>
-              Purchase Orders
+              {t('titles.purchase_orders')}
               <span className="tab-count">({purchaseOrders.length})</span>
             </button>
             <button 
@@ -713,7 +716,7 @@ const PurchaseOrders = () => {
         <div className="main-content">
           <div className="content-header">
             <h2>
-              {activeTab === 'orders' && 'Purchase Orders'}
+              {activeTab === 'orders' && t('titles.purchase_orders')}
               {activeTab === 'pending' && 'Pending Deliveries'}
               {activeTab === 'history' && 'Delivery History'}
             </h2>
@@ -819,6 +822,7 @@ const PurchaseOrders = () => {
 
 // ViewOrderModal Component
 const ViewOrderModal = ({ order, onClose }) => {
+  const { t } = useTranslation();
   return (
     <div className="modal-overlay">
       <div className="modal-content view-order-modal">
@@ -827,9 +831,9 @@ const ViewOrderModal = ({ order, onClose }) => {
           <div className="header-actions">
             <PrintButton
               data={order}
-              title="Purchase Order"
+              title={t('titles.purchase_order')}
               type="purchase_order"
-              printText="Print Order"
+              printText={t('buttons.print_order')}
               className="print-view-order-btn"
             />
             <button className="close-button" onClick={onClose}>×</button>

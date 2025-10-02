@@ -4,13 +4,272 @@ This document provides comprehensive documentation of all features implemented i
 
 ## 📋 Table of Contents
 
-1. [Multi-Unit System](#multi-unit-system)
-2. [Purchase Orders & Deliveries](#purchase-orders--deliveries)
-3. [Enhanced Printing System](#enhanced-printing-system)
-4. [System Management](#system-management)
-5. [User Experience Improvements](#user-experience-improvements)
-6. [Role-Based Access Control](#role-based-access-control)
-7. [API Enhancements](#api-enhancements)
+1. [Return & Refund System](#return--refund-system)
+2. [Payment Options & Tracking](#payment-options--tracking)
+3. [Enhanced Sales Management](#enhanced-sales-management)
+4. [Multi-Unit System](#multi-unit-system)
+5. [Purchase Orders & Deliveries](#purchase-orders--deliveries)
+6. [Enhanced Printing System](#enhanced-printing-system)
+7. [System Management](#system-management)
+8. [User Experience Improvements](#user-experience-improvements)
+9. [Role-Based Access Control](#role-based-access-control)
+10. [API Enhancements](#api-enhancements)
+
+---
+
+## 🔄 Return & Refund System
+
+### Overview
+Comprehensive return and refund management system that handles both pending sale cancellations and completed sale returns with automatic stock restoration.
+
+### Key Features
+
+#### Return Processing
+- **Return Creation**: Create returns for completed sales with item selection
+- **Quantity Validation**: Validate return quantities against original sale quantities
+- **Unit Conversion**: Proper unit conversion for return quantities
+- **Return Sales**: Returns are stored as separate sales with RET- prefix
+- **Original Sale Linking**: Link returns to original sales for tracking
+
+#### Refund Management
+- **Refund Calculation**: Calculate refund amounts based on paid amounts
+- **Refund Information**: Display detailed refund information to users
+- **Payment Status Tracking**: Track refund status and amounts
+- **Refund Alerts**: Alert users about refund amounts to be processed
+
+#### Stock Restoration
+- **Automatic Stock Updates**: Restore stock quantities when returns are processed
+- **Stock Movement Tracking**: Create stock movement records for returns
+- **Unit-Aware Restoration**: Proper unit conversion for stock restoration
+- **Inventory Integration**: Seamless integration with existing inventory system
+
+### Database Models
+
+#### Sale Model Enhancements
+```python
+class Sale(models.Model):
+    SALE_TYPE_CHOICES = [
+        ('sale', 'Sale'),
+        ('return', 'Return'),
+    ]
+    
+    sale_type = models.CharField(max_length=10, choices=SALE_TYPE_CHOICES, default='sale')
+    original_sale = models.ForeignKey('self', on_delete=models.CASCADE, null=True, blank=True, related_name='returns')
+    # ... other fields
+```
+
+#### SaleItem Model Enhancements
+```python
+class SaleItem(models.Model):
+    original_sale_item = models.ForeignKey('self', on_delete=models.SET_NULL, null=True, blank=True, related_name='return_items')
+    # ... other fields
+```
+
+### API Endpoints
+
+#### Return Management
+```
+POST /api/sales/{id}/cancel/ - Cancel sale (pending) or create return (completed)
+GET /api/sales/{id}/items-for-return/ - Get sale items available for return
+POST /api/sales/{id}/complete-return/ - Complete return processing
+```
+
+### Frontend Components
+
+#### ReturnModal Component
+- **Sale Selection**: Select completed sales for return processing
+- **Item Selection**: Choose items and quantities to return
+- **Refund Information**: Display refund amounts and details
+- **Validation**: Validate return quantities and amounts
+
+### Workflow Example
+
+#### 1. Create Return
+1. Select completed sale from sales management
+2. Click "Create Return" button
+3. Select items and quantities to return
+4. Review refund information
+5. Save return
+
+#### 2. Process Return
+1. Review return details
+2. Confirm return processing
+3. Stock automatically restored
+4. Return marked as completed
+5. Original sale status updated to "refunded"
+
+---
+
+## 💳 Payment Options & Tracking
+
+### Overview
+Comprehensive payment system supporting full and partial payments with complete payment tracking and status management.
+
+### Key Features
+
+#### Payment Types
+- **Full Payment**: Complete payment at time of sale (100%)
+- **Partial Payment**: Partial payment with remaining amount tracking (0-99.99%)
+- **Payment Methods**: Support for Cash, Card, Mobile Money, Bank Transfer
+- **Payment Status**: Track payment status (Pending, Partial, Paid)
+
+#### Payment Tracking
+- **Paid Amount**: Track actual amount paid by customer
+- **Remaining Amount**: Calculate and track remaining amount to be paid
+- **Due Date**: Set due dates for partial payments
+- **Payment History**: Complete payment tracking and history
+
+#### Payment Validation
+- **Amount Validation**: Validate payment amounts against sale totals
+- **Customer Information**: Require customer information for partial payments
+- **Payment Method Updates**: Update payment methods for pending sales
+- **Payment Status Updates**: Automatic payment status updates
+
+### Database Models
+
+#### Sale Model Payment Fields
+```python
+class Sale(models.Model):
+    PAYMENT_METHODS = [
+        ('cash', 'Cash'),
+        ('card', 'Card'),
+        ('mobile_money', 'Mobile Money'),
+        ('bank_transfer', 'Bank Transfer'),
+    ]
+    
+    payment_method = models.CharField(max_length=20, choices=PAYMENT_METHODS, default='cash')
+    paid_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    remaining_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    payment_status = models.CharField(max_length=20, choices=[('pending', 'Pending'), ('partial', 'Partial'), ('paid', 'Paid')], default='pending')
+    due_date = models.DateField(null=True, blank=True)
+    # ... other fields
+```
+
+### API Endpoints
+
+#### Payment Management
+```
+POST /api/sales/{id}/payment/ - Make payment on sale
+PATCH /api/sales/{id}/payment-method/ - Update payment method for pending sales
+PUT /api/sales/{id}/edit/ - Edit sale with payment information
+```
+
+### Frontend Components
+
+#### Payment Options in POS
+- **Payment Type Selection**: Choose between full and partial payment
+- **Amount Input**: Enter payment amount with validation
+- **Customer Information**: Collect customer details for partial payments
+- **Payment Method Selection**: Choose payment method
+
+#### Payment Display in Sales Management
+- **Payment Status Badges**: Visual indicators for payment status
+- **Paid Amount Display**: Show paid amounts in sales table
+- **Remaining Amount**: Display remaining amounts for partial payments
+- **Payment Method Display**: Show payment methods used
+
+### Workflow Example
+
+#### 1. Full Payment
+1. Complete sale in POS
+2. Select "Full Payment" option
+3. Choose payment method
+4. Sale marked as "Paid"
+5. No remaining amount
+
+#### 2. Partial Payment
+1. Complete sale in POS
+2. Select "Partial Payment" option
+3. Enter payment amount (less than total)
+4. Provide customer information
+5. Set due date (optional)
+6. Sale marked as "Partial"
+7. Remaining amount calculated
+
+---
+
+## 📊 Enhanced Sales Management
+
+### Overview
+Enhanced sales management with comprehensive editing capabilities, payment integration, and improved user interface.
+
+### Key Features
+
+#### Sale Editing
+- **Edit Completed Sales**: Edit completed sales when not fully paid
+- **Edit Pending Sales**: Full editing capabilities for pending sales
+- **Quantity Adjustments**: Modify item quantities with stock validation
+- **Payment Updates**: Update payment information within sales management
+- **Item Removal**: Remove items by setting quantity to 0
+
+#### Sale Cancellation
+- **Cancel Pending Sales**: Simple cancellation for pending sales
+- **Return Completed Sales**: Create returns for completed sales
+- **Stock Restoration**: Automatic stock restoration for returns
+- **Refund Processing**: Handle refund amounts and processing
+
+#### Payment Integration
+- **Payment Method Updates**: Update payment methods for pending sales
+- **Payment Status Display**: Visual payment status indicators
+- **Payment Amount Tracking**: Display paid and remaining amounts
+- **Due Date Management**: Track and display due dates
+
+### Database Models
+
+#### Enhanced Sale Model
+```python
+class Sale(models.Model):
+    STATUS_CHOICES = [
+        ('pending', 'Pending'),
+        ('completed', 'Completed'),
+        ('cancelled', 'Cancelled'),
+        ('refunded', 'Refunded'),
+    ]
+    
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
+    # ... payment fields from previous section
+```
+
+### API Endpoints
+
+#### Sales Management
+```
+PUT /api/sales/{id}/edit/ - Edit sale items and payment information
+POST /api/sales/{id}/cancel/ - Cancel sale or create return
+PATCH /api/sales/{id}/payment-method/ - Update payment method
+GET /api/sales/pending/ - List pending sales
+```
+
+### Frontend Components
+
+#### Sales Management Table
+- **Enhanced Columns**: Payment status, paid amount, payment method
+- **Action Buttons**: Edit, Cancel, Print buttons with conditional display
+- **Status Indicators**: Visual status badges and payment indicators
+- **Responsive Design**: Optimized for different screen sizes
+
+#### Edit Sale Modal
+- **Item Management**: Edit quantities, remove items
+- **Payment Updates**: Update payment information
+- **Validation**: Real-time validation for changes
+- **Stock Checks**: Validate stock availability for quantity increases
+
+### Workflow Example
+
+#### 1. Edit Completed Sale
+1. Select completed sale (not fully paid)
+2. Click "Edit" button
+3. Modify item quantities or remove items
+4. Update payment information if needed
+5. Save changes
+6. Stock automatically updated
+
+#### 2. Cancel Sale
+1. Select sale to cancel
+2. Click "Cancel" button
+3. For pending sales: Simple cancellation
+4. For completed sales: Create return with refund information
+5. Stock restored automatically
 
 ---
 
@@ -576,6 +835,106 @@ GET /api/sales/chart-data/ - Chart data for dashboard
 - **Community Support**: Community forums
 - **Professional Support**: Professional support options
 - **Training**: Training and onboarding services
+
+---
+
+## 🎨 User Interface Improvements
+
+### Overview
+Comprehensive UI/UX improvements including table layout fixes, responsive design enhancements, and better visual feedback.
+
+### Key Features
+
+#### Table Layout Fixes
+- **Column Alignment**: Fixed table header and data alignment issues
+- **Column Sizing**: Optimized column widths for better content display
+- **SKU Column**: Fixed vertical text stacking in inventory table
+- **Action Buttons**: Improved button layout and sizing
+- **Responsive Tables**: Better responsive behavior across screen sizes
+
+#### Inventory Table Optimization
+- **Column Widths**: Optimized column proportions for better balance
+- **SKU Display**: Horizontal text display with proper overflow handling
+- **Action Buttons**: Side-by-side button layout with proper sizing
+- **Status Indicators**: Enhanced status badges and visual indicators
+- **Hover Effects**: Improved hover states and visual feedback
+
+#### CSS Architecture Improvements
+- **Specificity Fixes**: Resolved CSS conflicts between components
+- **Global Rule Isolation**: Made global CSS rules more specific
+- **Component Isolation**: Prevented CSS rules from affecting other components
+- **Responsive Design**: Enhanced responsive design patterns
+
+### Technical Implementation
+
+#### Table CSS Fixes
+```css
+/* Fixed SKU column display */
+.products-table td:nth-child(2) {
+  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+  font-size: 0.8rem;
+  color: #6b7280;
+  background: #f8fafc;
+  border-radius: 0.25rem;
+  padding: 0.5rem 0.75rem;
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Fixed action buttons layout */
+.products-table .action-buttons {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: center;
+  align-items: center;
+  flex-wrap: nowrap;
+}
+```
+
+#### CSS Specificity Improvements
+```css
+/* Made global rules more specific */
+.sale-detail-modal .table-header {
+  display: grid;
+  /* ... grid properties */
+}
+
+.reports-page table {
+  /* ... table styles */
+}
+```
+
+### Frontend Components
+
+#### Table Component Enhancements
+- **Removed Problematic CSS**: Removed CSS rules causing layout issues
+- **Improved Responsiveness**: Better responsive behavior
+- **Enhanced Accessibility**: Improved accessibility features
+- **Better Performance**: Optimized rendering performance
+
+#### Inventory Page Improvements
+- **Column Optimization**: Better column width distribution
+- **Button Layout**: Improved action button layout
+- **Visual Feedback**: Enhanced hover and focus states
+- **Loading States**: Better loading state indicators
+
+### Workflow Example
+
+#### 1. Table Layout Fixes
+1. Identified CSS conflicts causing layout issues
+2. Made global CSS rules more specific
+3. Removed problematic display properties
+4. Optimized column widths and spacing
+5. Tested across different screen sizes
+
+#### 2. Inventory Table Optimization
+1. Fixed SKU column vertical text stacking
+2. Optimized action button layout
+3. Improved column width distribution
+4. Enhanced visual feedback and hover states
+5. Tested responsive behavior
 
 ---
 

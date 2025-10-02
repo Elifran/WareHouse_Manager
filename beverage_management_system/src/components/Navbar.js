@@ -1,11 +1,14 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { useTranslation } from 'react-i18next';
 import Button from './Button';
+import LanguageSelector from './LanguageSelector';
 import './Navbar.css';
 
 const Navbar = () => {
   const { user, logout, isAuthenticated, isSales } = useAuth();
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [activeDropdown, setActiveDropdown] = useState(null);
@@ -40,41 +43,41 @@ const Navbar = () => {
 
   const navigationCategories = {
     sales: {
-      title: 'Sales',
+      title: t('navigation.sales'),
       icon: '💰',
       items: [
-        { name: 'Point of Sale', path: '/pos', icon: '🛒' },
-        { name: 'Pending Sales', path: '/pending-sales', icon: '⏳' },
-        { name: 'Sales Management', path: '/sales-management', icon: '📊', adminOnly: true }
+        { name: t('navigation.pos'), path: '/pos', icon: '🛒' },
+        { name: t('navigation.pending_sales'), path: '/pending-sales', icon: '⏳' },
+        { name: t('navigation.sales_management'), path: '/sales-management', icon: '📊', adminOnly: true }
       ]
     },
     purchases: {
-      title: 'Purchases',
+      title: t('navigation.purchase_orders'),
       icon: '📦',
       items: [
-        { name: 'Purchase Orders', path: '/purchase-orders', icon: '📋' },
-        { name: 'Suppliers', path: '/suppliers', icon: '🏢' }
+        { name: t('navigation.purchase_orders'), path: '/purchase-orders', icon: '📋' },
+        { name: t('navigation.suppliers'), path: '/suppliers', icon: '🏢' }
       ],
       salesHidden: true // Hide entire purchases section for sales users
     },
     inventory: {
-      title: 'Inventory',
+      title: t('navigation.inventory'),
       icon: '📦',
       items: [
-        { name: 'Inventory Management', path: '/inventory', icon: '📦' }
+        { name: t('navigation.inventory'), path: '/inventory', icon: '📦' }
       ],
       salesHidden: true // Hide entire inventory section for sales users
     },
     administration: {
-      title: 'Administration',
+      title: t('navigation.system_management'),
       icon: '⚙️',
       items: [
-        { name: 'Users', path: '/users', icon: '👥', adminOnly: true },
-        { name: 'Tax Management', path: '/tax-management', icon: '📊', adminOnly: true },
-        { name: 'System Management', path: '/system-management', icon: '🔧', adminOnly: true },
-        { name: 'Printer Settings', path: '/printer-settings', icon: '🖨️', adminOnly: true },
-        { name: 'Stock Movement', path: '/stock-movement', icon: '📦', adminOnly: true },
-        { name: 'Reports', path: '/reports', icon: '📈', adminOnly: true }
+        { name: t('navigation.users'), path: '/users', icon: '👥', adminOnly: true },
+        { name: t('navigation.tax_management'), path: '/tax-management', icon: '📊', adminOnly: true },
+        { name: t('navigation.system_management'), path: '/system-management', icon: '🔧', adminOnly: true },
+        { name: t('navigation.printer_settings'), path: '/printer-settings', icon: '🖨️', adminOnly: true },
+        { name: t('navigation.stock_movement'), path: '/stock-movement', icon: '📦', adminOnly: true },
+        { name: t('navigation.reports'), path: '/reports', icon: '📈', adminOnly: true }
       ],
       salesHidden: true // Hide entire administration section for sales users
     }
@@ -83,89 +86,100 @@ const Navbar = () => {
   return (
     <nav className="navbar" ref={navbarRef}>
       <div className="navbar-container">
-        <Link to="/" className="navbar-brand">
-          <h1>Beverage Manager</h1>
-        </Link>
-
-        {isAuthenticated && (
+        {isAuthenticated ? (
           <>
-            <div className={`navbar-menu ${isMenuOpen ? 'active' : ''}`}>
-              <Link to="/dashboard" className="navbar-link dashboard-link">
-                <span className="nav-icon">🏠</span>
-                Dashboard
+            <div className="navbar-left">
+              <LanguageSelector />
+            </div>
+            
+            <div className="navbar-center">
+              <Link to="/" className="navbar-brand">
+                <h1>{t('app.title')}</h1>
               </Link>
-              
-              {Object.entries(navigationCategories).map(([key, category]) => {
-                // Hide entire category for sales users if marked as salesHidden
-                if (isSales && category.salesHidden) {
-                  return null;
-                }
+              <div className={`navbar-menu ${isMenuOpen ? 'active' : ''}`}>
+                <Link to="/dashboard" className="navbar-link dashboard-link">
+                  <span className="nav-icon">🏠</span>
+                  Dashboard
+                </Link>
                 
-                return (
-                  <div key={key} className="navbar-dropdown">
-                    <button 
-                      className="navbar-dropdown-toggle"
-                      onClick={() => toggleDropdown(key)}
-                    >
-                      <span className="nav-icon">{category.icon}</span>
-                      {category.title}
-                      <span className={`dropdown-arrow ${activeDropdown === key ? 'active' : ''}`}>▼</span>
-                    </button>
-                    
-                    {activeDropdown === key && (
-                      <div className="navbar-dropdown-menu">
-                        {category.items.map((item, index) => {
-                          // Check if user has permission for this item
-                          if (item.adminOnly && !(user?.role === 'admin' || user?.role === 'manager')) {
-                            return null;
-                          }
-                          if (item.adminOnly && item.name === 'Reports' && user?.role !== 'admin') {
-                            return null;
-                          }
-                          
-                          return (
-                            <Link 
-                              key={index}
-                              to={item.path} 
-                              className="navbar-dropdown-link"
-                              onClick={() => setActiveDropdown(null)}
-                            >
-                              <span className="nav-icon">{item.icon}</span>
-                              {item.name}
-                            </Link>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-
-            <div className="navbar-user">
-              <div className="user-info">
-                <span className="user-name">{user?.username}</span>
-                <span className="user-role">{user?.role}</span>
+                {Object.entries(navigationCategories).map(([key, category]) => {
+                  // Hide entire category for sales users if marked as salesHidden
+                  if (isSales && category.salesHidden) {
+                    return null;
+                  }
+                  
+                  return (
+                    <div key={key} className="navbar-dropdown">
+                      <button 
+                        className="navbar-dropdown-toggle"
+                        onClick={() => toggleDropdown(key)}
+                      >
+                        <span className="nav-icon">{category.icon}</span>
+                        {category.title}
+                        <span className={`dropdown-arrow ${activeDropdown === key ? 'active' : ''}`}>▼</span>
+                      </button>
+                      
+                      {activeDropdown === key && (
+                        <div className="navbar-dropdown-menu">
+                          {category.items.map((item, index) => {
+                            // Check if user has permission for this item
+                            if (item.adminOnly && !(user?.role === 'admin' || user?.role === 'manager')) {
+                              return null;
+                            }
+                            if (item.adminOnly && item.name === 'Reports' && user?.role !== 'admin') {
+                              return null;
+                            }
+                            
+                            return (
+                              <Link 
+                                key={index}
+                                to={item.path} 
+                                className="navbar-dropdown-link"
+                                onClick={() => setActiveDropdown(null)}
+                              >
+                                <span className="nav-icon">{item.icon}</span>
+                                {item.name}
+                              </Link>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
-              <Button 
-                variant="outline" 
-                size="small" 
-                onClick={handleLogout}
-              >
-                Logout
-              </Button>
             </div>
 
-            <button 
-              className="navbar-toggle"
-              onClick={toggleMenu}
-              aria-label="Toggle menu"
-            >
-              <span></span>
-              <span></span>
-              <span></span>
-            </button>
+            <div className="navbar-right">
+              <div className="navbar-user">
+                <div className="user-info">
+                  <span className="user-name">{user?.username}</span>
+                  <span className="user-role">{user?.role}</span>
+                </div>
+                <Button 
+                  variant="outline" 
+                  size="small" 
+                  onClick={handleLogout}
+                >
+                  {t('navigation.logout')}
+                </Button>
+              </div>
+
+              <button 
+                className="navbar-toggle"
+                onClick={toggleMenu}
+                aria-label={t('app.toggle_menu')}
+              >
+                <span></span>
+                <span></span>
+                <span></span>
+              </button>
+            </div>
           </>
+        ) : (
+          <Link to="/" className="navbar-brand">
+            <h1>{t('app.title')}</h1>
+          </Link>
         )}
       </div>
     </nav>

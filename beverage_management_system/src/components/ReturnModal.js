@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import './ReturnModal.css';
 
 const ReturnModal = ({ isOpen, onClose, onSave, sale, saleItems }) => {
+  const { t } = useTranslation();
   const [returnData, setReturnData] = useState({
     sale_type: 'return',
     original_sale: null,
@@ -43,7 +45,7 @@ const ReturnModal = ({ isOpen, onClose, onSave, sale, saleItems }) => {
   const addItemToReturn = (saleItem) => {
     const existingItem = returnData.items.find(item => item.original_sale_item === saleItem.id);
     if (existingItem) {
-      setError('Item already added to return');
+      setError(t('messages.item_already_added_to_return'));
       return;
     }
 
@@ -71,7 +73,7 @@ const ReturnModal = ({ isOpen, onClose, onSave, sale, saleItems }) => {
 
   const handleSave = async () => {
     if (returnData.items.length === 0) {
-      setError('Please add at least one item to return');
+      setError(t('messages.please_add_at_least_one_item'));
       return;
     }
 
@@ -105,7 +107,7 @@ const ReturnModal = ({ isOpen, onClose, onSave, sale, saleItems }) => {
       await onSave(returnPayload);
       onClose();
     } catch (err) {
-      setError(err.message || 'Failed to create return');
+      setError(err.message || t('messages.failed_to_create_return'));
     } finally {
       setLoading(false);
     }
@@ -117,7 +119,7 @@ const ReturnModal = ({ isOpen, onClose, onSave, sale, saleItems }) => {
     <div className="modal-overlay">
       <div className="modal-content return-modal">
         <div className="modal-header">
-          <h2>Create Return for Sale {sale?.sale_number}</h2>
+          <h2>{t('buttons.create_return')} {sale?.sale_number}</h2>
           <button className="close-button" onClick={onClose}>×</button>
         </div>
 
@@ -125,10 +127,10 @@ const ReturnModal = ({ isOpen, onClose, onSave, sale, saleItems }) => {
           {error && <div className="error-message">{error}</div>}
 
           <div className="form-section">
-            <h3>Customer Information</h3>
+            <h3>{t('modals.customer_information')}</h3>
             <div className="form-row">
               <div className="form-group">
-                <label>Customer Name</label>
+                <label>{t('forms.customer_name')}</label>
                 <input
                   type="text"
                   value={returnData.customer_name}
@@ -136,7 +138,7 @@ const ReturnModal = ({ isOpen, onClose, onSave, sale, saleItems }) => {
                 />
               </div>
               <div className="form-group">
-                <label>Customer Phone</label>
+                <label>{t('forms.phone_number')}</label>
                 <input
                   type="text"
                   value={returnData.customer_phone}
@@ -145,7 +147,7 @@ const ReturnModal = ({ isOpen, onClose, onSave, sale, saleItems }) => {
               </div>
             </div>
             <div className="form-group">
-              <label>Customer Email</label>
+              <label>{t('forms.email_address')}</label>
               <input
                 type="email"
                 value={returnData.customer_email}
@@ -157,46 +159,46 @@ const ReturnModal = ({ isOpen, onClose, onSave, sale, saleItems }) => {
           {/* Refund Information Section */}
           {sale && sale.paid_amount > 0 && (
             <div className="form-section refund-info">
-              <h3>Refund Information</h3>
+              <h3>{t('modals.refund_information')}</h3>
               <div className="refund-details">
                 <div className="refund-item">
-                  <span className="refund-label">Original Sale Amount:</span>
+                  <span className="refund-label">{t('modals.original_sale_amount')}:</span>
                   <span className="refund-value">${sale.total_amount?.toFixed(2) || '0.00'}</span>
                 </div>
                 <div className="refund-item">
-                  <span className="refund-label">Amount Paid by Customer:</span>
+                  <span className="refund-label">{t('modals.amount_paid_by_customer')}:</span>
                   <span className="refund-value highlight">${sale.paid_amount?.toFixed(2) || '0.00'}</span>
                 </div>
                 <div className="refund-item">
-                  <span className="refund-label">Payment Status:</span>
-                  <span className="refund-value">{sale.payment_status || 'Unknown'}</span>
+                  <span className="refund-label">{t('common.status')}:</span>
+                  <span className="refund-value">{sale.payment_status || t('payment_status.unknown')}</span>
                 </div>
                 {sale.payment_status === 'partial' && (
                   <div className="refund-item">
-                    <span className="refund-label">Remaining Amount:</span>
+                    <span className="refund-label">{t('modals.remaining_amount')}:</span>
                     <span className="refund-value">${sale.remaining_amount?.toFixed(2) || '0.00'}</span>
                   </div>
                 )}
                 <div className="refund-note">
-                  <strong>Note:</strong> The customer should be refunded ${sale.paid_amount?.toFixed(2) || '0.00'} (the amount they actually paid).
+                  <strong>{t('common.notes')}:</strong> {t('modals.refund_note', { amount: sale.paid_amount?.toFixed(2) || '0.00' })}
                 </div>
               </div>
             </div>
           )}
 
           <div className="form-section">
-            <h3>Available Items</h3>
+            <h3>{t('modals.available_items')}</h3>
             <div className="items-grid">
               {saleItems?.map(item => (
                 <div key={item.id} className="item-card">
                   <div className="item-info">
                     <h4>{item.product.name}</h4>
                     <p>SKU: {item.product.sku}</p>
-                    <p>Unit: {item.unit.name} ({item.unit.symbol})</p>
-                    <p>Sold: {item.quantity_sold}</p>
-                    <p>Max Returnable: {item.max_returnable_quantity_display}</p>
-                    <p>Sale Price: ${item.unit_price}</p>
-                    <p>Return Price: ${item.return_unit_price}</p>
+                    <p>{t('common.unit')}: {item.unit.name} ({item.unit.symbol})</p>
+                    <p>{t('dashboard.sold')}: {item.quantity_sold}</p>
+                    <p>{t('modals.max_returnable')}: {item.max_returnable_quantity_display}</p>
+                    <p>{t('modals.sale_price')}: ${item.unit_price}</p>
+                    <p>{t('modals.return_price')}: ${item.return_unit_price}</p>
                   </div>
                   {item.max_returnable_quantity_display > 0 && (
                     <button
@@ -204,7 +206,7 @@ const ReturnModal = ({ isOpen, onClose, onSave, sale, saleItems }) => {
                       onClick={() => addItemToReturn(item)}
                       disabled={returnData.items.some(ri => ri.original_sale_item === item.id)}
                     >
-                      {returnData.items.some(ri => ri.original_sale_item === item.id) ? 'Added' : 'Add to Return'}
+                      {returnData.items.some(ri => ri.original_sale_item === item.id) ? t('buttons.added') : t('buttons.add_to_return')}
                     </button>
                   )}
                 </div>
@@ -213,9 +215,9 @@ const ReturnModal = ({ isOpen, onClose, onSave, sale, saleItems }) => {
           </div>
 
           <div className="form-section">
-            <h3>Return Items</h3>
+            <h3>{t('modals.return_items')}</h3>
             {returnData.items.length === 0 ? (
-              <p className="no-items">No items added to return yet</p>
+              <p className="no-items">{t('modals.no_items_added')}</p>
             ) : (
               <div className="return-items">
                 {returnData.items.map(item => {
@@ -226,10 +228,10 @@ const ReturnModal = ({ isOpen, onClose, onSave, sale, saleItems }) => {
                         <h4>{saleItem?.product.name}</h4>
                         <p>{saleItem?.unit.name} ({saleItem?.unit.symbol})</p>
                         <p>Max: {saleItem?.max_returnable_quantity_display}</p>
-                        <p>Return Price: ${saleItem?.return_unit_price}</p>
+                        <p>{t('modals.return_price')}: ${saleItem?.return_unit_price}</p>
                       </div>
                       <div className="quantity-controls">
-                        <label>Return Quantity:</label>
+                        <label>{t('modals.return_quantity')}:</label>
                         <input
                           type="number"
                           min="0"
@@ -239,14 +241,14 @@ const ReturnModal = ({ isOpen, onClose, onSave, sale, saleItems }) => {
                           onChange={(e) => handleItemChange(item.original_sale_item, 'quantity', parseFloat(e.target.value) || 0)}
                         />
                         <div className="return-total">
-                          <strong>Total: ${(item.quantity * saleItem?.return_unit_price || 0).toFixed(2)}</strong>
+                          <strong>{t('common.total')}: ${(item.quantity * saleItem?.return_unit_price || 0).toFixed(2)}</strong>
                         </div>
                       </div>
                       <button
                         className="remove-item-btn"
                         onClick={() => removeItemFromReturn(item.original_sale_item)}
                       >
-                        Remove
+                        {t('alerts.remove_item')}
                       </button>
                     </div>
                   );
@@ -257,21 +259,21 @@ const ReturnModal = ({ isOpen, onClose, onSave, sale, saleItems }) => {
 
           <div className="form-section">
             <div className="form-group">
-              <label>Notes</label>
+              <label>{t('common.notes')}</label>
               <textarea
                 value={returnData.notes}
                 onChange={(e) => setReturnData(prev => ({ ...prev, notes: e.target.value }))}
                 rows="3"
-                placeholder="Return reason or additional notes..."
+                placeholder={t('modals.return_reason_placeholder')}
               />
             </div>
           </div>
 
           {returnData.items.length > 0 && (
             <div className="form-section return-summary">
-              <h3>Return Summary</h3>
+              <h3>{t('modals.return_summary')}</h3>
               <div className="summary-total">
-                <strong>Total Return Amount: ${returnData.items.reduce((total, item) => {
+                <strong>{t('modals.total_return_amount')}: ${returnData.items.reduce((total, item) => {
                   const saleItem = saleItems.find(si => si.id === item.original_sale_item);
                   return total + (item.quantity * (saleItem?.return_unit_price || 0));
                 }, 0).toFixed(2)}</strong>
@@ -282,14 +284,14 @@ const ReturnModal = ({ isOpen, onClose, onSave, sale, saleItems }) => {
 
         <div className="modal-footer">
           <button className="btn btn-secondary" onClick={onClose} disabled={loading}>
-            Cancel
+            {t('modals.cancel')}
           </button>
           <button 
             className="btn btn-primary" 
             onClick={handleSave} 
             disabled={loading || returnData.items.length === 0}
           >
-            {loading ? 'Creating...' : 'Create Return'}
+            {loading ? t('buttons.creating') : t('buttons.create_return')}
           </button>
         </div>
       </div>

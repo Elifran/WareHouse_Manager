@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import api from '../services/api';
 import Button from '../components/Button';
 import { formatCurrency, formatDate } from '../utils/helpers';
@@ -7,6 +8,7 @@ import { generatePrintContent } from '../components/PrintButton';
 import './PendingSales.css';
 
 const PendingSales = () => {
+  const { t } = useTranslation();
   const { user, loading: authLoading } = useAuth();
   const [pendingSales, setPendingSales] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -169,7 +171,7 @@ const PendingSales = () => {
         customer_name: sale.customer_name || 'Walk-in Customer',
         customer_phone: sale.customer_phone || '',
         customer_email: sale.customer_email || '',
-        user_name: user?.username || 'Unknown User',
+        user_name: user?.username || t('app.unknown_user'),
         user_id: user?.id || 'unknown',
         created_at: sale.created_at,
         print_timestamp: new Date().toISOString(),
@@ -191,7 +193,7 @@ const PendingSales = () => {
       };
 
       // Generate print content using the standardized system
-      const printContent = generatePrintContent(printData, 'Sale Receipt', 'sale');
+      const printContent = generatePrintContent(printData, t('titles.sale_receipt'), 'sale', t);
       
       // Open print window
       const printWindow = window.open('', '_blank', 'width=800,height=600');
@@ -422,7 +424,7 @@ const PendingSales = () => {
     return (
       <div className="pending-sales-page">
         <div className="page-header">
-          <h1>Pending Sales</h1>
+          <h1>{t('titles.pending_sales')}</h1>
         </div>
         <div className="loading-message">Loading pending sales...</div>
       </div>
@@ -433,7 +435,7 @@ const PendingSales = () => {
     return (
       <div className="pending-sales-page">
         <div className="page-header">
-          <h1>Pending Sales</h1>
+          <h1>{t('titles.pending_sales')}</h1>
         </div>
         <div className="loading-message">Please log in to view pending sales.</div>
       </div>
@@ -443,14 +445,14 @@ const PendingSales = () => {
   return (
     <div className="pending-sales-page">
       <div className="page-header">
-        <h1>Pending Sales</h1>
+        <h1>{t('titles.pending_sales')}</h1>
         <p>Manage and validate pending sales before completion</p>
       </div>
 
       {pendingSales.length === 0 ? (
         <div className="no-pending-sales">
           <div className="no-sales-icon">📋</div>
-          <h3>No Pending Sales</h3>
+          <h3>{t('titles.no_pending_sales')}</h3>
           <p>All sales have been completed or there are no pending sales at the moment.</p>
         </div>
       ) : (
@@ -537,7 +539,7 @@ const PendingSales = () => {
                   onClick={() => completeSale(sale.id)}
                   loading={completingSale === sale.id}
                 >
-                  {stockValidationStatus[sale.id]?.hasInsufficientStock ? 'Insufficient Stock' : 'Complete Sale'}
+                  {stockValidationStatus[sale.id]?.hasInsufficientStock ? t('buttons.insufficient_stock') : t('buttons.complete_sale')}
                 </Button>
               </div>
             </div>
@@ -705,7 +707,7 @@ const PendingSales = () => {
                 disabled={stockValidationStatus[selectedSale.id]?.hasInsufficientStock}
                 onClick={() => completeSale(selectedSale.id)}
               >
-                {stockValidationStatus[selectedSale.id]?.hasInsufficientStock ? 'Insufficient Stock' : 'Complete Sale'}
+                {stockValidationStatus[selectedSale.id]?.hasInsufficientStock ? t('buttons.insufficient_stock') : t('buttons.complete_sale')}
               </Button>
             </div>
           </div>
@@ -741,7 +743,7 @@ const PendingSales = () => {
                       type="text"
                       value={editFormData.customer_name || ''}
                       onChange={(e) => setEditFormData({...editFormData, customer_name: e.target.value})}
-                      placeholder="Customer name"
+                      placeholder={t('forms.customer_name')}
                     />
                   </div>
                   <div className="form-group">
@@ -750,7 +752,7 @@ const PendingSales = () => {
                       type="text"
                       value={editFormData.customer_phone || ''}
                       onChange={(e) => setEditFormData({...editFormData, customer_phone: e.target.value})}
-                      placeholder="Phone number"
+                      placeholder={t('forms.phone_number')}
                     />
                   </div>
                   <div className="form-group">
@@ -759,7 +761,7 @@ const PendingSales = () => {
                       type="email"
                       value={editFormData.customer_email || ''}
                       onChange={(e) => setEditFormData({...editFormData, customer_email: e.target.value})}
-                      placeholder="Email address"
+                      placeholder={t('forms.email_address')}
                     />
                   </div>
                   <div className="form-group">
@@ -816,7 +818,7 @@ const PendingSales = () => {
                         const value = parseFloat(e.target.value) || 0;
                         setPaidAmount(value);
                       }}
-                      placeholder="Enter amount to pay"
+                      placeholder={t('forms.enter_amount_to_pay')}
                     />
                     <small>
                       Total: {formatCurrency(calculateEditTotal())} | 

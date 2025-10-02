@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import api from '../services/api';
 import './Reports.css';
 
 const Reports = () => {
+  const { t } = useTranslation();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -437,7 +439,7 @@ const Reports = () => {
       case 'inventory':
         return (
           <div className="report-data">
-            <h3>Inventory Report Data</h3>
+            <h3>{t('titles.inventory_report_data')}</h3>
             <div className="inventory-summary">
               <div className="summary-card">
                 <h4>Total Products</h4>
@@ -504,7 +506,7 @@ const Reports = () => {
       case 'stock_movement':
         return (
           <div className="report-data">
-            <h3>Stock Movement Report Data</h3>
+            <h3>{t('titles.stock_movement_report_data')}</h3>
             
             {data.summary && data.summary.length > 0 && (
               <div className="movement-summary">
@@ -587,7 +589,7 @@ const Reports = () => {
   return (
     <div className="reports">
       <div className="reports-header">
-        <h1>Reports</h1>
+        <h1>{t('titles.reports')}</h1>
         <p>Generate detailed reports and export them for analysis</p>
       </div>
 
@@ -728,7 +730,7 @@ const Reports = () => {
 
         {/* Previous Reports */}
         <div className="previous-reports-section">
-          <h2>Previous Reports</h2>
+          <h2>{t('titles.previous_reports')}</h2>
           {reports.length > 0 ? (
             <div className="reports-list">
               {reports.map((report) => (

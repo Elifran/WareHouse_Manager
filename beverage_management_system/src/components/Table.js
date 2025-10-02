@@ -1,15 +1,18 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import './Table.css';
 
 const Table = ({ 
   data = [], 
   columns = [], 
   loading = false, 
-  emptyMessage = 'No data available',
+  emptyMessage,
   className = '',
   onRowClick,
   ...props 
 }) => {
+  const { t } = useTranslation();
+  const defaultEmptyMessage = emptyMessage || t('app.no_data_available');
   if (loading) {
     return (
       <div className="table-container">
@@ -25,7 +28,7 @@ const Table = ({
     return (
       <div className="table-container">
         <div className="table-empty">
-          <span>{emptyMessage}</span>
+          <span>{defaultEmptyMessage}</span>
         </div>
       </div>
     );

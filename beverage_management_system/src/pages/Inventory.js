@@ -1,9 +1,11 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import api from '../services/api';
 import Button from '../components/Button';
 import './Inventory.css';
 
 const Inventory = () => {
+  const { t } = useTranslation();
   const [products, setProducts] = useState([]);
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -405,7 +407,7 @@ const Inventory = () => {
   return (
     <div className="inventory">
       <div className="inventory-header">
-        <h1>Inventory Management</h1>
+        <h1>{t('titles.inventory_management')}</h1>
         <Button onClick={handleAddProduct}>Add Product</Button>
       </div>
 

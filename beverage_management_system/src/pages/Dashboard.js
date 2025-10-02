@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useAuth } from '../contexts/AuthContext';
 import api from '../services/api';
 import SaleDetailModal from '../components/SaleDetailModal';
@@ -6,6 +7,7 @@ import PrintButton from '../components/PrintButton';
 import './Dashboard.css';
 
 const Dashboard = () => {
+  const { t } = useTranslation();
   const { user } = useAuth();
   const [dashboardData, setDashboardData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -30,7 +32,7 @@ const Dashboard = () => {
       const response = await api.get(url);
       setDashboardData(response.data);
     } catch (err) {
-      setError('Failed to load dashboard data');
+      setError(t('dashboard.failed_to_load'));
       console.error('Dashboard error:', err);
     } finally {
       setLoading(false);
@@ -52,7 +54,7 @@ const Dashboard = () => {
       // Check if sale has an ID
       const saleId = sale.id || sale.sale_id;
       if (!saleId) {
-        throw new Error('Sale ID not found');
+        throw new Error(t('errors.not_found'));
       }
       
       // Fetch detailed sale information
@@ -77,7 +79,7 @@ const Dashboard = () => {
       <div className="dashboard">
         <div className="dashboard-loading">
           <div className="spinner"></div>
-          <span>Loading dashboard...</span>
+          <span>{t('dashboard.loading')}</span>
         </div>
       </div>
     );
@@ -87,9 +89,9 @@ const Dashboard = () => {
     return (
       <div className="dashboard">
         <div className="dashboard-error">
-          <h2>Error</h2>
+          <h2>{t('dashboard.error')}</h2>
           <p>{error}</p>
-          <button onClick={fetchDashboardData}>Retry</button>
+          <button onClick={fetchDashboardData}>{t('common.retry')}</button>
         </div>
       </div>
     );
@@ -100,23 +102,23 @@ const Dashboard = () => {
       <div className="dashboard-header">
         <div className="header-content">
           <div className="header-text">
-            <h1>Dashboard</h1>
-            <p>Welcome back, {user?.username}!</p>
+            <h1>{t('dashboard.title')}</h1>
+            <p>{t('dashboard.welcome', { username: user?.username })}</p>
             {isSalesTeam && (
-              <p className="role-indicator">Sales Team View - Daily Sales Only</p>
+              <p className="role-indicator">{t('dashboard.sales_team_view')}</p>
             )}
           </div>
           {!isSalesTeam && (
             <div className="period-selector">
-              <label>Time Period:</label>
+              <label>{t('dashboard.time_period')}</label>
               <select 
                 value={selectedPeriod} 
                 onChange={(e) => handlePeriodChange(e.target.value)}
                 className="period-select"
               >
-                <option value="daily">Daily</option>
-                <option value="weekly">Weekly</option>
-                <option value="month">Monthly</option>
+                <option value="daily">{t('dashboard.daily')}</option>
+                <option value="weekly">{t('dashboard.weekly')}</option>
+                <option value="month">{t('dashboard.monthly')}</option>
               </select>
             </div>
           )}
@@ -132,12 +134,12 @@ const Dashboard = () => {
             </svg>
           </div>
           <div className="metric-content">
-            <h3>Total Revenue</h3>
+            <h3>{t('dashboard.total_revenue')}</h3>
             <p className="metric-value">
               {dashboardData?.sales?.total_sales?.toFixed(2) || '0.00'} MGA
             </p>
             <p className="metric-label">
-              {dashboardData?.sales?.total_count || 0} transactions
+              {dashboardData?.sales?.total_count || 0} {t('dashboard.transactions')}
             </p>
           </div>
         </div>
@@ -151,12 +153,12 @@ const Dashboard = () => {
                 </svg>
               </div>
               <div className="metric-content">
-                <h3>Total Cost</h3>
+                <h3>{t('dashboard.total_cost')}</h3>
                 <p className="metric-value">
                   {dashboardData?.sales?.total_cost?.toFixed(2) || '0.00'} MGA
                 </p>
                 <p className="metric-label">
-                  Cost of goods sold
+                  {t('dashboard.cost_of_goods_sold')}
                 </p>
               </div>
             </div>
@@ -168,12 +170,12 @@ const Dashboard = () => {
                 </svg>
               </div>
               <div className="metric-content">
-                <h3>Profit</h3>
+                <h3>{t('dashboard.profit')}</h3>
                 <p className="metric-value">
                   {dashboardData?.sales?.profit?.toFixed(2) || '0.00'} MGA
                 </p>
                 <p className="metric-label">
-                  {dashboardData?.sales?.profit_margin?.toFixed(1) || '0.0'}% margin
+                  {dashboardData?.sales?.profit_margin?.toFixed(1) || '0.0'}% {t('dashboard.margin')}
                 </p>
               </div>
             </div>
@@ -187,7 +189,7 @@ const Dashboard = () => {
             </svg>
           </div>
           <div className="metric-content">
-            <h3>{isSalesTeam ? 'Total Products' : 'Inventory Value'}</h3>
+            <h3>{isSalesTeam ? t('dashboard.total_products') : t('dashboard.inventory_value')}</h3>
             <p className="metric-value">
               {isSalesTeam 
                 ? dashboardData?.inventory?.total_products || 0
@@ -196,8 +198,8 @@ const Dashboard = () => {
             </p>
             <p className="metric-label">
               {isSalesTeam 
-                ? 'available products'
-                : `${dashboardData?.inventory?.total_products || 0} products`
+                ? t('dashboard.available_products')
+                : `${dashboardData?.inventory?.total_products || 0} ${t('dashboard.products')}`
               }
             </p>
           </div>
@@ -241,7 +243,7 @@ const Dashboard = () => {
       {/* Sales Chart - Only for Admin/Manager */}
       {!isSalesTeam && (
         <div className="dashboard-section">
-          <h2>Sales Trend (Last 7 Days)</h2>
+          <h2>{t('dashboard.sales_trend')}</h2>
           <div className="sales-chart">
             {dashboardData?.chart_data?.length > 0 ? (
               <div className="chart-container">
@@ -252,12 +254,12 @@ const Dashboard = () => {
                         <div 
                           className="bar sales-bar" 
                           style={{ height: `${Math.max(5, (day.sales / Math.max(...dashboardData.chart_data.map(d => d.sales))) * 100)}%` }}
-                          title={`Sales: ${day.sales.toFixed(2)} MGA`}
+                          title={`${t('dashboard.sales')}: ${day.sales.toFixed(2)} MGA`}
                         ></div>
                         <div 
                           className="bar cost-bar" 
                           style={{ height: `${Math.max(5, (day.cost / Math.max(...dashboardData.chart_data.map(d => d.sales))) * 100)}%` }}
-                          title={`Cost: ${day.cost.toFixed(2)} MGA`}
+                          title={`${t('dashboard.cost')}: ${day.cost.toFixed(2)} MGA`}
                         ></div>
                       </div>
                       <div className="bar-label">
@@ -273,16 +275,16 @@ const Dashboard = () => {
                 <div className="chart-legend">
                   <div className="legend-item">
                     <div className="legend-color sales"></div>
-                    <span>Sales</span>
+                    <span>{t('dashboard.sales')}</span>
                   </div>
                   <div className="legend-item">
                     <div className="legend-color cost"></div>
-                    <span>Cost</span>
+                    <span>{t('dashboard.cost')}</span>
                   </div>
                 </div>
               </div>
             ) : (
-              <p className="no-data">No sales data available</p>
+              <p className="no-data">{t('dashboard.no_sales_data')}</p>
             )}
           </div>
         </div>
@@ -291,19 +293,19 @@ const Dashboard = () => {
       {/* Recent Sales */}
       <div className="dashboard-section">
         <div className="section-header">
-          <h2>Recent Sales</h2>
+          <h2>{t('dashboard.recent_sales')}</h2>
           {dashboardData?.recent_sales?.length > 0 && (
             <PrintButton
               data={{
                 ...dashboardData.recent_sales,
-                user_name: user?.username || 'Unknown User',
+                user_name: user?.username || t('app.unknown_user'),
                 user_id: user?.id || 'unknown',
                 print_timestamp: new Date().toISOString(),
                 print_id: `PRINT-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
               }}
-              title="Recent Sales Report"
+              title={t('titles.sales_management_report')}
               type="sales_history"
-              printText="Print Recent Sales"
+              printText={t('buttons.print_sales_report')}
               className="print-recent-sales-btn"
             />
           )}
@@ -316,11 +318,11 @@ const Dashboard = () => {
                   key={index} 
                   className="sale-item clickable"
                   onClick={() => handleSaleClick(sale)}
-                  title="Click to view details"
+                  title={t('dashboard.click_to_view_details')}
                 >
                   <div className="sale-info">
                     <h4>{sale.sale_number}</h4>
-                    <p>{sale.customer_name || 'Walk-in Customer'}</p>
+                    <p>{sale.customer_name || t('dashboard.walk_in_customer')}</p>
                   </div>
                   <div className="sale-amount">
                     <span>{sale.total_amount.toFixed(2)} MGA</span>
@@ -342,7 +344,7 @@ const Dashboard = () => {
 
       {/* Top Products */}
       <div className="dashboard-section">
-        <h2>Top Selling Products</h2>
+        <h2>{t('dashboard.top_selling_products')}</h2>
         <div className="top-products">
           {dashboardData?.top_products?.length > 0 ? (
             <div className="products-list">
@@ -354,25 +356,25 @@ const Dashboard = () => {
                   </div>
                   <div className="product-stats">
                     <div className="stat-row">
-                      <span className="stat-label">Sold:</span>
+                      <span className="stat-label">{t('dashboard.sold')}:</span>
                       <span className="stat-value">{product.total_sold} {product.unit_symbol || 'piece'}</span>
                     </div>
                     <div className="stat-row">
-                      <span className="stat-label">Revenue:</span>
+                      <span className="stat-label">{t('dashboard.revenue')}:</span>
                       <span className="stat-value">{product.total_revenue.toFixed(2)} MGA</span>
                     </div>
                     {!isSalesTeam && (
                       <>
                         <div className="stat-row">
-                          <span className="stat-label">Cost:</span>
+                          <span className="stat-label">{t('dashboard.cost')}:</span>
                           <span className="stat-value">{product.total_cost?.toFixed(2) || '0.00'} MGA</span>
                         </div>
                         <div className="stat-row">
-                          <span className="stat-label">Profit:</span>
+                          <span className="stat-label">{t('dashboard.profit')}:</span>
                           <span className="stat-value profit">{product.profit?.toFixed(2) || '0.00'} MGA</span>
                         </div>
                         <div className="stat-row">
-                          <span className="stat-label">Margin:</span>
+                          <span className="stat-label">{t('dashboard.margin')}:</span>
                           <span className="stat-value margin">{product.profit_margin?.toFixed(1) || '0.0'}%</span>
                         </div>
                       </>

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useAuth } from '../contexts/AuthContext';
 import { useApi } from '../hooks/useApi';
 import Button from '../components/Button';
@@ -6,6 +7,7 @@ import Table from '../components/Table';
 import './SystemManagement.css';
 
 const SystemManagement = () => {
+  const { t } = useTranslation();
   const { user } = useAuth();
   const api = useApi();
   
@@ -780,7 +782,7 @@ const SystemManagement = () => {
   return (
     <div className="system-management">
       <div className="system-header">
-        <h1>System Management</h1>
+        <h1>{t('titles.system_management')}</h1>
         <p>Manage taxes, categories, units, and unit conversions</p>
       </div>
 

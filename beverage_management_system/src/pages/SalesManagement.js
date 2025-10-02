@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import api from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
 import Table from '../components/Table';
@@ -7,6 +8,7 @@ import PrintButton from '../components/PrintButton';
 import './SalesManagement.css';
 
 const SalesManagement = () => {
+  const { t } = useTranslation();
   const { user } = useAuth();
   const [sales, setSales] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -399,19 +401,19 @@ const SalesManagement = () => {
   return (
     <div className="sales-management">
       <div className="page-header">
-        <h1>Sales Management</h1>
+        <h1>{t('titles.sales_management')}</h1>
         <div className="header-actions">
           <PrintButton
             data={{
               ...sales,
-              user_name: user?.username || 'Unknown User',
+              user_name: user?.username || t('app.unknown_user'),
               user_id: user?.id || 'unknown',
               print_timestamp: new Date().toISOString(),
               print_id: `PRINT-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
             }}
-            title="Sales Management Report"
+            title={t('titles.sales_management_report')}
             type="sales_history"
-            printText="Print Sales Report"
+            printText={t('buttons.print_sales_report')}
             className="print-sales-report-btn"
           />
           <Button 
@@ -456,7 +458,7 @@ const SalesManagement = () => {
               name="customer_name"
               value={filters.customer_name}
               onChange={handleFilterChange}
-              placeholder="Search by customer name"
+              placeholder={t('forms.search_by_customer_name')}
             />
           </div>
           
@@ -498,19 +500,19 @@ const SalesManagement = () => {
             columns={[
               {
                 key: 'sale_number',
-                header: 'Sale Number',
+                header: t('table_headers.sale_number'),
                 render: (value, row) => (
                   <span className="sale-number">{value}</span>
                 )
               },
               {
                 key: 'customer_name',
-                header: 'Customer',
+                header: t('table_headers.customer'),
                 render: (value) => value || 'N/A'
               },
               {
                 key: 'status',
-                header: 'Status',
+                header: t('table_headers.status'),
                 render: (value, row) => (
                   <div className="status-container">
                     <div className="sale-status">
@@ -521,7 +523,7 @@ const SalesManagement = () => {
               },
               {
                 key: 'payment_status',
-                header: 'Payment',
+                header: t('table_headers.payment'),
                 render: (value, row) => {
                   const paymentClasses = {
                     'pending': 'payment-pending',
@@ -529,16 +531,16 @@ const SalesManagement = () => {
                     'paid': 'payment-paid'
                   };
                   const paymentLabels = {
-                    'pending': 'Pending',
-                    'partial': 'Partial',
-                    'paid': 'Paid'
+                    'pending': t('status_labels.pending'),
+                    'partial': t('status_labels.partial'),
+                    'paid': t('status_labels.paid')
                   };
                   return <span className={`payment-badge ${paymentClasses[value] || ''}`}>{paymentLabels[value] || value}</span>;
                 }
               },
               {
                 key: 'items',
-                header: 'Items',
+                header: t('table_headers.items'),
                 render: (items, row) => {
                   if (!items || items.length === 0) {
                     return <span className="no-items">No items</span>;
@@ -567,7 +569,7 @@ const SalesManagement = () => {
               },
               {
                 key: 'total_amount',
-                header: 'Total Amount',
+                header: t('table_headers.total_amount'),
                 render: (value, row) => (
                   <div className="amount-container">
                     <div className="total-amount">
@@ -578,17 +580,17 @@ const SalesManagement = () => {
               },
               {
                 key: 'created_at',
-                header: 'Date',
+                header: t('table_headers.date'),
                 render: (value) => formatDate(value)
               },
               {
                 key: 'sold_by_name',
-                header: 'Sold By',
+                header: t('table_headers.sold_by'),
                 render: (value) => value || 'N/A'
               },
               {
                 key: 'payment_method',
-                header: 'Payment Method',
+                header: t('table_headers.payment_method'),
                 render: (value, row) => {
                   // For pending sales, make payment method editable
                   if (row.status === 'pending') {
@@ -607,17 +609,17 @@ const SalesManagement = () => {
                   }
                   // For other sales, just display the payment method
                   const methodLabels = {
-                    'cash': 'Cash',
-                    'card': 'Card',
-                    'mobile_money': 'Mobile Money',
-                    'bank_transfer': 'Bank Transfer'
+                    'cash': t('payment_methods.cash'),
+                    'card': t('payment_methods.card'),
+                    'mobile_money': t('payment_methods.mobile_money'),
+                    'bank_transfer': t('payment_methods.bank_transfer')
                   };
                   return <span className="payment-method-display">{methodLabels[value] || value || 'Cash'}</span>;
                 }
               },
               {
                 key: 'paid_amount',
-                header: 'Paid Amount',
+                header: t('table_headers.paid_amount'),
                 render: (value, row) => {
                   const paidAmount = parseFloat(value) || 0;
                   
@@ -632,20 +634,20 @@ const SalesManagement = () => {
               },
               {
                 key: 'actions',
-                header: 'Actions',
+                header: t('table_headers.actions'),
                 render: (_, row) => (
                   <div className="action-buttons">
                     <PrintButton
                       data={{
                         ...row,
-                        user_name: user?.username || 'Unknown User',
+                        user_name: user?.username || t('app.unknown_user'),
                         user_id: user?.id || 'unknown',
                         print_timestamp: new Date().toISOString(),
                         print_id: `PRINT-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
                       }}
-                      title="Sale Receipt"
+                      title={t('titles.sale_receipt')}
                       type="sale"
-                      printText="Print"
+                      printText={t('buttons.print')}
                       className="print-sale-btn"
                     />
                     {!(row.status === 'completed' && row.payment_status === 'paid') && 
@@ -701,7 +703,7 @@ const SalesManagement = () => {
                   name="customer_name"
                   value={deleteFilters.customer_name}
                   onChange={handleDeleteFilterChange}
-                  placeholder="Leave empty to delete all"
+                  placeholder={t('forms.leave_empty_to_delete_all')}
                 />
               </div>
               
@@ -759,9 +761,9 @@ const SalesManagement = () => {
           <div className="modal-content large-modal">
             <div className="modal-header">
               <h2>
-                {selectedSale?.status === 'completed' && selectedSale?.payment_status === 'paid' ? 'View Sale' : 'Edit Sale'}: {selectedSale?.sale_number || 'Loading...'}
+                {selectedSale?.status === 'completed' && selectedSale?.payment_status === 'paid' ? t('modals.view_sale') : t('modals.edit_sale')}: {selectedSale?.sale_number || t('app.loading')}
                 {selectedSale?.status === 'completed' && selectedSale?.payment_status === 'paid' && (
-                  <span className="view-only-badge">View Only</span>
+                  <span className="view-only-badge">{t('modals.view_only')}</span>
                 )}
               </h2>
               <button className="close-button" onClick={() => setShowEditModal(false)}>&times;</button>
@@ -802,7 +804,7 @@ const SalesManagement = () => {
                         <label>Product</label>
                         <input
                           type="text"
-                          value={originalItem?.product_name || 'Unknown Product'}
+                          value={originalItem?.product_name || t('app.unknown_product')}
                           readOnly
                           className="readonly-field"
                         />
@@ -930,7 +932,7 @@ const SalesManagement = () => {
                           paid_amount: value
                         }));
                       }}
-                      placeholder="Enter amount to pay"
+                      placeholder={t('forms.enter_amount_to_pay')}
                       readOnly={selectedSale?.status === 'completed' && selectedSale?.payment_status === 'paid'}
                       className={selectedSale?.status === 'completed' && selectedSale?.payment_status === 'paid' ? 'read-only-input' : ''}
                     />
@@ -960,7 +962,7 @@ const SalesManagement = () => {
               
                   <div className="modal-actions">
                     <Button variant="secondary" onClick={() => setShowEditModal(false)}>
-                      {selectedSale?.status === 'completed' && selectedSale?.payment_status === 'paid' ? 'Close' : 'Cancel'}
+                      {selectedSale?.status === 'completed' && selectedSale?.payment_status === 'paid' ? t('modals.close') : t('modals.cancel')}
                     </Button>
                     {!(selectedSale?.status === 'completed' && selectedSale?.payment_status === 'paid') && (
                       <Button 

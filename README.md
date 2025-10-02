@@ -18,6 +18,8 @@ A comprehensive beverage inventory and point-of-sale management system built wit
 - **Product-Specific Units**: Each product can have its own set of compatible units
 - **Dynamic Pricing**: Prices automatically convert based on selected unit
 - **Purchase Orders & Deliveries**: Complete procurement workflow with supplier management
+- **Return & Refund System**: Complete return management with stock restoration and refund tracking
+- **Payment Options**: Full and partial payment support with payment status tracking
 - **Print System**: Comprehensive printing for all documents with network printer support
 - **System Management**: Manage tax classes, categories, units, and unit conversions
 - **Stock Movement Tracking**: Complete audit trail of all stock changes
@@ -152,8 +154,14 @@ After running migrations and creating a superuser, you can log in with your admi
 - `GET /api/sales/` - List sales (with date filtering)
 - `POST /api/sales/` - Create sale
 - `POST /api/sales/{id}/complete/` - Complete sale
+- `POST /api/sales/{id}/cancel/` - Cancel sale (pending) or create return (completed)
+- `POST /api/sales/{id}/payment/` - Make payment on sale
+- `PATCH /api/sales/{id}/payment-method/` - Update payment method for pending sales
+- `PUT /api/sales/{id}/edit/` - Edit sale items and payment information
 - `GET /api/sales/summary/` - Sales summary
 - `GET /api/sales/chart-data/` - Chart data for dashboard
+- `GET /api/sales/pending/` - List pending sales
+- `GET /api/sales/{id}/items-for-return/` - Get sale items for return processing
 
 ### Purchase Orders & Deliveries
 - `GET /api/purchases/suppliers/` - List suppliers
@@ -209,6 +217,36 @@ This project is licensed under the MIT License.
 
 ## Recent Updates
 
+### Return & Refund System
+- **Complete Return Management**: Create returns for completed sales with stock restoration
+- **Return Processing**: Select items to return with quantity validation
+- **Refund Tracking**: Track refund amounts and payment status
+- **Return Sales**: Returns are stored as separate sales with RET- prefix
+- **Stock Restoration**: Automatic stock updates when returns are processed
+- **Refund Information**: Display refund details and amounts to be paid back
+
+### Payment Options & Tracking
+- **Full Payment**: Complete payment at time of sale
+- **Partial Payment**: Support for partial payments with remaining amount tracking
+- **Payment Status**: Track payment status (Pending, Partial, Paid)
+- **Payment Methods**: Support for Cash, Card, Mobile Money, Bank Transfer
+- **Due Date Tracking**: Set due dates for partial payments
+- **Payment History**: Complete payment tracking and history
+
+### Enhanced Sales Management
+- **Edit Sales**: Edit completed sales (when not fully paid) and pending sales
+- **Cancel Sales**: Cancel pending sales or create returns for completed sales
+- **Payment Method Updates**: Update payment methods for pending sales
+- **Quantity Adjustments**: Modify item quantities with stock validation
+- **Payment Integration**: Edit payment information within sales management
+
+### Improved User Interface
+- **Table Layout Fixes**: Fixed table alignment and column sizing issues
+- **Inventory Table**: Optimized inventory table with proper column widths
+- **Status Indicators**: Enhanced status badges and payment indicators
+- **Responsive Design**: Improved responsive design for all screen sizes
+- **Visual Feedback**: Better visual feedback for user actions
+
 ### Multi-Unit System
 - **Flexible Units**: Support for pieces, packs, kg, liters, and custom units
 - **Unit Conversions**: Define conversion relationships (e.g., 1 carton = 12 pieces)
@@ -228,6 +266,7 @@ This project is licensed under the MIT License.
 - **Print Templates**: Professional print layouts for all documents
 - **Unit Information**: Print reports include unit details and conversions
 - **Print IDs**: Track printing with unique identifiers and timestamps
+- **Payment Information**: Print receipts include payment status and amounts
 
 ### System Management
 - **Tax Classes**: Manage different tax rates and categories

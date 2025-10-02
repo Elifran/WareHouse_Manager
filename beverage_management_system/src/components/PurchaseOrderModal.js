@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useApi } from '../hooks/useApi';
 import Button from './Button';
 import PrintButton from './PrintButton';
 import './PurchaseOrderModal.css';
 
 const PurchaseOrderModal = ({ suppliers, onClose, onSubmit }) => {
+  const { t } = useTranslation();
   const [formData, setFormData] = useState({
     supplier_id: '',
     expected_delivery_date: '',
@@ -139,7 +141,7 @@ const PurchaseOrderModal = ({ suppliers, onClose, onSubmit }) => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!formData.supplier_id || formData.items.length === 0) {
-      alert('Please select a supplier and add at least one item');
+      alert(t('modals.please_select_supplier_add_item'));
       return;
     }
 
@@ -208,16 +210,16 @@ const PurchaseOrderModal = ({ suppliers, onClose, onSubmit }) => {
     <div className="modal-overlay">
       <div className="modal-content purchase-order-modal">
         <div className="modal-header">
-          <h2>Create Purchase Order</h2>
+          <h2>{t('modals.create_purchase_order')}</h2>
           <button className="close-button" onClick={onClose}>×</button>
         </div>
 
         <form onSubmit={handleSubmit} className="modal-body">
           <div className="form-section">
-            <h3>Order Details</h3>
+            <h3>{t('modals.order_details')}</h3>
             <div className="form-row">
               <div className="form-group">
-                <label htmlFor="supplier_id">Supplier *</label>
+                <label htmlFor="supplier_id">{t('modals.supplier')} *</label>
                 <select
                   id="supplier_id"
                   name="supplier_id"
@@ -225,7 +227,7 @@ const PurchaseOrderModal = ({ suppliers, onClose, onSubmit }) => {
                   onChange={handleInputChange}
                   required
                 >
-                  <option value="">Select a supplier</option>
+                  <option value="">{t('modals.select_supplier')}</option>
                   {suppliers.map(supplier => (
                     <option key={supplier.id} value={supplier.id}>
                       {supplier.name}
@@ -234,7 +236,7 @@ const PurchaseOrderModal = ({ suppliers, onClose, onSubmit }) => {
                 </select>
               </div>
               <div className="form-group">
-                <label htmlFor="expected_delivery_date">Expected Delivery Date</label>
+                <label htmlFor="expected_delivery_date">{t('modals.expected_delivery_date')}</label>
                 <input
                   type="date"
                   id="expected_delivery_date"
@@ -245,7 +247,7 @@ const PurchaseOrderModal = ({ suppliers, onClose, onSubmit }) => {
               </div>
             </div>
             <div className="form-group">
-              <label htmlFor="notes">Notes</label>
+              <label htmlFor="notes">{t('common.notes')}</label>
               <textarea
                 id="notes"
                 name="notes"
@@ -259,28 +261,28 @@ const PurchaseOrderModal = ({ suppliers, onClose, onSubmit }) => {
 
           <div className="form-section">
             <div className="section-header">
-              <h3>Order Items</h3>
+              <h3>{t('modals.order_items')}</h3>
               <Button type="button" variant="secondary" onClick={addItem}>
-                Add Item
+                {t('modals.add_item')}
               </Button>
             </div>
 
             {formData.items.length === 0 ? (
               <div className="empty-items">
-                <p>No items added yet. Click "Add Item" to start building your order.</p>
+                <p>{t('modals.no_items_added_yet')}</p>
               </div>
             ) : (
               <div className="items-list">
                 {formData.items.map((item, index) => (
                   <div key={index} className="item-row">
                     <div className="item-product">
-                      <label>Product *</label>
+                      <label>{t('common.name')} *</label>
                       <select
                         value={item.product_id}
                         onChange={(e) => handleItemChange(index, 'product_id', e.target.value)}
                         required
                       >
-                        <option value="">Select a product</option>
+                        <option value="">{t('modals.select_product')}</option>
                         {products.map(product => (
                           <option key={product.id} value={product.id}>
                             {product.name} ({product.sku})
@@ -289,7 +291,7 @@ const PurchaseOrderModal = ({ suppliers, onClose, onSubmit }) => {
                       </select>
                     </div>
                     <div className="item-quantity">
-                      <label>Quantity *</label>
+                      <label>{t('common.quantity')} *</label>
                       <input
                         type="number"
                         min="1"
@@ -299,7 +301,7 @@ const PurchaseOrderModal = ({ suppliers, onClose, onSubmit }) => {
                       />
                     </div>
                     <div className="item-unit">
-                      <label>Unit</label>
+                      <label>{t('common.unit')}</label>
                       <select
                         value={item.unit_id}
                         onChange={(e) => {
@@ -318,11 +320,11 @@ const PurchaseOrderModal = ({ suppliers, onClose, onSubmit }) => {
                           }
                         }}
                       >
-                        <option value="">Select unit</option>
+                        <option value="">{t('modals.select_unit')}</option>
                         {(() => {
                           const selectedProduct = products.find(p => p.id === parseInt(item.product_id));
                           if (!selectedProduct?.compatible_units || selectedProduct.compatible_units.length === 0) {
-                            return <option value="">No compatible units available</option>;
+                            return <option value="">{t('modals.no_compatible_units')}</option>;
                           }
                           
                           return selectedProduct.compatible_units.map(compatibleUnit => {
@@ -355,7 +357,7 @@ const PurchaseOrderModal = ({ suppliers, onClose, onSubmit }) => {
                       </select>
                     </div>
                     <div className="item-cost">
-                      <label>Unit Cost *</label>
+                      <label>{t('modals.unit_cost')} *</label>
                       <input
                         type="number"
                         min="0"
@@ -366,12 +368,12 @@ const PurchaseOrderModal = ({ suppliers, onClose, onSubmit }) => {
                       />
                     </div>
                     <div className="item-tax">
-                      <label>Tax Class</label>
+                      <label>{t('modals.tax_class')}</label>
                       <select
                         value={item.tax_class_id}
                         onChange={(e) => handleItemChange(index, 'tax_class_id', e.target.value)}
                       >
-                        <option value="">No Tax</option>
+                        <option value="">{t('modals.no_tax')}</option>
                         {taxClasses.map(taxClass => (
                           <option key={taxClass.id} value={taxClass.id}>
                             {taxClass.name} ({taxClass.tax_rate}%)
@@ -380,12 +382,12 @@ const PurchaseOrderModal = ({ suppliers, onClose, onSubmit }) => {
                       </select>
                     </div>
                     <div className="item-total">
-                      <label>Line Total</label>
+                      <label>{t('modals.line_total')}</label>
                       <div className="total-display">
                         {calculateItemTotal(item).toFixed(2)} MGA
                         {item.tax_class_id && (
                           <span className="tax-amount">
-                            + {calculateTaxAmount(item).toFixed(2)} MGA tax
+                            + {calculateTaxAmount(item).toFixed(2)} MGA {t('modals.tax')}
                           </span>
                         )}
                       </div>
@@ -396,7 +398,7 @@ const PurchaseOrderModal = ({ suppliers, onClose, onSubmit }) => {
                         className="remove-button"
                         onClick={() => removeItem(index)}
                       >
-                        Remove
+                        {t('modals.remove')}
                       </button>
                     </div>
                   </div>
@@ -408,15 +410,15 @@ const PurchaseOrderModal = ({ suppliers, onClose, onSubmit }) => {
           {formData.items.length > 0 && (
             <div className="totals-section">
               <div className="totals-row">
-                <span>Subtotal:</span>
+                <span>{t('modals.subtotal')}:</span>
                 <span>{totals.subtotal.toFixed(2)} MGA</span>
               </div>
               <div className="totals-row">
-                <span>Tax Amount:</span>
+                <span>{t('modals.tax_amount')}:</span>
                 <span>{totals.taxAmount.toFixed(2)} MGA</span>
               </div>
               <div className="totals-row total-row">
-                <span>Total Amount:</span>
+                <span>{t('modals.total_amount')}:</span>
                 <span>{totals.total.toFixed(2)} MGA</span>
               </div>
             </div>
@@ -427,10 +429,10 @@ const PurchaseOrderModal = ({ suppliers, onClose, onSubmit }) => {
           <div className="footer-left">
             <PrintButton
               data={formData}
-              title="Purchase Order"
+              title={t('titles.purchase_order')}
               type="purchase_order"
-              printText="Print Order"
-              validateText="Validate & Print"
+              printText={t('buttons.print_order')}
+              validateText={t('modals.validate_print')}
               showValidateOption={true}
               onValidate={handleSubmit}
               disabled={!formData.supplier_id || formData.items.length === 0}
@@ -438,7 +440,7 @@ const PurchaseOrderModal = ({ suppliers, onClose, onSubmit }) => {
           </div>
           <div className="footer-right">
             <Button type="button" variant="secondary" onClick={onClose}>
-              Cancel
+              {t('modals.cancel')}
             </Button>
             <Button
               type="submit"
@@ -446,7 +448,7 @@ const PurchaseOrderModal = ({ suppliers, onClose, onSubmit }) => {
               onClick={handleSubmit}
               disabled={loading || !formData.supplier_id || formData.items.length === 0}
             >
-              {loading ? 'Creating...' : 'Create Purchase Order'}
+              {loading ? t('modals.creating') : t('modals.create_purchase_order')}
             </Button>
           </div>
         </div>

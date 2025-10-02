@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useAuth } from '../contexts/AuthContext';
 import api from '../services/api';
 import Table from '../components/Table';
@@ -6,6 +7,7 @@ import Button from '../components/Button';
 import './Users.css';
 
 const Users = () => {
+  const { t } = useTranslation();
   const { user, isAdmin } = useAuth();
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -25,7 +27,7 @@ const Users = () => {
       const response = await api.get('/core/users/');
       setUsers(response.data.results || response.data);
     } catch (err) {
-      setError('Failed to load users');
+      setError(t('messages.failed_to_load_users'));
       console.error('Users error:', err);
     } finally {
       setLoading(false);
@@ -48,7 +50,7 @@ const Users = () => {
         await api.delete(`/core/users/${userToDelete.id}/`);
         fetchUsers();
       } catch (err) {
-        setError('Failed to delete user');
+        setError(t('messages.failed_to_delete_user'));
         console.error('Delete error:', err);
       }
     }
@@ -57,7 +59,7 @@ const Users = () => {
   const columns = [
     {
       key: 'username',
-      header: 'Username',
+      header: t('table_headers.username'),
       render: (value, row) => (
         <div>
           <div className="user-name">{value}</div>
@@ -67,12 +69,12 @@ const Users = () => {
     },
     {
       key: 'first_name',
-      header: 'Full Name',
+      header: t('table_headers.full_name'),
       render: (value, row) => `${row.first_name} ${row.last_name}`.trim() || 'N/A'
     },
     {
       key: 'role',
-      header: 'Role',
+      header: t('table_headers.role'),
       render: (value) => (
         <span className={`role-badge role-${value}`}>
           {value.charAt(0).toUpperCase() + value.slice(1)}
@@ -81,21 +83,21 @@ const Users = () => {
     },
     {
       key: 'phone_number',
-      header: 'Phone',
+      header: t('table_headers.phone'),
       render: (value) => value || 'N/A'
     },
     {
       key: 'is_active',
-      header: 'Status',
+      header: t('table_headers.status'),
       render: (value) => (
         <span className={`status-badge ${value ? 'active' : 'inactive'}`}>
-          {value ? 'Active' : 'Inactive'}
+          {value ? t('status_labels.active') : t('status_labels.inactive')}
         </span>
       )
     },
     {
       key: 'actions',
-      header: 'Actions',
+      header: t('table_headers.actions'),
       render: (value, row) => (
         <div className="action-buttons">
           <Button
