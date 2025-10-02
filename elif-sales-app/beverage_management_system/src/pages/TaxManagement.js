@@ -48,7 +48,7 @@ const TaxManagement = () => {
 
     try {
       if (editingTaxClass) {
-        await api.put(`/products/tax-classes/${editingTaxClass.id}/`, formData);
+        await api.put(`/api/products/tax-classes/${editingTaxClass.id}/`, formData);
       } else {
         await api.post('/api/products/tax-classes/', formData);
       }
@@ -80,7 +80,7 @@ const TaxManagement = () => {
     }
 
     try {
-      await api.delete(`/products/tax-classes/${taxClass.id}/`);
+      await api.delete(`/api/products/tax-classes/${taxClass.id}/`);
       fetchTaxClasses();
     } catch (err) {
       setError('Failed to delete tax class');

@@ -48,7 +48,7 @@ const SalesManagement = () => {
       if (filters.start_date) params.append('created_at__date__gte', filters.start_date);
       if (filters.end_date) params.append('created_at__date__lte', filters.end_date);
       
-      const response = await api.get(`/sales/?${params.toString()}`);
+      const response = await api.get(`/api/sales/?${params.toString()}`);
       const salesData = response.data.results || response.data;
       
       // Ensure salesData is always an array
@@ -114,7 +114,7 @@ const SalesManagement = () => {
         paid_amount: editFormData.paid_amount
       };
       
-      await api.put(`/sales/${selectedSale.id}/edit/`, updateData);
+      await api.put(`/api/sales/${selectedSale.id}/edit/`, updateData);
       alert('Sale updated successfully');
       setShowEditModal(false);
       setSelectedSale(null);
@@ -130,7 +130,7 @@ const SalesManagement = () => {
   const handleMakePayment = async (saleId, paymentAmount) => {
     try {
       setError('');
-      await api.post(`/sales/${saleId}/payment/`, {
+      await api.post(`/api/sales/${saleId}/payment/`, {
         payment_amount: paymentAmount,
         is_full_payment: true
       });
@@ -174,7 +174,7 @@ const SalesManagement = () => {
       setError('');
       
       // Fetch full sale data including items
-      const response = await api.get(`/sales/${sale.id}/`);
+      const response = await api.get(`/api/sales/${sale.id}/`);
       const fullSale = response.data;
       
       setSelectedSale(fullSale);
@@ -202,7 +202,7 @@ const SalesManagement = () => {
   const cancelSale = async (saleId) => {
     try {
       setError('');
-      const response = await api.post(`/sales/${saleId}/cancel/`);
+      const response = await api.post(`/api/sales/${saleId}/cancel/`);
       
       if (response.data.message === 'Sale cancelled and stock restored') {
         // Show refund information for completed sales
@@ -220,6 +220,41 @@ const SalesManagement = () => {
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to cancel sale');
       console.error('Cancel sale error:', err);
+    }
+  };
+
+  const createReturn = async (sale) => {
+    try {
+      setError('');
+      
+      // Prepare return data
+      const returnData = {
+        sale_type: 'return',
+        original_sale: sale.id,
+        customer_name: sale.customer_name || '',
+        customer_phone: sale.customer_phone || '',
+        customer_email: sale.customer_email || '',
+        notes: `Return for sale ${sale.sale_number}`,
+        items: sale.items.map(item => ({
+          product: item.product,
+          quantity: item.quantity,
+          unit: item.unit,
+          unit_price: item.unit_price,
+          price_mode: item.price_mode || 'standard',
+          original_sale_item: item.id
+        }))
+      };
+      
+      const response = await api.post('/api/sales/', returnData);
+      
+      alert(`Return created successfully: ${response.data.sale_number}. Stock has been restored.`);
+      
+      // Refresh the sales list and products
+      fetchSales();
+      fetchProducts();
+    } catch (err) {
+      setError(err.response?.data?.error || 'Failed to create return');
+      console.error('Create return error:', err);
     }
   };
 
@@ -660,6 +695,23 @@ const SalesManagement = () => {
                         disabled={loadingSale}
                       >
                         Edit
+                      </Button>
+                    )}
+                    {row.status === 'completed' && 
+                     row.status !== 'refunded' && 
+                     row.sale_type !== 'return' && (
+                      <Button 
+                        variant="warning" 
+                        size="small"
+                        onClick={() => {
+                          if (window.confirm(`Are you sure you want to create a return for this sale? This will restore stock and mark the sale as refunded.`)) {
+                            createReturn(row);
+                          }
+                        }}
+                        loading={loadingSale}
+                        disabled={loadingSale}
+                      >
+                        Return
                       </Button>
                     )}
                     {(row.status === 'pending' || row.status === 'completed') && 

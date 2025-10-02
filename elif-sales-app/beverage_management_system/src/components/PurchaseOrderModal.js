@@ -7,9 +7,16 @@ import './PurchaseOrderModal.css';
 
 const PurchaseOrderModal = ({ suppliers, onClose, onSubmit }) => {
   const { t } = useTranslation();
+  
+  // Helper function to get today's date in YYYY-MM-DD format
+  const getTodayDate = () => {
+    const today = new Date();
+    return today.toISOString().split('T')[0];
+  };
+  
   const [formData, setFormData] = useState({
     supplier_id: '',
-    expected_delivery_date: '',
+    expected_delivery_date: getTodayDate(),
     notes: '',
     items: []
   });
@@ -35,7 +42,7 @@ const PurchaseOrderModal = ({ suppliers, onClose, onSubmit }) => {
       const productsWithUnitCosts = await Promise.all(
         products.map(async (product) => {
           try {
-            const unitCostsResponse = await api.get(`/products/${product.id}/unit-costs/`);
+            const unitCostsResponse = await api.get(`/api/products/${product.id}/unit-costs/`);
             return {
               ...product,
               unit_costs: unitCostsResponse.data.unit_costs || []
@@ -139,7 +146,9 @@ const PurchaseOrderModal = ({ suppliers, onClose, onSubmit }) => {
   };
 
   const handleSubmit = async (e) => {
-    e.preventDefault();
+    if (e && e.preventDefault) {
+      e.preventDefault();
+    }
     if (!formData.supplier_id || formData.items.length === 0) {
       alert(t('modals.please_select_supplier_add_item'));
       return;
@@ -163,7 +172,18 @@ const PurchaseOrderModal = ({ suppliers, onClose, onSubmit }) => {
         ...item,
         product_id: parseInt(item.product_id),
         quantity_ordered: parseFloat(item.quantity_ordered),
-        unit_id: item.unit_id ? parseInt(item.unit_id) : null,
+        unit_id: item.unit_id ? parseInt(item.unit_id) : (() => {
+          // If no unit is selected, use the product's base unit
+          const selectedProduct = products.find(p => p.id === parseInt(item.product_id));
+          if (selectedProduct?.base_unit?.id) {
+            return selectedProduct.base_unit.id;
+          }
+          // If no base unit, try to find the first compatible unit
+          if (selectedProduct?.compatible_units?.length > 0) {
+            return selectedProduct.compatible_units[0].unit?.id || null;
+          }
+          return null;
+        })(),
         unit_cost: parseFloat(item.unit_cost),
         tax_class_id: item.tax_class_id ? parseInt(item.tax_class_id) : null
       }))

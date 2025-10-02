@@ -21,7 +21,6 @@ const LanguageSelector = () => {
     // Show success message
     const message = t('language.language_changed');
     // You can add a toast notification here if you have one
-    console.log(message);
   };
 
   const toggleDropdown = () => {

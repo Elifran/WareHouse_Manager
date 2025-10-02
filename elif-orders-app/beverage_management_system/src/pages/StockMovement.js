@@ -14,11 +14,17 @@ const StockMovement = () => {
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  // Helper function to get today's date in YYYY-MM-DD format
+  const getTodayDate = () => {
+    const today = new Date();
+    return today.toISOString().split('T')[0];
+  };
+
   const [filters, setFilters] = useState({
     product: '',
     movement_type: '',
-    date_from: '',
-    date_to: '',
+    date_from: getTodayDate(),
+    date_to: getTodayDate(),
     search: ''
   });
 

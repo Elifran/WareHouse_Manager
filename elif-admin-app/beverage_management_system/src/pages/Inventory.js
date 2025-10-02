@@ -66,7 +66,7 @@ const Inventory = () => {
   const fetchUnits = useCallback(async () => {
     try {
       let allUnitsData = [];
-      let nextUrl = '/products/units/';
+      let nextUrl = '/api/products/units/';
       
       while (nextUrl) {
         const response = await api.get(nextUrl);
@@ -100,7 +100,7 @@ const Inventory = () => {
   // Fetch compatible units for a product
   const fetchCompatibleUnits = useCallback(async (productId) => {
     try {
-      const response = await api.get(`/products/${productId}/compatible-units/`);
+      const response = await api.get(`/api/products/${productId}/compatible-units/`);
       setCompatibleUnits(response.data.compatible_units || []);
     } catch (err) {
       console.error('Error fetching compatible units:', err);
@@ -111,7 +111,7 @@ const Inventory = () => {
   // Fetch available units for a product based on unit conversions
   const fetchAvailableUnits = useCallback(async (productId) => {
     try {
-      const response = await api.get(`/products/${productId}/available-units/`);
+      const response = await api.get(`/api/products/${productId}/available-units/`);
       setAvailableUnits(response.data.available_units || []);
     } catch (err) {
       console.error('Error fetching available units:', err);
@@ -149,7 +149,7 @@ const Inventory = () => {
   const handleEditProduct = async (product) => {
     try {
       // Fetch fresh product data from the API
-      const response = await api.get(`/products/${product.id}/`);
+      const response = await api.get(`/api/products/${product.id}/`);
       const freshProduct = response.data;
       
       setEditingProduct(freshProduct);
@@ -227,7 +227,7 @@ const Inventory = () => {
       };
 
       if (editingProduct) {
-        await api.put(`/products/${editingProduct.id}/`, data);
+        await api.put(`/api/products/${editingProduct.id}/`, data);
       } else {
         await api.post('/api/products/', data);
       }
@@ -244,7 +244,7 @@ const Inventory = () => {
   const handleDeleteProduct = async (productId) => {
     if (window.confirm('Are you sure you want to delete this product?')) {
       try {
-        await api.delete(`/products/${productId}/`);
+        await api.delete(`/api/products/${productId}/`);
         fetchProducts();
       } catch (err) {
         console.error('Error deleting product:', err);
@@ -257,7 +257,7 @@ const Inventory = () => {
     if (!selectedUnit || !editingProduct) return;
 
     try {
-      await api.post(`/products/${editingProduct.id}/units/`, {
+      await api.post(`/api/products/${editingProduct.id}/units/`, {
         unit: selectedUnit,
         is_default: false
       });
@@ -274,7 +274,7 @@ const Inventory = () => {
   const removeCompatibleUnit = async (productUnitId) => {
     if (window.confirm('Are you sure you want to remove this unit?')) {
       try {
-      await api.delete(`/products/${editingProduct.id}/units/${productUnitId}/`);
+      await api.delete(`/api/products/${editingProduct.id}/units/${productUnitId}/`);
       fetchCompatibleUnits(editingProduct.id);
       fetchAvailableUnits(editingProduct.id);
       } catch (err) {
@@ -303,7 +303,7 @@ const Inventory = () => {
       setCurrentDisplayUnit(newDisplayUnitId);
 
       // Fetch fresh product data from API (this will have the correct values in the new default unit)
-      const response = await api.get(`/products/${editingProduct.id}/`);
+      const response = await api.get(`/api/products/${editingProduct.id}/`);
       const updatedProduct = response.data;
       
       // Update form data with fresh values from API
@@ -330,7 +330,7 @@ const Inventory = () => {
   const getPriceConversionFactor = async (fromUnitId, toUnitId) => {
     try {
       // Use the price conversion factor API
-      const response = await api.get(`/products/price-conversion-factor/?from_unit_id=${fromUnitId}&to_unit_id=${toUnitId}`);
+      const response = await api.get(`/api/products/price-conversion-factor/?from_unit_id=${fromUnitId}&to_unit_id=${toUnitId}`);
       return parseFloat(response.data.conversion_factor);
     } catch (err) {
       console.error('Error getting price conversion factor:', err);
@@ -341,7 +341,7 @@ const Inventory = () => {
   const getQuantityConversionFactor = async (fromUnitId, toUnitId) => {
     try {
       // Use the quantity conversion factor API
-      const response = await api.get(`/products/quantity-conversion-factor/?from_unit_id=${fromUnitId}&to_unit_id=${toUnitId}`);
+      const response = await api.get(`/api/products/quantity-conversion-factor/?from_unit_id=${fromUnitId}&to_unit_id=${toUnitId}`);
       return parseFloat(response.data.conversion_factor);
     } catch (err) {
       console.error('Error getting quantity conversion factor:', err);

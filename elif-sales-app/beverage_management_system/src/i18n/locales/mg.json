@@ -58,6 +58,8 @@
     "pending_sales": "Varotra miandry",
     "sales_management": "Fitantanana varotra",
     "purchase_orders": "Baiko fividianana",
+    "deliveries": "Fandefasana",
+    "pending_deliveries": "Fandefasana miandry",
     "suppliers": "Mpamatsy",
     "reports": "Tatitra",
     "users": "Mpampiasa",
@@ -441,7 +443,7 @@
     "current_language": "Fiteny ankehitriny"
   },
   "app": {
-    "title": "ELIF Varotra",
+    "title": "ELIF Orders",
     "no_data_available": "Tsy misy angona",
     "unknown_user": "Mpampiasa Tsy Fantatra",
     "unknown_product": "Vokatra Tsy Fantatra",

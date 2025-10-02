@@ -6,6 +6,7 @@ import ConnectionStatus from './components/ConnectionStatus';
 import Login from './pages/Login';
 import PointOfSale from './pages/PointOfSale';
 import PendingSales from './pages/PendingSales';
+import SalesManagement from './pages/SalesManagement';
 import './i18n'; // Initialize i18n
 import './App.css';
 
@@ -80,6 +81,14 @@ const AppRoutes = () => {
               element={
                 <RoleProtectedRoute allowedRoles={['admin', 'manager', 'sales']}>
                   <PendingSales />
+                </RoleProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/sales-management" 
+              element={
+                <RoleProtectedRoute allowedRoles={['admin', 'manager', 'sales']}>
+                  <SalesManagement />
                 </RoleProtectedRoute>
               } 
             />

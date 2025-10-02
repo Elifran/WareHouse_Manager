@@ -184,7 +184,7 @@ const SystemManagement = () => {
       }
 
       if (editingTaxClass) {
-        await api.put(`/products/tax-classes/${editingTaxClass.id}/`, taxFormData);
+        await api.put(`/api/products/tax-classes/${editingTaxClass.id}/`, taxFormData);
       } else {
         await api.post('/api/products/tax-classes/', taxFormData);
       }
@@ -266,7 +266,7 @@ const SystemManagement = () => {
       }
 
       if (editingCategory) {
-        await api.put(`/products/categories/${editingCategory.id}/`, categoryFormData);
+        await api.put(`/api/products/categories/${editingCategory.id}/`, categoryFormData);
       } else {
         await api.post('/api/products/categories/', categoryFormData);
       }
@@ -387,7 +387,7 @@ const SystemManagement = () => {
       }
 
       if (editingUnit) {
-        await api.put(`/products/units/${editingUnit.id}/`, unitFormData);
+        await api.put(`/api/products/units/${editingUnit.id}/`, unitFormData);
       } else {
         await api.post('/api/products/units/', unitFormData);
       }
@@ -560,7 +560,7 @@ const SystemManagement = () => {
       }
 
       if (editingConversion) {
-        await api.put(`/products/unit-conversions/${editingConversion.id}/`, data);
+        await api.put(`/api/products/unit-conversions/${editingConversion.id}/`, data);
       } else {
         await api.post('/api/products/unit-conversions/', data);
       }

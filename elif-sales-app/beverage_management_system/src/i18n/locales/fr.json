@@ -58,6 +58,8 @@
     "pending_sales": "Ventes en attente",
     "sales_management": "Gestion des ventes",
     "purchase_orders": "Commandes d'achat",
+    "deliveries": "Livraisons",
+    "pending_deliveries": "Livraisons en attente",
     "suppliers": "Fournisseurs",
     "reports": "Rapports",
     "users": "Utilisateurs",
@@ -441,7 +443,7 @@
     "current_language": "Langue actuelle"
   },
   "app": {
-    "title": "ELIF Ventes",
+    "title": "ELIF Orders",
     "no_data_available": "Aucune donnée disponible",
     "unknown_user": "Utilisateur Inconnu",
     "unknown_product": "Produit Inconnu",

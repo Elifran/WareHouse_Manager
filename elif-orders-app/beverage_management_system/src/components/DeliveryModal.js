@@ -39,7 +39,9 @@ const DeliveryModal = ({ purchaseOrder, action = 'create', onClose, onSubmit }) 
   };
 
   const handleSubmit = async (e) => {
-    e.preventDefault();
+    if (e && e.preventDefault) {
+      e.preventDefault();
+    }
     
     // Validate that at least one item has quantity > 0
     const hasItems = formData.items.some(item => item.quantity_received > 0);

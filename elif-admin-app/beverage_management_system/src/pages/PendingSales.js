@@ -37,15 +37,10 @@ const PendingSales = () => {
   const fetchPendingSales = async () => {
     try {
       setLoading(true);
-      console.log('Fetching pending sales from:', '/sales/pending/');
-      
       // Check if user is authenticated
       const token = localStorage.getItem('accessToken');
-      console.log('Auth token exists:', !!token);
-      console.log('Auth token:', token ? token.substring(0, 20) + '...' : 'None');
       
       const response = await api.get('/api/sales/pending/');
-      console.log('Pending sales response:', response.data);
       setPendingSales(response.data);
     } catch (error) {
       console.error('Error fetching pending sales:', error);
@@ -77,7 +72,7 @@ const PendingSales = () => {
       
       for (const item of sale.items || []) {
         try {
-          const response = await api.get(`/products/${item.product}/stock-availability/`);
+          const response = await api.get(`/api/products/${item.product}/stock-availability/`);
           const stockData = response.data;
           
           if (stockData.available_units) {
@@ -108,7 +103,7 @@ const PendingSales = () => {
       
       for (const item of sale.items || []) {
         try {
-          const response = await api.get(`/products/${item.product}/stock-availability/`);
+          const response = await api.get(`/api/products/${item.product}/stock-availability/`);
           const stockData = response.data;
           
           if (stockData.available_units) {
@@ -128,7 +123,7 @@ const PendingSales = () => {
         return;
       }
       
-      await api.post(`/sales/${saleId}/complete/`);
+      await api.post(`/api/sales/${saleId}/complete/`);
       
       // Print receipt after successful completion
       const completedSale = { ...sale, status: 'completed' };
@@ -151,7 +146,7 @@ const PendingSales = () => {
   const cancelSale = async (saleId) => {
     if (window.confirm('Are you sure you want to cancel this sale?')) {
       try {
-        await api.delete(`/sales/${saleId}/`);
+        await api.delete(`/api/sales/${saleId}/`);
         setPendingSales(prev => prev.filter(sale => sale.id !== saleId));
         setShowSaleModal(false);
         setSelectedSale(null);
@@ -177,7 +172,12 @@ const PendingSales = () => {
         print_timestamp: new Date().toISOString(),
         print_id: `PRINT-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
         status: sale.status === 'completed' ? 'completed' : 'pending',
+        payment_status: sale.payment_status || 'pending',
+        payment_method: sale.payment_method || 'cash',
         total_amount: sale.total_amount || sale.subtotal,
+        paid_amount: sale.paid_amount || 0,
+        remaining_amount: sale.remaining_amount || (parseFloat(sale.total_amount || sale.subtotal) - parseFloat(sale.paid_amount || 0)),
+        due_date: sale.due_date || null,
         subtotal: sale.subtotal,
         discount_amount: sale.discount_amount || 0,
         tax_amount: sale.tax_amount || 0,
@@ -237,14 +237,6 @@ const PendingSales = () => {
       const unitPrice = parseFloat(item.unit_price) || 0;
       const calculatedTotalPrice = quantity * unitPrice;
       
-      console.log('Item calculation:', {
-        product_name: item.product_name,
-        quantity_display: item.quantity_display,
-        quantity: item.quantity,
-        unit_price: item.unit_price,
-        calculated_total_price: calculatedTotalPrice,
-        stored_total_price: item.total_price
-      });
       
       return {
         ...item,
@@ -266,7 +258,6 @@ const PendingSales = () => {
     const subtotal = calculatedSubtotal;
     const total_amount = calculatedTotal;
     
-    console.log('Edit Sale Debug:', {
       sale: sale,
       items: items,
       calculatedSubtotal: calculatedSubtotal,
@@ -291,7 +282,6 @@ const PendingSales = () => {
       discount_amount: sale.discount_amount || 0
     };
     
-    console.log('Setting EditFormData:', formData);
     
     setEditFormData(formData);
     
@@ -321,7 +311,6 @@ const PendingSales = () => {
     
     const subtotal = updatedItems.reduce((sum, item) => sum + item.total_price, 0);
     
-    console.log('Quantity Change Debug:', {
       itemIndex: itemIndex,
       newQuantity: newQuantity,
       unitPrice: updatedItems[itemIndex].unit_price,
@@ -334,7 +323,6 @@ const PendingSales = () => {
     const discountAmount = parseFloat(editFormData.discount_amount !== undefined ? editFormData.discount_amount : (editingSale?.discount_amount || 0)) || 0;
     const newTotalAmount = subtotal + taxAmount - discountAmount;
     
-    console.log('Quantity Change Debug - Totals:', {
       subtotal: subtotal,
       taxAmount: taxAmount,
       discountAmount: discountAmount,
@@ -397,14 +385,12 @@ const PendingSales = () => {
         }))
       };
       
-      console.log('Saving edited sale:', {
         saleId: editingSale.id,
         updateData: updateData,
         editFormData: editFormData
       });
       
       const response = await api.patch(`/sales/${editingSale.id}/`, updateData);
-      console.log('Save response:', response.data);
       
       setShowEditModal(false);
       setEditingSale(null);
@@ -505,7 +491,7 @@ const PendingSales = () => {
                   onClick={async () => {
                     try {
                       // Fetch complete sale data including items
-                      const response = await api.get(`/sales/${sale.id}/`);
+                      const response = await api.get(`/api/sales/${sale.id}/`);
                       setSelectedSale(response.data);
                       setShowSaleModal(true);
                     } catch (error) {

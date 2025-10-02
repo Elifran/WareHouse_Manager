@@ -503,6 +503,102 @@
   }
 }
 
+/* New Dashboard Elements */
+.latest-products .product-item,
+.best-seller-details .product-item {
+  background: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 0.5rem;
+  padding: 1.5rem;
+  transition: all 0.2s ease-in-out;
+}
+
+/* Cost Icon */
+.metric-icon.cost {
+  background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+}
+
+/* Chart Container */
+.chart-container {
+  background: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 0.5rem;
+  padding: 1.5rem;
+  margin-top: 1rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.latest-products .product-item:hover,
+.best-seller-details .product-item:hover {
+  border-color: #3b82f6;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+}
+
+.best-seller-details .product-item.featured {
+  border-color: #10b981;
+  background: linear-gradient(135deg, #f0fdf4 0%, #ffffff 100%);
+}
+
+.product-item .product-info h4 {
+  color: #1f2937;
+  font-size: 1.125rem;
+  font-weight: 600;
+  margin: 0 0 0.5rem 0;
+}
+
+.product-item .product-info p {
+  color: #6b7280;
+  font-size: 0.875rem;
+  margin: 0;
+}
+
+.product-item .product-stats {
+  margin-top: 1rem;
+}
+
+.product-item .stat-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid #f3f4f6;
+}
+
+.product-item .stat-row:last-child {
+  border-bottom: none;
+}
+
+.product-item .stat-label {
+  color: #6b7280;
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+.product-item .stat-value {
+  color: #1f2937;
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.product-item .stat-value.highlight {
+  color: #10b981;
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+/* Metric Card Icons */
+.metric-icon.profit {
+  background: linear-gradient(135deg, #10b981, #059669);
+}
+
+.metric-icon.best-seller {
+  background: linear-gradient(135deg, #f59e0b, #d97706);
+}
+
+.metric-icon.out-of-stock {
+  background: linear-gradient(135deg, #ef4444, #dc2626);
+}
+
 @media (max-width: 768px) {
   .dashboard {
     padding: 1rem;

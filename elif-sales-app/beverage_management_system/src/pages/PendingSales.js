@@ -17,6 +17,7 @@ const PendingSales = () => {
   const [showEditModal, setShowEditModal] = useState(false);
   const [editingSale, setEditingSale] = useState(null);
   const [editFormData, setEditFormData] = useState({});
+  const [editTotals, setEditTotals] = useState({ subtotal: 0, total_amount: 0 });
   const [completingSale, setCompletingSale] = useState(null);
   const [stockValidationStatus, setStockValidationStatus] = useState({});
   const [paymentType, setPaymentType] = useState('full');
@@ -37,15 +38,11 @@ const PendingSales = () => {
   const fetchPendingSales = async () => {
     try {
       setLoading(true);
-      console.log('Fetching pending sales from:', '/sales/pending/');
       
       // Check if user is authenticated
       const token = localStorage.getItem('accessToken');
-      console.log('Auth token exists:', !!token);
-      console.log('Auth token:', token ? token.substring(0, 20) + '...' : 'None');
       
       const response = await api.get('/api/sales/pending/');
-      console.log('Pending sales response:', response.data);
       setPendingSales(response.data);
     } catch (error) {
       console.error('Error fetching pending sales:', error);
@@ -77,7 +74,7 @@ const PendingSales = () => {
       
       for (const item of sale.items || []) {
         try {
-          const response = await api.get(`/products/${item.product}/stock-availability/`);
+          const response = await api.get(`/api/products/${item.product}/stock-availability/`);
           const stockData = response.data;
           
           if (stockData.available_units) {
@@ -108,7 +105,7 @@ const PendingSales = () => {
       
       for (const item of sale.items || []) {
         try {
-          const response = await api.get(`/products/${item.product}/stock-availability/`);
+          const response = await api.get(`/api/products/${item.product}/stock-availability/`);
           const stockData = response.data;
           
           if (stockData.available_units) {
@@ -128,7 +125,7 @@ const PendingSales = () => {
         return;
       }
       
-      await api.post(`/sales/${saleId}/complete/`);
+      await api.post(`/api/sales/${saleId}/complete/`);
       
       // Print receipt after successful completion
       const completedSale = { ...sale, status: 'completed' };
@@ -151,7 +148,7 @@ const PendingSales = () => {
   const cancelSale = async (saleId) => {
     if (window.confirm('Are you sure you want to cancel this sale?')) {
       try {
-        await api.delete(`/sales/${saleId}/`);
+        await api.delete(`/api/sales/${saleId}/`);
         setPendingSales(prev => prev.filter(sale => sale.id !== saleId));
         setShowSaleModal(false);
         setSelectedSale(null);
@@ -177,7 +174,12 @@ const PendingSales = () => {
         print_timestamp: new Date().toISOString(),
         print_id: `PRINT-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
         status: sale.status === 'completed' ? 'completed' : 'pending',
+        payment_status: sale.payment_status || 'pending',
+        payment_method: sale.payment_method || 'cash',
         total_amount: sale.total_amount || sale.subtotal,
+        paid_amount: sale.paid_amount || 0,
+        remaining_amount: sale.remaining_amount || (parseFloat(sale.total_amount || sale.subtotal) - parseFloat(sale.paid_amount || 0)),
+        due_date: sale.due_date || null,
         subtotal: sale.subtotal,
         discount_amount: sale.discount_amount || 0,
         tax_amount: sale.tax_amount || 0,
@@ -237,7 +239,6 @@ const PendingSales = () => {
       const unitPrice = parseFloat(item.unit_price) || 0;
       const calculatedTotalPrice = quantity * unitPrice;
       
-      console.log('Item calculation:', {
         product_name: item.product_name,
         quantity_display: item.quantity_display,
         quantity: item.quantity,
@@ -266,7 +267,6 @@ const PendingSales = () => {
     const subtotal = calculatedSubtotal;
     const total_amount = calculatedTotal;
     
-    console.log('Edit Sale Debug:', {
       sale: sale,
       items: items,
       calculatedSubtotal: calculatedSubtotal,
@@ -291,23 +291,23 @@ const PendingSales = () => {
       discount_amount: sale.discount_amount || 0
     };
     
-    console.log('Setting EditFormData:', formData);
     
     setEditFormData(formData);
+    setEditTotals({ subtotal: subtotal, total_amount: total_amount });
     
     // Initialize payment options
     const currentPaidAmount = parseFloat(sale.paid_amount) || 0;
-    const totalAmount = parseFloat(sale.total_amount) || 0;
+    const calculatedTotalAmount = total_amount; // Use the calculated total from form data
     
-    if (currentPaidAmount >= totalAmount) {
+    if (currentPaidAmount >= calculatedTotalAmount) {
       setPaymentType('full');
-      setPaidAmount(totalAmount);
+      setPaidAmount(calculatedTotalAmount);
     } else if (currentPaidAmount > 0) {
       setPaymentType('partial');
       setPaidAmount(currentPaidAmount);
     } else {
       setPaymentType('full');
-      setPaidAmount(totalAmount);
+      setPaidAmount(calculatedTotalAmount);
     }
     
     setShowEditModal(true);
@@ -315,13 +315,19 @@ const PendingSales = () => {
   };
 
   const handleEditItemQuantity = (itemIndex, newQuantity) => {
+    
+    if (!editFormData.items || !Array.isArray(editFormData.items)) {
+      console.error('editFormData.items is not properly initialized:', editFormData);
+      return;
+    }
+    
     const updatedItems = [...editFormData.items];
     updatedItems[itemIndex].quantity = parseFloat(newQuantity) || 0;
     updatedItems[itemIndex].total_price = updatedItems[itemIndex].quantity * parseFloat(updatedItems[itemIndex].unit_price) || 0;
     
+    
     const subtotal = updatedItems.reduce((sum, item) => sum + item.total_price, 0);
     
-    console.log('Quantity Change Debug:', {
       itemIndex: itemIndex,
       newQuantity: newQuantity,
       unitPrice: updatedItems[itemIndex].unit_price,
@@ -334,7 +340,6 @@ const PendingSales = () => {
     const discountAmount = parseFloat(editFormData.discount_amount !== undefined ? editFormData.discount_amount : (editingSale?.discount_amount || 0)) || 0;
     const newTotalAmount = subtotal + taxAmount - discountAmount;
     
-    console.log('Quantity Change Debug - Totals:', {
       subtotal: subtotal,
       taxAmount: taxAmount,
       discountAmount: discountAmount,
@@ -343,12 +348,20 @@ const PendingSales = () => {
       editFormDataDiscount: editFormData.discount_amount
     });
     
-    setEditFormData({
+    const newEditFormData = {
       ...editFormData,
       items: updatedItems,
       subtotal: subtotal,
       total_amount: newTotalAmount
-    });
+    };
+    
+    
+    setEditFormData(newEditFormData);
+    setEditTotals({ subtotal: subtotal, total_amount: newTotalAmount });
+    
+    // Force a re-render by logging the state after setting it
+    setTimeout(() => {
+    }, 100);
   };
 
   const removeEditItem = (itemIndex) => {
@@ -366,20 +379,21 @@ const PendingSales = () => {
       subtotal: subtotal,
       total_amount: newTotalAmount
     });
+    setEditTotals({ subtotal: subtotal, total_amount: newTotalAmount });
   };
 
   const calculateEditTotal = () => {
     return editFormData.items?.reduce((total, item) => {
-      return total + (parseFloat(item.unit_price || 0) * parseFloat(item.quantity || 0));
+      return total + (parseFloat(item.total_price || 0));
     }, 0) || 0;
   };
 
-  // Update paid amount when payment type changes
+  // Update paid amount when payment type changes or subtotal changes
   useEffect(() => {
     if (paymentType === 'full') {
-      setPaidAmount(calculateEditTotal());
+      setPaidAmount(editTotals.subtotal || 0);
     }
-  }, [paymentType, editFormData.items]);
+  }, [paymentType, editTotals.subtotal]);
 
 
   const saveEditedSale = async () => {
@@ -397,14 +411,12 @@ const PendingSales = () => {
         }))
       };
       
-      console.log('Saving edited sale:', {
         saleId: editingSale.id,
         updateData: updateData,
         editFormData: editFormData
       });
       
       const response = await api.patch(`/sales/${editingSale.id}/`, updateData);
-      console.log('Save response:', response.data);
       
       setShowEditModal(false);
       setEditingSale(null);
@@ -505,7 +517,7 @@ const PendingSales = () => {
                   onClick={async () => {
                     try {
                       // Fetch complete sale data including items
-                      const response = await api.get(`/sales/${sale.id}/`);
+                      const response = await api.get(`/api/sales/${sale.id}/`);
                       setSelectedSale(response.data);
                       setShowSaleModal(true);
                     } catch (error) {
@@ -812,7 +824,7 @@ const PendingSales = () => {
                       type="number"
                       step="0.01"
                       min="0"
-                      max={calculateEditTotal()}
+                      max={editTotals.subtotal || 0}
                       value={paidAmount || 0}
                       onChange={(e) => {
                         const value = parseFloat(e.target.value) || 0;
@@ -821,8 +833,8 @@ const PendingSales = () => {
                       placeholder={t('forms.enter_amount_to_pay')}
                     />
                     <small>
-                      Total: {formatCurrency(calculateEditTotal())} | 
-                      Remaining: {formatCurrency(calculateEditTotal() - (paidAmount || 0))}
+                      Total: {formatCurrency(editTotals.subtotal || 0)} | 
+                      Remaining: {formatCurrency((editTotals.subtotal || 0) - (paidAmount || 0))}
                     </small>
                   </div>
                 )}
@@ -833,7 +845,7 @@ const PendingSales = () => {
                     <input
                       type="number"
                       step="0.01"
-                      value={calculateEditTotal()}
+                      value={editTotals.subtotal || 0}
                       readOnly
                       className="form-control"
                     />
@@ -904,11 +916,11 @@ const PendingSales = () => {
                 <div className="totals-grid">
                   <div className="total-item">
                     <span className="total-label">Subtotal:</span>
-                    <span className="total-value">{formatCurrency(editFormData.subtotal || 0)}</span>
+                    <span className="total-value">{formatCurrency(editTotals.subtotal || 0)}</span>
                   </div>
                   <div className="total-item total-final">
                     <span className="total-label">Total:</span>
-                    <span className="total-value">{formatCurrency(editFormData.total_amount || 0)}</span>
+                    <span className="total-value">{formatCurrency(editTotals.total_amount || 0)}</span>
                   </div>
                 </div>
               </div>

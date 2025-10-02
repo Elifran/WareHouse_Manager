@@ -313,7 +313,7 @@ const PurchaseOrders = () => {
   const handleDeleteOrder = async (orderId) => {
     if (window.confirm('Are you sure you want to permanently delete this archived purchase order? This action cannot be undone.')) {
       try {
-        await api.delete(`/purchases/purchase-orders/${orderId}/`);
+        await api.delete(`/api/purchases/purchase-orders/${orderId}/`);
         fetchData();
         alert('Purchase order deleted successfully');
       } catch (error) {
@@ -335,7 +335,7 @@ const PurchaseOrders = () => {
       try {
         // Delete all archived orders
         const deletePromises = archivedOrders.map(order => 
-          api.delete(`/purchases/purchase-orders/${order.id}/`)
+          api.delete(`/api/purchases/purchase-orders/${order.id}/`)
         );
         await Promise.all(deletePromises);
         fetchData();

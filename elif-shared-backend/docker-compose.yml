@@ -14,6 +14,7 @@ services:
     volumes:
       - ./backend/db.sqlite3:/app/db.sqlite3
       - ./backend/media:/app/media
+      - ./backend:/app
     restart: unless-stopped
     networks:
       - elif-network

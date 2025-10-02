@@ -608,10 +608,10 @@ const SystemManagement = () => {
 
     try {
       const endpoints = {
-        tax: `/products/tax-classes/${item.id}/`,
-        category: `/products/categories/${item.id}/`,
-        unit: `/products/units/${item.id}/`,
-        conversion: `/products/unit-conversions/${item.id}/`
+        tax: `/api/products/tax-classes/${item.id}/`,
+        category: `/api/products/categories/${item.id}/`,
+        unit: `/api/products/units/${item.id}/`,
+        conversion: `/api/products/unit-conversions/${item.id}/`
       };
       
       await api.delete(endpoints[type]);

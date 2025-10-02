@@ -47,7 +47,7 @@ const Users = () => {
   const handleDeleteUser = async (userToDelete) => {
     if (window.confirm(`Are you sure you want to delete ${userToDelete.username}?`)) {
       try {
-        await api.delete(`/core/users/${userToDelete.id}/`);
+        await api.delete(`/api/core/users/${userToDelete.id}/`);
         fetchUsers();
       } catch (err) {
         setError(t('messages.failed_to_delete_user'));
@@ -268,7 +268,7 @@ const UserModal = ({ user, onClose, onSave }) => {
           return;
         }
         
-        await api.put(`/core/users/${user.id}/`, updateData);
+        await api.put(`/api/core/users/${user.id}/`, updateData);
       } else {
         // For new users, we'll need to create them via the registration endpoint
         // or create a separate endpoint for admin user creation

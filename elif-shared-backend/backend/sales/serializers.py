@@ -349,8 +349,24 @@ class SaleCreateSerializer(serializers.ModelSerializer):
         
         sale.save()
         
-        # Note: Stock deduction is handled in the complete_sale endpoint, not here
-        # This prevents double deduction of stock
+        # Handle stock movements based on sale type
+        if sale.sale_type == 'return':
+            # For returns, immediately restore stock
+            from products.models import StockMovement
+            for item in sale.items.all():
+                StockMovement.objects.create(
+                    product=item.product,
+                    movement_type='return',
+                    quantity=item.quantity,
+                    unit=item.product.base_unit,
+                    reference_number=sale.sale_number,
+                    notes=f'Return sale {sale.sale_number}',
+                    created_by=sale.sold_by
+                )
+        else:
+            # For regular sales, stock deduction is handled in the complete_sale endpoint
+            # This prevents double deduction of stock
+            pass
         
         return sale
 

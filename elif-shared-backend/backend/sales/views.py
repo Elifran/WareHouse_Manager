@@ -161,13 +161,18 @@ def complete_sale(request, sale_id):
         
         # Create stock movement
         from products.models import StockMovement
+        
+        # For return sales, we still create 'out' movements to remove the returned stock from inventory
+        # This is because return sales represent items being returned to the business, not sold to customers
+        movement_type = 'out'  # Both regular sales and return sales remove stock when completed
+        
         stock_movement = StockMovement.objects.create(
             product=item.product,
-            movement_type='out',
+            movement_type=movement_type,
             quantity=base_quantity,
             unit=item.product.base_unit,  # Always use base unit for stock movements
             reference_number=sale.sale_number,
-            notes=f'Sale {sale.sale_number}',
+            notes=f'{"Return" if sale.sale_type == "return" else "Sale"} {sale.sale_number}',
             created_by=request.user
         )
         
@@ -211,7 +216,7 @@ def cancel_sale(request, sale_id):
             customer_phone=sale.customer_phone,
             customer_email=sale.customer_email,
             payment_method=sale.payment_method,
-            status='completed',  # Mark return as completed immediately
+            status='pending',  # Mark return as pending so it can be validated later
             sold_by=request.user
         )
         
@@ -234,7 +239,7 @@ def cancel_sale(request, sale_id):
                 original_sale_item=original_item
             )
             
-            # Restore stock by creating a stock movement
+            # Immediately restore stock when cancelling a completed sale
             from products.models import StockMovement
             StockMovement.objects.create(
                 product=original_item.product,
@@ -546,15 +551,27 @@ def edit_sale(request, sale_id):
         if adjustment != 0:
             product = Product.objects.get(id=product_id)
             
-            # Determine movement type and quantity
-            if adjustment > 0:
-                # Stock decrease (additional sale - more quantity sold)
-                movement_type = 'out'
-                movement_quantity = adjustment
+            # Determine movement type and quantity based on sale type
+            if sale.sale_type == 'return':
+                # For return sales: positive adjustment means more stock returned, negative means less stock returned
+                if adjustment > 0:
+                    # More stock being returned (stock increase)
+                    movement_type = 'return'
+                    movement_quantity = adjustment
+                else:
+                    # Less stock being returned (stock decrease - need to remove some stock)
+                    movement_type = 'out'
+                    movement_quantity = abs(adjustment)  # adjustment is negative
             else:
-                # Stock increase (return - less quantity sold)
-                movement_type = 'in'
-                movement_quantity = abs(adjustment)  # adjustment is negative
+                # For regular sales: positive adjustment means more quantity sold, negative means less quantity sold
+                if adjustment > 0:
+                    # Stock decrease (additional sale - more quantity sold)
+                    movement_type = 'out'
+                    movement_quantity = adjustment
+                else:
+                    # Stock increase (return - less quantity sold)
+                    movement_type = 'in'
+                    movement_quantity = abs(adjustment)  # adjustment is negative
             
             # Create stock movement record (this will automatically update product stock via save method)
             StockMovement.objects.create(
@@ -563,7 +580,7 @@ def edit_sale(request, sale_id):
                 quantity=movement_quantity,
                 unit=product.base_unit,  # Always use base unit for stock movements
                 reference_number=f'EDIT-{sale.sale_number}',
-                notes=f'Stock adjustment from sale edit {sale.sale_number}',
+                notes=f'Stock adjustment from {"return" if sale.sale_type == "return" else "sale"} edit {sale.sale_number}',
                 created_by=request.user
             )
     

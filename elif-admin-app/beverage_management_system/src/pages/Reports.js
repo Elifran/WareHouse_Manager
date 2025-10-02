@@ -10,9 +10,15 @@ const Reports = () => {
   const [success, setSuccess] = useState('');
   const [reports, setReports] = useState([]);
   const [selectedReportType, setSelectedReportType] = useState('');
+  // Helper function to get today's date in YYYY-MM-DD format
+  const getTodayDate = () => {
+    const today = new Date();
+    return today.toISOString().split('T')[0];
+  };
+
   const [reportFilters, setReportFilters] = useState({
-    start_date: '',
-    end_date: '',
+    start_date: getTodayDate(),
+    end_date: getTodayDate(),
     product_id: '',
     category_id: '',
     customer_name: ''

@@ -7,9 +7,16 @@ import './PurchaseOrderModal.css';
 
 const PurchaseOrderModal = ({ suppliers, onClose, onSubmit }) => {
   const { t } = useTranslation();
+  
+  // Helper function to get today's date in YYYY-MM-DD format
+  const getTodayDate = () => {
+    const today = new Date();
+    return today.toISOString().split('T')[0];
+  };
+  
   const [formData, setFormData] = useState({
     supplier_id: '',
-    expected_delivery_date: '',
+    expected_delivery_date: getTodayDate(),
     notes: '',
     items: []
   });
@@ -139,7 +146,9 @@ const PurchaseOrderModal = ({ suppliers, onClose, onSubmit }) => {
   };
 
   const handleSubmit = async (e) => {
-    e.preventDefault();
+    if (e && e.preventDefault) {
+      e.preventDefault();
+    }
     if (!formData.supplier_id || formData.items.length === 0) {
       alert(t('modals.please_select_supplier_add_item'));
       return;

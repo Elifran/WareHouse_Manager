@@ -226,9 +226,7 @@ const PrinterSettings = () => {
         try {
           await navigator.serviceWorker.ready;
           // This is a placeholder - actual implementation would depend on browser support
-          console.log('Web Printing API available');
         } catch (e) {
-          console.log('Web Printing API not available');
         }
       }
       

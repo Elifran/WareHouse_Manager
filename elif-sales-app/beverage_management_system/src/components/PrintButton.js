@@ -5,9 +5,6 @@ import './PrintButton.css';
 
 // Helper functions for generating print content
 const generateInventoryContent = (data) => {
-  console.log('generateInventoryContent - Data received:', data);
-  console.log('generateInventoryContent - Is array?', Array.isArray(data));
-  console.log('generateInventoryContent - Data keys:', Object.keys(data));
   
   // Try to extract the products array from the data object
   let products = data;
@@ -15,27 +12,21 @@ const generateInventoryContent = (data) => {
     // Look for common array property names
     if (data.results && Array.isArray(data.results)) {
       products = data.results;
-      console.log('Found products in data.results:', products.length);
     } else if (data.data && Array.isArray(data.data)) {
       products = data.data;
-      console.log('Found products in data.data:', products.length);
     } else if (data.items && Array.isArray(data.items)) {
       products = data.items;
-      console.log('Found products in data.items:', products.length);
     } else {
       // Check if data has numbered keys (like '0', '1', '2', etc.)
       const numberedKeys = Object.keys(data).filter(key => /^\d+$/.test(key));
       if (numberedKeys.length > 0) {
         products = numberedKeys.map(key => data[key]).filter(item => item && typeof item === 'object');
-        console.log('Found products in numbered keys:', products.length);
       } else {
-        console.log('No array found in data object');
         products = [];
       }
     }
   }
   
-  console.log('Final products array length:', products.length);
   
   return `
     <div class="info-section">
@@ -158,11 +149,11 @@ const generateDeliveryContent = (data) => {
       <tbody>
         ${data.items ? data.items.map(item => `
           <tr>
-            <td>${item.product?.name || 'N/A'}</td>
-            <td>${item.quantity_received || 0}</td>
-            <td>${item.unit?.name || item.unit?.symbol || 'piece'}</td>
+            <td>${item.product_name || item.product?.name || 'N/A'}</td>
+            <td>${item.quantity_received || item.delivered_quantity || 0}</td>
+            <td>${item.unit_name || item.unit?.name || item.unit?.symbol || 'piece'}</td>
             <td>${parseFloat(item.unit_cost || 0).toFixed(2)} MGA</td>
-            <td>${parseFloat((item.quantity_received || 0) * (item.unit_cost || 0)).toFixed(2)} MGA</td>
+            <td>${parseFloat((item.quantity_received || item.delivered_quantity || 0) * (item.unit_cost || 0)).toFixed(2)} MGA</td>
           </tr>
         `).join('') : ''}
       </tbody>
@@ -178,12 +169,6 @@ const generateDeliveryContent = (data) => {
 
 const generateSaleContent = (data, t) => {
   // Debug: Log the data being processed
-  console.log('generateSaleContent - Data received:', data);
-  console.log('generateSaleContent - Payment status:', data.payment_status);
-  console.log('generateSaleContent - Paid amount:', data.paid_amount);
-  console.log('generateSaleContent - Remaining amount:', data.remaining_amount);
-  console.log('generateSaleContent - Items array:', data.items);
-  console.log('generateSaleContent - Items length:', data.items ? data.items.length : 'No items');
   
   // Extract items from the data object
   let items = data.items;
@@ -192,11 +177,9 @@ const generateSaleContent = (data, t) => {
     const numberedKeys = Object.keys(data).filter(key => /^\d+$/.test(key));
     if (numberedKeys.length > 0) {
       items = numberedKeys.map(key => data[key]).filter(item => item && typeof item === 'object');
-      console.log('Found items in numbered keys:', items.length);
     }
   }
   
-  console.log('Final items array length:', items ? items.length : 0);
   
   return `
     <div class="info-section">
@@ -282,9 +265,6 @@ const generateSaleContent = (data, t) => {
 
 const generateSalesHistoryContent = (data) => {
   // Debug: Log the data being processed
-  console.log('generateSalesHistoryContent - Data received:', data);
-  console.log('generateSalesHistoryContent - Is array?', Array.isArray(data));
-  console.log('generateSalesHistoryContent - Data keys:', Object.keys(data));
   
   // Try to extract the sales array from the data object
   let sales = data;
@@ -292,27 +272,21 @@ const generateSalesHistoryContent = (data) => {
     // Look for common array property names
     if (data.results && Array.isArray(data.results)) {
       sales = data.results;
-      console.log('Found sales in data.results:', sales.length);
     } else if (data.data && Array.isArray(data.data)) {
       sales = data.data;
-      console.log('Found sales in data.data:', sales.length);
     } else if (data.items && Array.isArray(data.items)) {
       sales = data.items;
-      console.log('Found sales in data.items:', sales.length);
     } else {
       // Check if data has numbered keys (like '0', '1', '2', etc.)
       const numberedKeys = Object.keys(data).filter(key => /^\d+$/.test(key));
       if (numberedKeys.length > 0) {
         sales = numberedKeys.map(key => data[key]).filter(item => item && typeof item === 'object');
-        console.log('Found sales in numbered keys:', sales.length);
       } else {
-        console.log('No array found in data object');
         sales = [];
       }
     }
   }
   
-  console.log('Final sales array length:', sales.length);
   
   return `
     <div class="info-section">
@@ -373,14 +347,12 @@ const generateDefaultContent = (data) => {
 
 // Export the generatePrintContent function
 export const generatePrintContent = (data, title, type, t) => {
-  console.log('generatePrintContent called with:', { data, title, type });
   
   const currentDate = new Date().toLocaleDateString();
   const currentTime = new Date().toLocaleTimeString();
   const printTimestamp = new Date().toISOString();
   const printId = data.print_id || `PRINT-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
   
-  console.log('Generating HTML content for type:', type);
   
   let content = `
     <!DOCTYPE html>
@@ -481,34 +453,26 @@ export const generatePrintContent = (data, title, type, t) => {
   `;
 
   // Add type-specific content
-  console.log('Processing switch statement for type:', type);
   switch (type) {
     case 'inventory':
-      console.log('Generating inventory content');
       content += generateInventoryContent(data);
       break;
     case 'purchase_order':
-      console.log('Generating purchase order content');
       content += generatePurchaseOrderContent(data);
       break;
     case 'delivery':
-      console.log('Generating delivery content');
       content += generateDeliveryContent(data);
       break;
     case 'sale':
-      console.log('Generating sale content');
       content += generateSaleContent(data, t);
       break;
     case 'sales_history':
-      console.log('Generating sales history content');
       content += generateSalesHistoryContent(data);
       break;
     default:
-      console.log('Using default content generator');
       content += generateDefaultContent(data);
   }
   
-  console.log('Content generated, length:', content.length);
 
   content += `
       <div class="footer">
@@ -539,10 +503,6 @@ const PrintButton = ({
   const [showPrintOptions, setShowPrintOptions] = useState(false);
 
   const handlePrint = async (validateFirst = false) => {
-    console.log('=== PRINT DEBUGGING START ===');
-    console.log('Print data:', data);
-    console.log('Print title:', title);
-    console.log('Print type:', type);
     
     if (validateFirst && onValidate) {
       try {
@@ -557,32 +517,25 @@ const PrintButton = ({
     
     try {
       // Create print content
-      console.log('Generating print content...');
       const printContent = generatePrintContent(data, title, type, t);
-      console.log('Generated print content length:', printContent.length);
-      console.log('Generated print content preview:', printContent.substring(0, 500) + '...');
       
       // Open print window
-      console.log('Opening print window...');
       const printWindow = window.open('', '_blank', 'width=800,height=600');
       
       if (!printWindow) {
         throw new Error('Failed to open print window. Please check popup blockers.');
       }
       
-      console.log('Writing content to print window...');
       printWindow.document.write(printContent);
       printWindow.document.close();
       
       // Wait for content to load then print
       const printAfterLoad = () => {
-        console.log('Print window loaded, starting print...');
         printWindow.focus();
         printWindow.print();
         // Close the window after a short delay to allow printing
         setTimeout(() => {
           printWindow.close();
-          console.log('Print completed');
         }, 1000);
       };
       
@@ -596,7 +549,6 @@ const PrintButton = ({
       // Fallback timeout
       setTimeout(() => {
         if (!printWindow.closed) {
-          console.log('Print window still open after timeout, closing...');
           printWindow.close();
         }
       }, 5000);
@@ -607,7 +559,6 @@ const PrintButton = ({
     } finally {
       setIsPrinting(false);
       setShowPrintOptions(false);
-      console.log('=== PRINT DEBUGGING END ===');
     }
   };
 

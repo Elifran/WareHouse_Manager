@@ -42,7 +42,7 @@ const Suppliers = () => {
 
   const handleUpdateSupplier = async (supplierData) => {
     try {
-      await api.put(`/purchases/suppliers/${editingSupplier.id}/`, supplierData);
+      await api.put(`/api/purchases/suppliers/${editingSupplier.id}/`, supplierData);
       fetchSuppliers();
       setEditingSupplier(null);
     } catch (error) {
@@ -53,7 +53,7 @@ const Suppliers = () => {
   const handleDeleteSupplier = async (supplierId) => {
     if (window.confirm('Are you sure you want to delete this supplier?')) {
       try {
-        await api.delete(`/purchases/suppliers/${supplierId}/`);
+        await api.delete(`/api/purchases/suppliers/${supplierId}/`);
         fetchSuppliers();
       } catch (error) {
         console.error('Error deleting supplier:', error);

@@ -4,6 +4,7 @@ import { AuthProvider, useAuth } from './contexts/AuthContext';
 import Navbar from './components/Navbar';
 import ConnectionStatus from './components/ConnectionStatus';
 import Login from './pages/Login';
+import Dashboard from './pages/Dashboard';
 import Inventory from './pages/Inventory';
 import Users from './pages/Users';
 import TaxManagement from './pages/TaxManagement';
@@ -71,7 +72,15 @@ const AppRoutes = () => {
           <Routes>
             <Route 
               path="/login" 
-              element={isAuthenticated ? <Navigate to="/inventory" /> : <Login />} 
+              element={isAuthenticated ? <Navigate to="/dashboard" /> : <Login />} 
+            />
+            <Route 
+              path="/dashboard" 
+              element={
+                <RoleProtectedRoute allowedRoles={['admin', 'manager']}>
+                  <Dashboard />
+                </RoleProtectedRoute>
+              } 
             />
             <Route 
               path="/inventory" 
@@ -139,11 +148,11 @@ const AppRoutes = () => {
             />
             <Route 
               path="/" 
-              element={<Navigate to="/inventory" />} 
+              element={<Navigate to="/dashboard" />} 
             />
             <Route 
               path="*" 
-              element={<Navigate to="/inventory" />} 
+              element={<Navigate to="/dashboard" />} 
             />
           </Routes>
         </main>

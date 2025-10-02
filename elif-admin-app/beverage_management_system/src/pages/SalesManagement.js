@@ -48,7 +48,7 @@ const SalesManagement = () => {
       if (filters.start_date) params.append('created_at__date__gte', filters.start_date);
       if (filters.end_date) params.append('created_at__date__lte', filters.end_date);
       
-      const response = await api.get(`/sales/?${params.toString()}`);
+      const response = await api.get(`/api/sales/?${params.toString()}`);
       const salesData = response.data.results || response.data;
       
       // Ensure salesData is always an array
@@ -114,7 +114,7 @@ const SalesManagement = () => {
         paid_amount: editFormData.paid_amount
       };
       
-      await api.put(`/sales/${selectedSale.id}/edit/`, updateData);
+      await api.put(`/api/sales/${selectedSale.id}/edit/`, updateData);
       alert('Sale updated successfully');
       setShowEditModal(false);
       setSelectedSale(null);
@@ -130,7 +130,7 @@ const SalesManagement = () => {
   const handleMakePayment = async (saleId, paymentAmount) => {
     try {
       setError('');
-      await api.post(`/sales/${saleId}/payment/`, {
+      await api.post(`/api/sales/${saleId}/payment/`, {
         payment_amount: paymentAmount,
         is_full_payment: true
       });
@@ -174,7 +174,7 @@ const SalesManagement = () => {
       setError('');
       
       // Fetch full sale data including items
-      const response = await api.get(`/sales/${sale.id}/`);
+      const response = await api.get(`/api/sales/${sale.id}/`);
       const fullSale = response.data;
       
       setSelectedSale(fullSale);
@@ -202,7 +202,7 @@ const SalesManagement = () => {
   const cancelSale = async (saleId) => {
     try {
       setError('');
-      const response = await api.post(`/sales/${saleId}/cancel/`);
+      const response = await api.post(`/api/sales/${saleId}/cancel/`);
       
       if (response.data.message === 'Sale cancelled and stock restored') {
         // Show refund information for completed sales

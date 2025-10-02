@@ -85,15 +85,27 @@ const PointOfSale = () => {
       
       // Handle edge cases
       if (!standardBasePrice || standardBasePrice <= 0) {
-        console.warn('Invalid standard base price:', standardBasePrice);
         return unitStockInfo.price;
       }
       
       // Calculate the conversion factor from standard to wholesale
       const wholesaleConversionFactor = wholesaleBasePrice / standardBasePrice;
       
-      // Apply the conversion factor to the unit price
-      const wholesaleUnitPrice = unitStockInfo.price * wholesaleConversionFactor;
+      // For wholesale pricing, we need to apply the wholesale conversion factor
+      // to the base unit price, then convert to the selected unit
+      let wholesaleUnitPrice;
+      
+      if (unitStockInfo.is_base_unit) {
+        // If this is the base unit, apply wholesale factor directly
+        wholesaleUnitPrice = standardBasePrice * wholesaleConversionFactor;
+      } else {
+        // If this is not the base unit, we need to:
+        // 1. Get the wholesale base price
+        // 2. Convert it to the selected unit using the same conversion factor as the standard price
+        const standardUnitPrice = unitStockInfo.price;
+        const unitConversionFactor = standardUnitPrice / standardBasePrice;
+        wholesaleUnitPrice = wholesaleBasePrice * unitConversionFactor;
+      }
       
       // Round to 2 decimal places to avoid floating point precision issues
       const roundedPrice = Math.round(wholesaleUnitPrice * 100) / 100;
@@ -117,7 +129,6 @@ const PointOfSale = () => {
   // Re-filter products when categories are loaded (to apply sellable filtering)
   useEffect(() => {
     if (categories.length > 0 && products.length > 0) {
-      console.log('Categories loaded, re-filtering products to apply sellable filtering');
       fetchProducts(filters); // Re-fetch with current filters to apply sellable filtering
     }
   }, [categories.length]); // Only when categories are loaded
@@ -195,7 +206,6 @@ const PointOfSale = () => {
       
       setStockAvailability(stockData);
     } catch (err) {
-      console.error('Bulk stock availability error:', err);
       // Fallback to individual calls if bulk fails
       products.forEach(product => {
         fetchStockAvailability(product.id);
@@ -282,13 +292,10 @@ const PointOfSale = () => {
       
       // Debug: Log the first product to see its structure
       if (allProducts.length > 0) {
-        console.log('First product structure:', allProducts[0]);
-        console.log('Categories loaded:', categories.length);
       }
       
       // If categories are not loaded yet, show all products but log a warning
       if (categories.length === 0) {
-        console.warn('Categories not loaded yet, showing all products (filtering will be applied once categories load)');
         setProducts(allProducts);
         return;
       }
@@ -318,7 +325,6 @@ const PointOfSale = () => {
         
         // Debug: Log filtering decision
         if (!isSellable) {
-          console.log(`Filtering out product: ${product.name} (category: ${product.category_name || product.category})`);
         }
         
         return isSellable;
@@ -337,7 +343,6 @@ const PointOfSale = () => {
       setProducts(sellableProducts);
     } catch (err) {
       setError('Failed to load products');
-      console.error('Products error:', err);
     } finally {
       setLoading(false);
     }
@@ -348,20 +353,18 @@ const PointOfSale = () => {
       const response = await api.get('/api/products/categories/');
       setCategories(response.data.results || response.data);
     } catch (err) {
-      console.error('Categories error:', err);
     }
   };
 
 
   const fetchStockAvailability = async (productId) => {
     try {
-      const response = await api.get(`/products/${productId}/stock-availability/`);
+      const response = await api.get(`/api/products/${productId}/stock-availability/`);
       setStockAvailability(prev => ({
         ...prev,
         [productId]: response.data.available_units
       }));
     } catch (err) {
-      console.error('Stock availability error:', err);
     }
   };
 
@@ -591,14 +594,13 @@ const PointOfSale = () => {
       }
       
     } catch (error) {
-      console.error('Auto-print error:', error);
       // Don't show error to user as it's not critical
     }
   };
 
   const handleCheckout = async () => {
     if (cart.length === 0) {
-      setError('Cart is empty. Please add items to the cart before completing the sale.');
+      setError(t('pos.cart_empty'));
       return;
     }
 
@@ -660,7 +662,7 @@ const PointOfSale = () => {
       if (saleMode === 'complete') {
         // Complete the sale immediately
         try {
-          await api.post(`/sales/${saleId}/complete/`);
+          await api.post(`/api/sales/${saleId}/complete/`);
           
           // Auto-print the receipt after successful sale completion (only if printReceipt is true)
           if (printReceipt) {
@@ -689,7 +691,6 @@ const PointOfSale = () => {
           alert(`Sale completed successfully! Sale Number: ${saleNumber}`);
         } catch (completeError) {
           // Sale was created but completion failed
-          console.error('Sale completion error:', completeError);
           setError(`Sale created (${saleNumber}) but completion failed: ${completeError.response?.data?.error || completeError.message}`);
           
           // Still clear the cart since the sale was created
@@ -722,8 +723,6 @@ const PointOfSale = () => {
         alert(t('messages.pending_sale_created', { saleNumber }));
       }
     } catch (err) {
-      console.error('Sale creation error:', err);
-      console.error('Error response:', err.response?.data);
       
       // Handle different types of errors
       if (err.response?.data?.error) {
@@ -776,7 +775,6 @@ const PointOfSale = () => {
       // Refresh products to apply new sellable filter
       fetchProducts(filters);
     } catch (err) {
-      console.error('Error updating category sellable status:', err);
       setError('Failed to update category status');
     }
   };
@@ -1004,7 +1002,7 @@ const PointOfSale = () => {
                   type="button"
                   className={`sale-mode-btn print-receipt-btn ${!printReceipt ? 'active' : ''}`}
                   onClick={() => setPrintReceipt(false)}
-                  title="Don't print receipt"
+                  title={t('pos.dont_print_receipt')}
                 >
                   No
                 </button>
@@ -1016,7 +1014,7 @@ const PointOfSale = () => {
               <input
                 ref={searchInputRef}
                 type="text"
-                placeholder="Search products..."
+                placeholder={t('pos.search_products')}
                 value={searchInput}
                 onChange={(e) => handleFilterChange('search', e.target.value)}
               />
@@ -1096,7 +1094,19 @@ const PointOfSale = () => {
                   <h3>{product.name}</h3>
                   <p className="product-sku">{product.sku}</p>
                   <p className="product-price">
-                    {getCurrentPrice(product).toFixed(2)} MGA
+                    {(() => {
+                      // Find the actual base unit and get its price
+                      const baseUnit = product.compatible_units?.find(u => u.unit.is_base_unit);
+                      if (baseUnit && stockAvailability[product.id]) {
+                        const updatedStockInfo = getUpdatedStockAvailability(product.id);
+                        const baseUnitStockInfo = updatedStockInfo?.find(u => u.id === (baseUnit.unit?.id || baseUnit.unit));
+                        if (baseUnitStockInfo) {
+                          return getCurrentUnitPrice(product, baseUnitStockInfo).toFixed(2);
+                        }
+                      }
+                      // Fallback to the original price
+                      return getCurrentPrice(product).toFixed(2);
+                    })()} MGA
                     {product.compatible_units && product.compatible_units.length > 1 && 
                       ` (base unit: ${product.compatible_units.find(u => u.unit.is_base_unit)?.unit.symbol || 'piece'})`
                     }
@@ -1116,7 +1126,7 @@ const PointOfSale = () => {
                             
                             return (
                               <span key={compatibleUnit.unit?.id || compatibleUnit.unit} className={`unit-stock ${unitStockInfo.is_available ? 'available' : 'unavailable'}`}>
-                                {unitName}: {unitStockInfo.available_quantity}
+                                {unitName}: {getCurrentUnitPrice(product, unitStockInfo).toFixed(2)} MGA ({unitStockInfo.available_quantity} available)
                               </span>
                             );
                           }).filter(Boolean);
@@ -1158,8 +1168,7 @@ const PointOfSale = () => {
                               disabled={saleMode === 'complete' ? !isAvailable : false}
                             >
                               {unitName} ({unitSymbol}) - {getCurrentUnitPrice(product, unitStockInfo).toFixed(2)} MGA
-                              {!isAvailable && saleMode === 'complete' ? ' - OUT OF STOCK' : 
-                               ` - ${availableQty} available`}
+                              {!isAvailable && saleMode === 'complete' ? ' - OUT OF STOCK' : ''}
                             </option>
                           );
                         })}
@@ -1461,8 +1470,8 @@ const PointOfSale = () => {
                   variant="primary"
                   disabled={cart.length === 0}
                 >
-                  {saleMode === 'complete' ? 'Complete Sale' : 'Create Pending Sale'}
-                  {printReceipt && ' & Print Receipt'}
+                  {saleMode === 'complete' ? t('pos.complete_sale') : t('pos.create_pending_sale')}
+                  {printReceipt && t('pos.print_receipt')}
                 </Button>
               </div>
             </>

@@ -284,7 +284,7 @@ const PurchaseOrders = () => {
       await api.post('/api/purchases/deliveries/', deliveryData);
       
       // Then archive the purchase order by updating its status
-      await api.patch(`/purchases/purchase-orders/${selectedOrder.id}/`, { status: 'archived' });
+      await api.patch(`/api/purchases/purchase-orders/${selectedOrder.id}/`, { status: 'archived' });
       
       fetchData();
       setShowDeliveryModal(false);
@@ -300,7 +300,7 @@ const PurchaseOrders = () => {
   const handleArchiveOrder = async (orderId) => {
     if (window.confirm('Are you sure you want to archive this purchase order?')) {
       try {
-        await api.patch(`/purchases/purchase-orders/${orderId}/`, { status: 'archived' });
+        await api.patch(`/api/purchases/purchase-orders/${orderId}/`, { status: 'archived' });
         fetchData();
         alert('Purchase order archived successfully!');
       } catch (error) {
@@ -313,7 +313,7 @@ const PurchaseOrders = () => {
   const handleDeleteOrder = async (orderId) => {
     if (window.confirm('Are you sure you want to permanently delete this archived purchase order? This action cannot be undone.')) {
       try {
-        await api.delete(`/purchases/purchase-orders/${orderId}/`);
+        await api.delete(`/api/purchases/purchase-orders/${orderId}/`);
         fetchData();
         alert('Purchase order deleted successfully');
       } catch (error) {
@@ -335,7 +335,7 @@ const PurchaseOrders = () => {
       try {
         // Delete all archived orders
         const deletePromises = archivedOrders.map(order => 
-          api.delete(`/purchases/purchase-orders/${order.id}/`)
+          api.delete(`/api/purchases/purchase-orders/${order.id}/`)
         );
         await Promise.all(deletePromises);
         fetchData();
@@ -372,7 +372,7 @@ const PurchaseOrders = () => {
 
   const handleUpdateDelivery = async (deliveryData) => {
     try {
-      await api.patch(`/purchases/deliveries/${selectedDelivery.id}/`, deliveryData);
+      await api.patch(`/api/purchases/deliveries/${selectedDelivery.id}/`, deliveryData);
       fetchData();
       setShowEditDeliveryModal(false);
       setSelectedDelivery(null);

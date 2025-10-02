@@ -319,6 +319,7 @@ class StockMovement(models.Model):
     MOVEMENT_TYPES = [
         ('in', 'Stock In'),
         ('out', 'Stock Out'),
+        ('return', 'Stock Return'),
         ('adjustment', 'Stock Adjustment'),
         ('cost_update', 'Cost Price Update'),
     ]
@@ -400,6 +401,21 @@ class StockMovement(models.Model):
             else:
                 # Fallback to direct subtraction if no unit conversion
                 self.product.stock_quantity = max(0, self.product.stock_quantity - self.quantity)
+                self.product.save(update_fields=['stock_quantity'])
+        elif self.movement_type == 'return':
+            # Return movements add stock back (same as 'in' movements)
+            if self.unit and self.product.base_unit:
+                base_quantity = self.product.convert_quantity(
+                    self.quantity, 
+                    self.unit, 
+                    self.product.base_unit
+                )
+                if base_quantity is not None:
+                    self.product.stock_quantity += int(base_quantity)
+                    self.product.save(update_fields=['stock_quantity'])
+            else:
+                # Fallback to direct addition if no unit conversion
+                self.product.stock_quantity += self.quantity
                 self.product.save(update_fields=['stock_quantity'])
         elif self.movement_type == 'cost_update':
             # Cost update movements don't change stock quantity, just track the cost change

@@ -38,7 +38,7 @@ class PurchaseOrderItemSerializer(serializers.ModelSerializer):
     def to_internal_value(self, data):
         """Override to convert quantity to base unit for storage"""
         # Convert quantity from display unit to base unit
-        if 'quantity_ordered' in data and 'unit_id' in data and 'product_id' in data:
+        if 'quantity_ordered' in data and 'product_id' in data and data.get('unit_id') is not None:
             try:
                 from products.models import Unit, Product, UnitConversion
                 

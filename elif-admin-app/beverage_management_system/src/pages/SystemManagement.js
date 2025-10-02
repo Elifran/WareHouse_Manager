@@ -184,7 +184,7 @@ const SystemManagement = () => {
       }
 
       if (editingTaxClass) {
-        await api.put(`/products/tax-classes/${editingTaxClass.id}/`, taxFormData);
+        await api.put(`/api/products/tax-classes/${editingTaxClass.id}/`, taxFormData);
       } else {
         await api.post('/api/products/tax-classes/', taxFormData);
       }
@@ -266,7 +266,7 @@ const SystemManagement = () => {
       }
 
       if (editingCategory) {
-        await api.put(`/products/categories/${editingCategory.id}/`, categoryFormData);
+        await api.put(`/api/products/categories/${editingCategory.id}/`, categoryFormData);
       } else {
         await api.post('/api/products/categories/', categoryFormData);
       }
@@ -306,7 +306,7 @@ const SystemManagement = () => {
   const fetchUnits = async () => {
     try {
       let allUnits = [];
-      let nextUrl = '/products/units/';
+      let nextUrl = '/api/products/units/';
       
       // Fetch all pages of units to ensure we get all base units (including inactive ones)
       while (nextUrl) {
@@ -387,7 +387,7 @@ const SystemManagement = () => {
       }
 
       if (editingUnit) {
-        await api.put(`/products/units/${editingUnit.id}/`, unitFormData);
+        await api.put(`/api/products/units/${editingUnit.id}/`, unitFormData);
       } else {
         await api.post('/api/products/units/', unitFormData);
       }
@@ -429,7 +429,7 @@ const SystemManagement = () => {
   const fetchUnitConversions = async () => {
     try {
       let allConversions = [];
-      let nextUrl = '/products/unit-conversions/';
+      let nextUrl = '/api/products/unit-conversions/';
       
       // Fetch all pages of unit conversions
       while (nextUrl) {
@@ -560,7 +560,7 @@ const SystemManagement = () => {
       }
 
       if (editingConversion) {
-        await api.put(`/products/unit-conversions/${editingConversion.id}/`, data);
+        await api.put(`/api/products/unit-conversions/${editingConversion.id}/`, data);
       } else {
         await api.post('/api/products/unit-conversions/', data);
       }
@@ -608,10 +608,10 @@ const SystemManagement = () => {
 
     try {
       const endpoints = {
-        tax: `/products/tax-classes/${item.id}/`,
-        category: `/products/categories/${item.id}/`,
-        unit: `/products/units/${item.id}/`,
-        conversion: `/products/unit-conversions/${item.id}/`
+        tax: `/api/products/tax-classes/${item.id}/`,
+        category: `/api/products/categories/${item.id}/`,
+        unit: `/api/products/units/${item.id}/`,
+        conversion: `/api/products/unit-conversions/${item.id}/`
       };
       
       await api.delete(endpoints[type]);

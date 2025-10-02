@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useSearchParams } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import api from '../services/api';
 import Button from '../components/Button';
@@ -9,9 +10,53 @@ import './PointOfSale.css';
 const PointOfSale = () => {
   const { t } = useTranslation();
   const { user } = useAuth();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [products, setProducts] = useState([]);
   const [categories, setCategories] = useState([]);
+  const [userSellableCategories, setUserSellableCategories] = useState(new Set()); // Per-user session sellable categories
   const [cart, setCart] = useState([]);
+
+  // Initialize user sellable categories from localStorage
+  const initializeUserSellableCategories = () => {
+    return new Promise((resolve) => {
+      if (user?.id) {
+        const savedCategories = localStorage.getItem(`user-${user.id}-sellable-categories`);
+        
+        if (savedCategories) {
+          try {
+            const categoryIds = JSON.parse(savedCategories);
+            setUserSellableCategories(new Set(categoryIds));
+            resolve(new Set(categoryIds));
+          } catch (e) {
+            console.warn('Failed to parse saved sellable categories:', e);
+            setUserSellableCategories(new Set());
+            resolve(new Set());
+          }
+        } else {
+          // If no saved categories, start with empty set (user will need to select categories)
+          setUserSellableCategories(new Set());
+          resolve(new Set());
+        }
+      } else {
+        resolve(new Set());
+      }
+    });
+  };
+
+  // Initialize all categories as sellable when categories are first loaded (only if no saved preferences)
+  const initializeAllCategoriesAsSellable = () => {
+    if (user?.id && categories.length > 0 && userSellableCategories.size === 0) {
+      // Check if user has any saved preferences first
+      const savedCategories = localStorage.getItem(`user-${user.id}-sellable-categories`);
+      if (!savedCategories) {
+        // Only initialize all categories as sellable if user has no saved preferences
+        const allCategoryIds = new Set(categories.map(cat => cat.id));
+        setUserSellableCategories(allCategoryIds);
+        localStorage.setItem(`user-${user.id}-sellable-categories`, JSON.stringify([...allCategoryIds]));
+      } else {
+      }
+    }
+  };
   const [customerInfo, setCustomerInfo] = useState({
     name: '',
     phone: '',
@@ -24,16 +69,53 @@ const PointOfSale = () => {
   const [processing, setProcessing] = useState(false);
   const [error, setError] = useState('');
   const [stockAvailability, setStockAvailability] = useState({});
-  const [filters, setFilters] = useState({
-    category: '',
-    search: ''
-  });
-  const [searchInput, setSearchInput] = useState(''); // Separate state for search input
+  // Initialize filters from URL parameters or localStorage
+  const getInitialFilters = () => {
+    const urlCategory = searchParams.get('category');
+    const urlSearch = searchParams.get('search');
+    
+    // Try URL parameters first, then localStorage, then defaults
+    const savedFilters = localStorage.getItem('pos-filters');
+    let savedCategory = '';
+    let savedSearch = '';
+    
+    if (savedFilters) {
+      try {
+        const parsed = JSON.parse(savedFilters);
+        savedCategory = parsed.category || '';
+        savedSearch = parsed.search || '';
+      } catch (e) {
+        console.warn('Failed to parse saved filters:', e);
+      }
+    }
+    
+    return {
+      category: urlCategory || savedCategory || '',
+      search: urlSearch || savedSearch || ''
+    };
+  };
+
+  const [filters, setFilters] = useState(getInitialFilters);
+  const [searchInput, setSearchInput] = useState(getInitialFilters().search); // Initialize from saved filters
   const [editingQuantity, setEditingQuantity] = useState(null);
   const [tempQuantity, setTempQuantity] = useState('');
   const [selectedUnits, setSelectedUnits] = useState({}); // Track selected unit for each product
   const searchInputRef = useRef(null); // Ref for search input
   const searchTimeoutRef = useRef(null); // Ref for search timeout
+
+  // Function to update filters and persist them
+  const updateFilters = (newFilters) => {
+    setFilters(newFilters);
+    
+    // Update URL parameters
+    const newSearchParams = new URLSearchParams();
+    if (newFilters.category) newSearchParams.set('category', newFilters.category);
+    if (newFilters.search) newSearchParams.set('search', newFilters.search);
+    setSearchParams(newSearchParams);
+    
+    // Save to localStorage
+    localStorage.setItem('pos-filters', JSON.stringify(newFilters));
+  };
   const [showSellableToggle, setShowSellableToggle] = useState(false); // Show/hide sellable toggle
   const [priceMode, setPriceMode] = useState('standard'); // 'standard' or 'wholesale'
   const [saleMode, setSaleMode] = useState('complete'); // 'complete' or 'pending'
@@ -92,8 +174,21 @@ const PointOfSale = () => {
       // Calculate the conversion factor from standard to wholesale
       const wholesaleConversionFactor = wholesaleBasePrice / standardBasePrice;
       
-      // Apply the conversion factor to the unit price
-      const wholesaleUnitPrice = unitStockInfo.price * wholesaleConversionFactor;
+      // For wholesale pricing, we need to apply the wholesale conversion factor
+      // to the base unit price, then convert to the selected unit
+      let wholesaleUnitPrice;
+      
+      if (unitStockInfo.is_base_unit) {
+        // If this is the base unit, apply wholesale factor directly
+        wholesaleUnitPrice = standardBasePrice * wholesaleConversionFactor;
+      } else {
+        // If this is not the base unit, we need to:
+        // 1. Get the wholesale base price
+        // 2. Convert it to the selected unit using the same conversion factor as the standard price
+        const standardUnitPrice = unitStockInfo.price;
+        const unitConversionFactor = standardUnitPrice / standardBasePrice;
+        wholesaleUnitPrice = wholesaleBasePrice * unitConversionFactor;
+      }
       
       // Round to 2 decimal places to avoid floating point precision issues
       const roundedPrice = Math.round(wholesaleUnitPrice * 100) / 100;
@@ -108,21 +203,20 @@ const PointOfSale = () => {
 
   useEffect(() => {
     const initializeData = async () => {
+      // First load categories
       await fetchCategories();
-      await fetchProducts(); // Wait for categories to be loaded before fetching products
+      // Then initialize user sellable categories (after categories are loaded)
+      await initializeUserSellableCategories();
+      // Then load products (this will now properly filter by sellable categories)
+      await fetchProducts();
     };
     initializeData();
-  }, []);
+  }, [user?.id]); // Re-initialize when user changes
 
-  // Re-filter products when categories are loaded (to apply sellable filtering)
-  useEffect(() => {
-    if (categories.length > 0 && products.length > 0) {
-      console.log('Categories loaded, re-filtering products to apply sellable filtering');
-      fetchProducts(filters); // Re-fetch with current filters to apply sellable filtering
-    }
-  }, [categories.length]); // Only when categories are loaded
+  // Note: Removed redundant useEffect that was causing double filtering
+  // Now categories are loaded first, then products are filtered properly
 
-  // Debounced search effect - completely rewritten for stability
+  // Debounced search effect - simplified to avoid conflicts
   useEffect(() => {
     // Clear existing timeout
     if (searchTimeoutRef.current) {
@@ -133,7 +227,7 @@ const PointOfSale = () => {
     searchTimeoutRef.current = setTimeout(() => {
       if (searchInput !== filters.search) {
         const newFilters = { ...filters, search: searchInput };
-        setFilters(newFilters);
+        updateFilters(newFilters);
         fetchProducts(newFilters);
       }
     }, 500);
@@ -144,7 +238,40 @@ const PointOfSale = () => {
         clearTimeout(searchTimeoutRef.current);
       }
     };
-  }, [searchInput, filters]); // Depend on searchInput and filters
+  }, [searchInput]); // Only depend on searchInput to avoid loops
+
+  // Effect to handle URL parameter changes
+  useEffect(() => {
+    const urlCategory = searchParams.get('category');
+    const urlSearch = searchParams.get('search');
+    
+    // Only update if URL parameters are different from current filters
+    if (urlCategory !== filters.category || urlSearch !== filters.search) {
+      const newFilters = {
+        category: urlCategory || '',
+        search: urlSearch || ''
+      };
+      setFilters(newFilters);
+      setSearchInput(urlSearch || '');
+      // Don't call fetchProducts here to avoid conflicts with debounced search
+      // The debounced search effect will handle the API call
+    }
+  }, [searchParams]); // Only depend on searchParams
+
+  // Effect to initialize all categories as sellable when categories are first loaded
+  useEffect(() => {
+    initializeAllCategoriesAsSellable();
+  }, [categories.length, user?.id]); // Run when categories are loaded or user changes
+
+  // Effect to re-fetch products when user sellable categories change
+  useEffect(() => {
+    if (categories.length > 0 && userSellableCategories.size >= 0) {
+      // Only fetch if we have a meaningful change (not just initialization)
+      if (userSellableCategories.size > 0) {
+        fetchProducts(filters);
+      }
+    }
+  }, [userSellableCategories]); // Re-fetch when sellable categories change
 
   useEffect(() => {
     // Fetch stock availability for ALL products in bulk to improve performance
@@ -276,14 +403,12 @@ const PointOfSale = () => {
       if (filterParams.category) params.append('category', filterParams.category);
       if (filterParams.search) params.append('search', filterParams.search);
       
-      const url = `/products/${params.toString() ? '?' + params.toString() : ''}`;
+      const url = `/api/products/${params.toString() ? '?' + params.toString() : ''}`;
       const response = await api.get(url);
       const allProducts = response.data.results || response.data;
       
       // Debug: Log the first product to see its structure
       if (allProducts.length > 0) {
-        console.log('First product structure:', allProducts[0]);
-        console.log('Categories loaded:', categories.length);
       }
       
       // If categories are not loaded yet, show all products but log a warning
@@ -293,42 +418,44 @@ const PointOfSale = () => {
         return;
       }
       
-      // ALWAYS filter out products from non-sellable categories
+      // If user has no sellable categories selected, show no products
+      if (userSellableCategories.size === 0) {
+        setProducts([]);
+        return;
+      }
+      
+      // Filter products based on user-specific sellable categories
       const sellableProducts = allProducts.filter(product => {
-        let isSellable = false;
+        let categoryId = null;
         
-        // If product has category information, check if category is sellable
-        if (product.category && product.category.is_sellable !== undefined) {
-          isSellable = product.category.is_sellable;
-        }
-        // If product has category_name, find the category in our categories list
-        else if (product.category_name) {
+        // Get category ID from product
+        if (product.category && typeof product.category === 'number') {
+          categoryId = product.category;
+        } else if (product.category && product.category.id) {
+          categoryId = product.category.id;
+        } else if (product.category_name) {
           const category = categories.find(cat => cat.name === product.category_name);
-          isSellable = category ? category.is_sellable : false; // Default to false if category not found (safer)
+          categoryId = category ? category.id : null;
         }
-        // If product has category ID, find the category in our categories list
-        else if (product.category && typeof product.category === 'number') {
-          const category = categories.find(cat => cat.id === product.category);
-          isSellable = category ? category.is_sellable : false; // Default to false if category not found (safer)
+        
+        // If no category ID found, exclude the product
+        if (!categoryId) {
+          return false;
         }
-        // If no category information, exclude the product (safer approach)
-        else {
-          isSellable = false;
-        }
+        
+        // Check if this category is in user's sellable categories
+        const isSellable = userSellableCategories.has(categoryId);
         
         // Debug: Log filtering decision
-        if (!isSellable) {
-          console.log(`Filtering out product: ${product.name} (category: ${product.category_name || product.category})`);
-        }
         
         return isSellable;
       });
 
-      // Additional check: if a specific category is selected, ensure it's sellable
+      // Additional check: if a specific category is selected, ensure it's in user's sellable categories
       if (filterParams.category) {
-        const selectedCategory = categories.find(cat => cat.id === parseInt(filterParams.category));
-        if (selectedCategory && !selectedCategory.is_sellable) {
-          // If selected category is not sellable, return empty array
+        const categoryId = parseInt(filterParams.category);
+        if (!userSellableCategories.has(categoryId)) {
+          // If selected category is not in user's sellable categories, return empty array
           setProducts([]);
           return;
         }
@@ -373,19 +500,19 @@ const PointOfSale = () => {
       const compatibleUnit = product.compatible_units[0];
       unit = {
         id: compatibleUnit.unit?.id || compatibleUnit.unit,
-        name: compatibleUnit.unit_name || compatibleUnit.unit?.name || 'Piece',
+        name: compatibleUnit.unit_name || compatibleUnit.unit?.name || t('common.piece'),
         symbol: compatibleUnit.unit_symbol || compatibleUnit.unit?.symbol || 'piece'
       };
     }
     if (!unit) {
-      unit = { id: product.base_unit?.id || product.base_unit, name: 'Piece', symbol: 'piece' };
+      unit = { id: product.base_unit?.id || product.base_unit, name: t('common.piece'), symbol: 'piece' };
     }
     
     // Skip stock validation for pending sales since stock won't be removed until completion
     if (saleMode === 'complete') {
       // Check if stock availability data is loaded
       if (!stockAvailability[product.id]) {
-        setError('Loading stock information... Please try again.');
+        setError(t('pos.loading_stock_info'));
         return;
       }
 
@@ -395,7 +522,7 @@ const PointOfSale = () => {
       
       
       if (!unitStockInfo) {
-        setError(`Unit ${unit.name} not found in stock information`);
+        setError(t('pos.unit_not_found', { unitName: unit.name }));
         return;
       }
       
@@ -406,7 +533,7 @@ const PointOfSale = () => {
       
       // Check if there's enough stock for the selected unit
       if (unitStockInfo.available_quantity <= 0) {
-        setError(`No ${unit.name} stock left`);
+        setError(t('pos.no_stock_left', { unitName: unit.name }));
         return;
       }
     }
@@ -422,7 +549,7 @@ const PointOfSale = () => {
         const updatedStockInfo = getUpdatedStockAvailability(product.id);
         const unitStockInfo = updatedStockInfo?.find(u => u.id === unit.id);
         if (unitStockInfo && existingItem.quantity + 1 > unitStockInfo.available_quantity) {
-          setError(`Not enough ${unit.name} available. Only ${unitStockInfo.available_quantity} left.`);
+          setError(t('pos.not_enough_available', { unitName: unit.name, quantity: unitStockInfo.available_quantity }));
           return;
         }
       }
@@ -437,7 +564,7 @@ const PointOfSale = () => {
         const updatedStockInfo = getUpdatedStockAvailability(product.id);
         const unitStockInfo = updatedStockInfo?.find(u => u.id === unit.id);
         if (unitStockInfo && 1 > unitStockInfo.available_quantity) {
-          setError(`Not enough ${unit.name} available. Only ${unitStockInfo.available_quantity} left.`);
+          setError(t('pos.not_enough_available', { unitName: unit.name, quantity: unitStockInfo.available_quantity }));
           return;
         }
       }
@@ -470,7 +597,7 @@ const PointOfSale = () => {
         const unitStockInfo = updatedStockInfo?.find(u => u.id === unitId);
         
         if (!unitStockInfo || !unitStockInfo.is_available) {
-          setError(`Unit is out of stock`);
+          setError(t('pos.unit_out_of_stock'));
           return;
         }
         
@@ -483,7 +610,7 @@ const PointOfSale = () => {
         const maxAllowed = unitStockInfo.available_quantity + currentCartQuantity;
         
         if (quantity > maxAllowed) {
-          setError(`Not enough stock available. Max: ${maxAllowed}`);
+          setError(t('pos.not_enough_stock_max', { max: maxAllowed }));
           return;
         }
       }
@@ -541,10 +668,10 @@ const PointOfSale = () => {
       
       const printData = {
         sale_number: saleNumber,
-        customer_name: customerInfo.name || 'Walk-in Customer',
+        customer_name: customerInfo.name || t('pos.walk_in_customer'),
         customer_phone: customerInfo.phone || '',
         customer_email: customerInfo.email || '',
-        user_name: user?.username || 'Unknown User',
+        user_name: user?.username || t('pos.unknown_user'),
         user_id: user?.id || 'unknown',
         created_at: new Date().toISOString(),
         print_timestamp: new Date().toISOString(),
@@ -566,7 +693,7 @@ const PointOfSale = () => {
       };
 
       // Generate print content using the same logic as PrintButton
-      const printContent = generatePrintContent(printData, 'Sale Receipt', 'sale', t);
+      const printContent = generatePrintContent(printData, t('pos.sale_receipt'), 'sale', t);
       
       // Open print window
       const printWindow = window.open('', '_blank', 'width=800,height=600');
@@ -598,7 +725,7 @@ const PointOfSale = () => {
 
   const handleCheckout = async () => {
     if (cart.length === 0) {
-      setError('Cart is empty. Please add items to the cart before completing the sale.');
+      setError(t('pos.cart_empty'));
       return;
     }
 
@@ -607,7 +734,7 @@ const PointOfSale = () => {
 
     // Validate customer name for partial payments
     if (paymentType === 'partial' && (!customerInfo.name || !customerInfo.name.trim())) {
-      setError('Customer name is required for partial payments');
+      setError(t('pos.customer_name_required_partial'));
       setProcessing(false);
       return;
     }
@@ -615,13 +742,13 @@ const PointOfSale = () => {
     // Validate paid amount
     const total = calculateTotal();
     if (paidAmount > total) {
-      setError('Paid amount cannot exceed the total amount');
+      setError(t('pos.paid_amount_exceeds_total'));
       setProcessing(false);
       return;
     }
 
     if (paidAmount < 0) {
-      setError('Paid amount cannot be negative');
+      setError(t('pos.paid_amount_negative'));
       setProcessing(false);
       return;
     }
@@ -686,11 +813,14 @@ const PointOfSale = () => {
           // Refresh stock availability for all products
           refreshStockAvailability();
           
-          alert(`Sale completed successfully! Sale Number: ${saleNumber}`);
+          alert(t('pos.sale_completed_success', { saleNumber }));
         } catch (completeError) {
           // Sale was created but completion failed
           console.error('Sale completion error:', completeError);
-          setError(`Sale created (${saleNumber}) but completion failed: ${completeError.response?.data?.error || completeError.message}`);
+          setError(t('pos.sale_created_but_completion_failed', { 
+            saleNumber, 
+            error: completeError.response?.data?.error || completeError.message 
+          }));
           
           // Still clear the cart since the sale was created
           setCart([]);
@@ -735,7 +865,7 @@ const PointOfSale = () => {
       } else if (err.response?.data?.paid_amount) {
         setError(err.response.data.paid_amount[0]);
       } else {
-        setError('Failed to create sale. Please check the console for details.');
+        setError(t('pos.failed_to_create_sale'));
       }
     } finally {
       setProcessing(false);
@@ -749,35 +879,62 @@ const PointOfSale = () => {
 
   const handleFilterChange = (filterType, value) => {
     if (filterType === 'search') {
-      // For search, update the input state immediately (no API call)
+      // For search, update the input state immediately (debounced API call will follow)
       setSearchInput(value);
     } else {
-      // For other filters (like category), update immediately
-    const newFilters = { ...filters, [filterType]: value };
-    setFilters(newFilters);
-    fetchProducts(newFilters);
+      // For other filters (like category), update immediately and persist
+      const newFilters = { ...filters, [filterType]: value };
+      updateFilters(newFilters);
+      fetchProducts(newFilters);
     }
   };
 
   const clearFilters = () => {
     const clearedFilters = { category: '', search: '' };
-    setFilters(clearedFilters);
+    updateFilters(clearedFilters);
     setSearchInput(''); // Clear the search input state
     fetchProducts(clearedFilters);
   };
 
-  const toggleCategorySellable = async (categoryId, isSellable) => {
+  const toggleCategorySellable = (categoryId, isCurrentlySellable) => {
     try {
-      await api.patch(`/products/categories/${categoryId}/`, {
-        is_sellable: !isSellable
-      });
-      // Refresh categories to show updated status
-      await fetchCategories();
+      setError(''); // Clear any previous errors
+      
+      const newSellableCategories = new Set(userSellableCategories);
+      
+      if (isCurrentlySellable) {
+        // Remove from sellable categories
+        newSellableCategories.delete(categoryId);
+      } else {
+        // Add to sellable categories
+        newSellableCategories.add(categoryId);
+      }
+      
+      setUserSellableCategories(newSellableCategories);
+      
+      // Save to localStorage for this user
+      if (user?.id) {
+        localStorage.setItem(`user-${user.id}-sellable-categories`, JSON.stringify([...newSellableCategories]));
+      }
+      
+      
       // Refresh products to apply new sellable filter
       fetchProducts(filters);
     } catch (err) {
       console.error('Error updating category sellable status:', err);
-      setError('Failed to update category status');
+      setError(t('pos.failed_to_update_category_status', { error: err.message || 'Unknown error' }));
+    }
+  };
+
+  const resetUserCategories = () => {
+    if (user?.id && categories.length > 0) {
+      // Set all categories as sellable
+      const allCategoryIds = new Set(categories.map(cat => cat.id));
+      setUserSellableCategories(allCategoryIds);
+      // Save to localStorage
+      localStorage.setItem(`user-${user.id}-sellable-categories`, JSON.stringify([...allCategoryIds]));
+      // Refresh products (will show all products from all categories)
+      fetchProducts(filters);
     }
   };
 
@@ -798,7 +955,7 @@ const PointOfSale = () => {
     const newQuantity = parseFloat(tempQuantity);
     
     if (tempQuantity === '' || isNaN(newQuantity) || newQuantity < 0) {
-      setError('Please enter a valid quantity');
+      setError(t('pos.enter_valid_quantity'));
       setEditingQuantity(null);
       return;
     }
@@ -810,7 +967,7 @@ const PointOfSale = () => {
       const unitStockInfo = updatedStockInfo?.find(u => u.id === item.unit_id);
       
       if (!unitStockInfo || !unitStockInfo.is_available) {
-        setError(`Unit is out of stock`);
+        setError(t('pos.unit_out_of_stock'));
         setEditingQuantity(null);
         return;
       }
@@ -824,7 +981,7 @@ const PointOfSale = () => {
       const maxAllowed = unitStockInfo.available_quantity + currentCartQuantity;
       
       if (newQuantity > maxAllowed) {
-        setError(`Not enough stock available. Max: ${maxAllowed}`);
+        setError(t('pos.not_enough_stock_max', { max: maxAllowed }));
         setEditingQuantity(null);
         return;
       }
@@ -931,7 +1088,7 @@ const PointOfSale = () => {
                 onChange={(e) => handleFilterChange('category', e.target.value)}
               >
                 <option value="">All Categories</option>
-                {categories.filter(cat => cat.is_sellable).map(category => (
+                {categories.filter(cat => userSellableCategories.has(cat.id)).map(category => (
                   <option key={category.id} value={category.id}>
                     {category.name}
                   </option>
@@ -943,7 +1100,7 @@ const PointOfSale = () => {
                 onClick={() => setShowSellableToggle(!showSellableToggle)}
                 style={{ marginTop: '0.5rem' }}
               >
-                {showSellableToggle ? 'Hide' : 'Manage'} Categories
+                {showSellableToggle ? t('pos.hide_categories') : t('pos.manage_categories')}
               </Button>
             </div>
             
@@ -1004,7 +1161,7 @@ const PointOfSale = () => {
                   type="button"
                   className={`sale-mode-btn print-receipt-btn ${!printReceipt ? 'active' : ''}`}
                   onClick={() => setPrintReceipt(false)}
-                  title="Don't print receipt"
+                  title={t('pos.dont_print_receipt')}
                 >
                   No
                 </button>
@@ -1016,7 +1173,7 @@ const PointOfSale = () => {
               <input
                 ref={searchInputRef}
                 type="text"
-                placeholder="Search products..."
+                placeholder={t('pos.search_products')}
                 value={searchInput}
                 onChange={(e) => handleFilterChange('search', e.target.value)}
               />
@@ -1059,22 +1216,39 @@ const PointOfSale = () => {
                       {category.name}
                     </span>
                     <button
-                      onClick={() => toggleCategorySellable(category.id, category.is_sellable)}
+                      onClick={() => toggleCategorySellable(category.id, userSellableCategories.has(category.id))}
                       style={{
                         padding: '0.25rem 0.5rem',
                         fontSize: '0.75rem',
                         borderRadius: '0.25rem',
                         border: '1px solid',
                         cursor: 'pointer',
-                        backgroundColor: category.is_sellable ? '#dcfce7' : '#fee2e2',
-                        borderColor: category.is_sellable ? '#16a34a' : '#dc2626',
-                        color: category.is_sellable ? '#15803d' : '#dc2626'
+                        backgroundColor: userSellableCategories.has(category.id) ? '#dcfce7' : '#fee2e2',
+                        borderColor: userSellableCategories.has(category.id) ? '#16a34a' : '#dc2626',
+                        color: userSellableCategories.has(category.id) ? '#15803d' : '#dc2626'
                       }}
                     >
-                      {category.is_sellable ? 'Sellable' : 'Not Sellable'}
+                      {userSellableCategories.has(category.id) ? t('pos.sellable') : t('pos.not_sellable')}
                     </button>
           </div>
                 ))}
+              </div>
+              
+              {/* Reset Button */}
+              <div style={{ marginTop: '1rem', textAlign: 'center' }}>
+                <Button 
+                  variant="outline" 
+                  size="small" 
+                  onClick={resetUserCategories}
+                  style={{ 
+                    backgroundColor: '#dcfce7', 
+                    borderColor: '#16a34a', 
+                    color: '#15803d',
+                    fontWeight: '500'
+                  }}
+                >
+                  Reset to All Categories Sellable
+                </Button>
               </div>
             </div>
           )}
@@ -1096,7 +1270,19 @@ const PointOfSale = () => {
                   <h3>{product.name}</h3>
                   <p className="product-sku">{product.sku}</p>
                   <p className="product-price">
-                    {getCurrentPrice(product).toFixed(2)} MGA
+                    {(() => {
+                      // Find the actual base unit and get its price
+                      const baseUnit = product.compatible_units?.find(u => u.unit.is_base_unit);
+                      if (baseUnit && stockAvailability[product.id]) {
+                        const updatedStockInfo = getUpdatedStockAvailability(product.id);
+                        const baseUnitStockInfo = updatedStockInfo?.find(u => u.id === (baseUnit.unit?.id || baseUnit.unit));
+                        if (baseUnitStockInfo) {
+                          return getCurrentUnitPrice(product, baseUnitStockInfo).toFixed(2);
+                        }
+                      }
+                      // Fallback to the original price
+                      return getCurrentPrice(product).toFixed(2);
+                    })()} MGA
                     {product.compatible_units && product.compatible_units.length > 1 && 
                       ` (base unit: ${product.compatible_units.find(u => u.unit.is_base_unit)?.unit.symbol || 'piece'})`
                     }
@@ -1116,7 +1302,7 @@ const PointOfSale = () => {
                             
                             return (
                               <span key={compatibleUnit.unit?.id || compatibleUnit.unit} className={`unit-stock ${unitStockInfo.is_available ? 'available' : 'unavailable'}`}>
-                                {unitName}: {unitStockInfo.available_quantity}
+                                {unitName}: {getCurrentUnitPrice(product, unitStockInfo).toFixed(2)} MGA ({unitStockInfo.available_quantity} available)
                               </span>
                             );
                           }).filter(Boolean);
@@ -1158,8 +1344,7 @@ const PointOfSale = () => {
                               disabled={saleMode === 'complete' ? !isAvailable : false}
                             >
                               {unitName} ({unitSymbol}) - {getCurrentUnitPrice(product, unitStockInfo).toFixed(2)} MGA
-                              {!isAvailable && saleMode === 'complete' ? ' - OUT OF STOCK' : 
-                               ` - ${availableQty} available`}
+                              {!isAvailable && saleMode === 'complete' ? t('pos.out_of_stock_label') : ''}
                             </option>
                           );
                         })}
@@ -1191,15 +1376,15 @@ const PointOfSale = () => {
                     >
                       {(() => {
                         if (!stockAvailability[product.id]) {
-                          return 'Loading...';
+                          return t('pos.loading');
                         }
                         
                         // For pending sales, always show "Add to Cart" regardless of stock
                         if (saleMode === 'pending') {
-                          return 'Add to Cart';
+                          return t('pos.add_to_cart');
                         }
                         
-                        return product.stock_quantity <= 0 ? 'Out of Stock' : 'Add to Cart';
+                        return product.stock_quantity <= 0 ? t('pos.out_of_stock') : t('pos.add_to_cart');
                       })()}
                     </Button>
                   )}
@@ -1256,7 +1441,7 @@ const PointOfSale = () => {
                       <h4>{item.name}</h4>
                       <p className="item-sku">SKU: {item.sku}</p>
                       <span className={`price-mode-badge ${item.price_mode}`}>
-                        {item.price_mode === 'wholesale' ? 'WS' : 'STD'}
+                        {item.price_mode === 'wholesale' ? t('pos.wholesale_short') : t('pos.standard_short')}
                       </span>
                     </div>
                     <div className="item-unit">
@@ -1366,7 +1551,7 @@ const PointOfSale = () => {
                 <div className="form-group">
                   <input
                     type="text"
-                    placeholder={paymentType === 'partial' ? "Customer Name (Required for Partial Payment)" : "Customer Name (Optional)"}
+                    placeholder={paymentType === 'partial' ? t('pos.customer_name_required') : t('pos.customer_name_optional')}
                     value={customerInfo.name}
                     onChange={(e) => setCustomerInfo({...customerInfo, name: e.target.value})}
                     className={paymentType === 'partial' && !customerInfo.name ? 'required-field' : ''}
@@ -1375,7 +1560,7 @@ const PointOfSale = () => {
                 <div className="form-group">
                   <input
                     type="tel"
-                    placeholder="Phone Number (Optional)"
+                    placeholder={t('pos.phone_optional')}
                     value={customerInfo.phone}
                     onChange={(e) => setCustomerInfo({...customerInfo, phone: e.target.value})}
                   />
@@ -1383,7 +1568,7 @@ const PointOfSale = () => {
                 <div className="form-group">
                   <input
                     type="email"
-                    placeholder="Email (Optional)"
+                    placeholder={t('pos.email_optional')}
                     value={customerInfo.email}
                     onChange={(e) => setCustomerInfo({...customerInfo, email: e.target.value})}
                   />
@@ -1461,8 +1646,8 @@ const PointOfSale = () => {
                   variant="primary"
                   disabled={cart.length === 0}
                 >
-                  {saleMode === 'complete' ? 'Complete Sale' : 'Create Pending Sale'}
-                  {printReceipt && ' & Print Receipt'}
+                  {saleMode === 'complete' ? t('pos.complete_sale') : t('pos.create_pending_sale')}
+                  {printReceipt && t('pos.print_receipt')}
                 </Button>
               </div>
             </>
