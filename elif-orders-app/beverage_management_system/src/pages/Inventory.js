@@ -26,9 +26,14 @@ const Inventory = () => {
     min_stock_level: '',
     max_stock_level: '',
     tax_class: '',
+    has_packaging: false,
+    packaging_price: '',
+    storage_type: 'STR',
+    storage_section: '',
     is_active: true
   });
   const [allUnits, setAllUnits] = useState([]);
+  const [baseUnits, setBaseUnits] = useState([]);
   const [allTaxClasses, setAllTaxClasses] = useState([]);
   const [compatibleUnits, setCompatibleUnits] = useState([]);
   const [showAddUnitModal, setShowAddUnitModal] = useState(false);
@@ -43,7 +48,15 @@ const Inventory = () => {
     try {
       setLoading(true);
       const response = await api.get('/api/products/');
-      setProducts(response.data.results || response.data);
+      const productsData = response.data.results || response.data;
+      console.log('Fetched products sample:', productsData.slice(0, 2).map(p => ({
+        name: p.name,
+        has_packaging: p.has_packaging,
+        packaging_price: p.packaging_price,
+        storage_type: p.storage_type,
+        storage_section: p.storage_section
+      })));
+      setProducts(productsData);
     } catch (err) {
       console.error('Error fetching products:', err);
       setError('Failed to fetch products');
@@ -56,7 +69,9 @@ const Inventory = () => {
   const fetchCategories = useCallback(async () => {
     try {
       const response = await api.get('/api/products/categories/');
-      setCategories(response.data.results || response.data);
+      const categoriesData = response.data.results || response.data;
+      console.log('Fetched categories:', categoriesData);
+      setCategories(categoriesData);
     } catch (err) {
       console.error('Error fetching categories:', err);
     }
@@ -65,8 +80,9 @@ const Inventory = () => {
   // Fetch units
   const fetchUnits = useCallback(async () => {
     try {
+      // First, get all units for general use
       let allUnitsData = [];
-      let nextUrl = '/products/units/';
+      let nextUrl = '/api/products/units/';
       
       while (nextUrl) {
         const response = await api.get(nextUrl);
@@ -81,7 +97,14 @@ const Inventory = () => {
         }
       }
       
+      // Also get base units specifically
+      const baseUnitsResponse = await api.get('/api/products/base-units/');
+      const baseUnitsData = baseUnitsResponse.data.results || baseUnitsResponse.data;
+      
+      console.log('Fetched all units:', allUnitsData);
+      console.log('Fetched base units:', baseUnitsData);
       setAllUnits(allUnitsData);
+      setBaseUnits(baseUnitsData);
     } catch (err) {
       console.error('Error fetching units:', err);
     }
@@ -91,7 +114,9 @@ const Inventory = () => {
   const fetchTaxClasses = useCallback(async () => {
     try {
       const response = await api.get('/api/products/tax-classes/');
-      setAllTaxClasses(response.data.results || response.data);
+      const taxClassesData = response.data.results || response.data;
+      console.log('Fetched tax classes:', taxClassesData);
+      setAllTaxClasses(taxClassesData);
     } catch (err) {
       console.error('Error fetching tax classes:', err);
     }
@@ -135,11 +160,16 @@ const Inventory = () => {
       category: '',
       base_unit: '',
       price: '',
+      wholesale_price: '',
       cost_price: '',
       stock_quantity: '',
       min_stock_level: '',
       max_stock_level: '',
       tax_class: '',
+      has_packaging: false,
+      packaging_price: '',
+      storage_type: 'STR',
+      storage_section: '',
       is_active: true
     });
     setCompatibleUnits([]);
@@ -177,6 +207,10 @@ const Inventory = () => {
         min_stock_level: freshProduct.min_stock_level || '',
         max_stock_level: freshProduct.max_stock_level || '',
         tax_class: freshProduct.tax_class || '',
+        has_packaging: freshProduct.has_packaging || false,
+        packaging_price: freshProduct.packaging_price || '',
+        storage_type: freshProduct.storage_type || 'STR',
+        storage_section: freshProduct.storage_section || '',
         is_active: freshProduct.is_active !== false
       });
       
@@ -292,7 +326,7 @@ const Inventory = () => {
       if (!compatibleUnit) return;
 
       // Update the default unit via API
-      await api.patch(`/products/${editingProduct.id}/units/${productUnitId}/`, {
+      await api.patch(`/api/products/${editingProduct.id}/units/${productUnitId}/`, {
         is_default: true
       });
 
@@ -461,12 +495,15 @@ const Inventory = () => {
               <th>Default Unit</th>
               <th>Price</th>
               <th>Stock</th>
+              <th>Packaging</th>
+              <th>Storage</th>
               <th>Status</th>
               <th>Actions</th>
             </tr>
           </thead>
           <tbody>
             {filteredProducts.map(product => {
+              
               // Find the default unit from compatible units
               const defaultUnit = product.compatible_units?.find(cu => cu.is_default);
               const defaultUnitName = defaultUnit ? 
@@ -481,6 +518,36 @@ const Inventory = () => {
                   <td>{defaultUnitName}</td>
                   <td>{product.price ? `MGA ${parseFloat(product.price).toFixed(2)}` : 'N/A'}</td>
                   <td>{product.stock_quantity || 0}</td>
+                  <td>
+                    {product.has_packaging === true || product.has_packaging === 'true' || product.has_packaging === 1 ? (
+                      <span className="packaging-info">
+                        <span className="packaging-badge">PKG</span>
+                        {product.packaging_price && product.packaging_price > 0 && (
+                          <span className="packaging-price">MGA {parseFloat(product.packaging_price).toFixed(2)}</span>
+                        )}
+                      </span>
+                    ) : (
+                      <span className="no-packaging">No</span>
+                    )}
+                  </td>
+                  <td>
+                    <span className="storage-info">
+                      {product.storage_type && product.storage_type !== '' ? (
+                        <>
+                          <span className={`storage-type ${product.storage_type}`}>
+                            {product.storage_type === 'STR' ? 'Front Storage' : 
+                             product.storage_type === 'SSO' ? 'Back Storage' : 
+                             product.storage_type}
+                          </span>
+                          {product.storage_section && product.storage_section !== '' && (
+                            <span className="storage-section">{product.storage_section}</span>
+                          )}
+                        </>
+                      ) : (
+                        <span className="no-storage">-</span>
+                      )}
+                    </span>
+                  </td>
                 <td>
                   <span className={`status ${product.is_active ? 'active' : 'inactive'}`}>
                     {product.is_active ? 'Active' : 'Inactive'}
@@ -557,11 +624,11 @@ const Inventory = () => {
                 required
               >
                 <option value="">Select Category</option>
-                {categories.map(category => (
+                {categories.length > 0 ? categories.map(category => (
                   <option key={category.id} value={category.id}>
                     {category.name}
                   </option>
-                ))}
+                )) : <option value="">Loading categories...</option>}
               </select>
             </div>
                 
@@ -574,11 +641,11 @@ const Inventory = () => {
                     required
                   >
                     <option value="">Select Base Unit</option>
-                    {allUnits.filter(unit => unit.is_base_unit).map(unit => (
+                    {baseUnits.length > 0 ? baseUnits.map(unit => (
                       <option key={unit.id} value={unit.id}>
                         {unit.name} ({unit.symbol})
                       </option>
-                    ))}
+                    )) : <option value="">Loading base units...</option>}
                   </select>
                 </div>
               </div>
@@ -602,11 +669,11 @@ const Inventory = () => {
                     onChange={(e) => setProductFormData({ ...productFormData, tax_class: e.target.value })}
                   >
                     <option value="">No Tax</option>
-                    {allTaxClasses.map(taxClass => (
+                    {allTaxClasses.length > 0 ? allTaxClasses.map(taxClass => (
                   <option key={taxClass.id} value={taxClass.id}>
                     {taxClass.name} ({taxClass.tax_rate}%)
                   </option>
-                ))}
+                )) : <option value="">Loading tax classes...</option>}
               </select>
             </div>
           </div>
@@ -712,6 +779,67 @@ const Inventory = () => {
                     step="0.01"
                   />
           </div>
+              </div>
+
+              {/* Packaging Consignation Section */}
+              <div className="form-section">
+                <h3>Packaging Consignation</h3>
+                <div className="form-group checkbox-group">
+                  <label className="checkbox-label">
+                    <input
+                      type="checkbox"
+                      checked={productFormData.has_packaging}
+                      onChange={(e) => setProductFormData({ ...productFormData, has_packaging: e.target.checked })}
+                    />
+                    <span className="checkmark"></span>
+                    This product has packaging consignation (e.g., bottle deposit)
+                  </label>
+                </div>
+                
+                {productFormData.has_packaging && (
+                  <div className="form-group">
+                    <label htmlFor="packaging_price">Packaging Price (MGA)</label>
+                    <input
+                      type="number"
+                      id="packaging_price"
+                      value={productFormData.packaging_price}
+                      onChange={(e) => setProductFormData({ ...productFormData, packaging_price: e.target.value })}
+                      min="0"
+                      step="0.01"
+                      placeholder="e.g., 500 for bottle deposit"
+                    />
+                  </div>
+                )}
+              </div>
+
+              {/* Storage Section */}
+              <div className="form-section">
+                <h3>Storage Location</h3>
+                <div className="form-row">
+                  <div className="form-group">
+                    <label htmlFor="storage_type">Storage Type</label>
+                    <select
+                      id="storage_type"
+                      value={productFormData.storage_type}
+                      onChange={(e) => setProductFormData({ ...productFormData, storage_type: e.target.value })}
+                    >
+                      <option value="STR">Front Storage (STR)</option>
+                      <option value="SSO">Back Storage (SSO)</option>
+                    </select>
+                  </div>
+                  
+                  <div className="form-group">
+                    <label htmlFor="storage_section">Storage Section Code</label>
+                    <input
+                      type="text"
+                      id="storage_section"
+                      value={productFormData.storage_section}
+                      onChange={(e) => setProductFormData({ ...productFormData, storage_section: e.target.value.toUpperCase() })}
+                      placeholder="e.g., A12, G11, K10, C33"
+                      maxLength="10"
+                    />
+                  </div>
+                </div>
               </div>
 
               {editingProduct && (

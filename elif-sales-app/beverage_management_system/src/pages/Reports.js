@@ -10,15 +10,9 @@ const Reports = () => {
   const [success, setSuccess] = useState('');
   const [reports, setReports] = useState([]);
   const [selectedReportType, setSelectedReportType] = useState('');
-  // Helper function to get today's date in YYYY-MM-DD format
-  const getTodayDate = () => {
-    const today = new Date();
-    return today.toISOString().split('T')[0];
-  };
-
   const [reportFilters, setReportFilters] = useState({
-    start_date: getTodayDate(),
-    end_date: getTodayDate(),
+    start_date: '',
+    end_date: '',
     product_id: '',
     category_id: '',
     customer_name: ''
@@ -71,7 +65,7 @@ const Reports = () => {
   const fetchReports = async () => {
     try {
       setLoading(true);
-      const response = await api.get('/api/reports/');
+      const response = await api.get('/reports/');
       setReports(response.data);
     } catch (err) {
       setError('Failed to load reports');
@@ -188,7 +182,7 @@ const Reports = () => {
         parameters: reportFilters
       };
 
-      await api.post('/api/reports/', reportData);
+      await api.post('/reports/', reportData);
       
       // Generate the actual file based on format
       let fileName = '';

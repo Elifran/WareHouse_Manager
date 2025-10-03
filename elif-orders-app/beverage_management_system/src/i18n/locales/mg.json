@@ -143,7 +143,20 @@
     "no_products": "Tsy hita vokatra",
     "search_products": "Karohy vokatra...",
     "filter_by_category": "Sivana araka ny sokajy",
-    "filter_by_status": "Sivana araka ny sata"
+    "filter_by_status": "Sivana araka ny sata",
+    "packaging_consignation": "Fampindramam-bola fonosana",
+    "has_packaging": "Manana fonosana",
+    "packaging_price": "Vidiny fonosana",
+    "packaging_description": "Manana fampindramam-bola fonosana ity vokatra ity (ohatra: petra-bola tavoahangy)",
+    "packaging_placeholder": "ohatra: 500 ho petra-bola tavoahangy",
+    "storage_location": "Toerana fitahirizana",
+    "storage_type": "Karazana fitahirizana",
+    "storage_section": "Kaody fizarana fitahirizana",
+    "storage_front": "Fitahirizana aloha (STR)",
+    "storage_back": "Fitahirizana aoriana (SSO)",
+    "storage_placeholder": "ohatra: A12, G11, K10, C33",
+    "packaging": "Fonosana",
+    "storage": "Fitahirizana"
   },
   "sales": {
     "title": "Fitantanana varotra",
@@ -441,7 +454,7 @@
     "current_language": "Fiteny ankehitriny"
   },
   "app": {
-    "title": "ELIF Varotra",
+    "title": "ELIF Baiko",
     "no_data_available": "Tsy misy angona",
     "unknown_user": "Mpampiasa Tsy Fantatra",
     "unknown_product": "Vokatra Tsy Fantatra",

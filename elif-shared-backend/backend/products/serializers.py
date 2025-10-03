@@ -249,7 +249,8 @@ class ProductSerializer(serializers.ModelSerializer):
             'sku', 'price', 'wholesale_price', 'cost_price', 'stock_quantity', 'min_stock_level', 
             'max_stock_level', 'unit', 'base_unit', 'base_unit_name', 'base_unit_symbol', 
             'available_units', 'compatible_units', 'stock_in_units', 'is_active', 'profit_margin', 
-            'is_low_stock', 'is_out_of_stock', 'created_at', 'updated_at'
+            'is_low_stock', 'is_out_of_stock', 'has_packaging', 'packaging_price', 'storage_type', 
+            'storage_section', 'created_at', 'updated_at'
         ]
         read_only_fields = ['id', 'created_at', 'updated_at']
     

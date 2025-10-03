@@ -31,6 +31,8 @@ i18n
       order: ['localStorage', 'navigator', 'htmlTag'],
       caches: ['localStorage'],
       lookupLocalStorage: 'i18nextLng',
+      cookieMinutes: 60 * 24 * 7, // 7 days
+      cookieDomain: 'localhost',
     },
 
     interpolation: {
@@ -49,6 +51,14 @@ i18n
     // Namespaces
     ns: ['translation'],
     defaultNS: 'translation',
+    
+    // Save language to localStorage on change
+    saveMissing: false,
+    
+    // React options
+    react: {
+      useSuspense: false,
+    },
   });
 
 export default i18n;

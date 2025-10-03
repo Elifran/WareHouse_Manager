@@ -46,11 +46,11 @@ const Navbar = () => {
     };
   }, []);
 
-  // Sales App - Sales-focused navigation only
+  // Orders App - Order management navigation
   const navigationItems = [
-    { name: t('navigation.pos'), path: '/pos', icon: '🛒' },
-    { name: t('navigation.pending_sales'), path: '/pending-sales', icon: '⏳' },
-    { name: t('navigation.sales_management'), path: '/sales-management', icon: '📊' }
+    { name: t('navigation.purchase_orders'), path: '/purchase-orders', icon: '📋' },
+    { name: t('navigation.inventory'), path: '/inventory', icon: '📦' },
+    { name: t('navigation.suppliers'), path: '/suppliers', icon: '🏢' }
   ];
 
   return (

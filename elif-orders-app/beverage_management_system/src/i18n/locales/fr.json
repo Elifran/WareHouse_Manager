@@ -143,7 +143,20 @@
     "no_products": "Aucun produit trouvé",
     "search_products": "Rechercher des produits...",
     "filter_by_category": "Filtrer par catégorie",
-    "filter_by_status": "Filtrer par statut"
+    "filter_by_status": "Filtrer par statut",
+    "packaging_consignation": "Consignation d'emballage",
+    "has_packaging": "A un emballage",
+    "packaging_price": "Prix de l'emballage",
+    "packaging_description": "Ce produit a une consignation d'emballage (ex: dépôt de bouteille)",
+    "packaging_placeholder": "ex: 500 pour dépôt de bouteille",
+    "storage_location": "Emplacement de stockage",
+    "storage_type": "Type de stockage",
+    "storage_section": "Code de section de stockage",
+    "storage_front": "Stockage avant (STR)",
+    "storage_back": "Stockage arrière (SSO)",
+    "storage_placeholder": "ex: A12, G11, K10, C33",
+    "packaging": "Emballage",
+    "storage": "Stockage"
   },
   "sales": {
     "title": "Gestion des ventes",
@@ -441,7 +454,7 @@
     "current_language": "Langue actuelle"
   },
   "app": {
-    "title": "ELIF Ventes",
+    "title": "ELIF Commandes",
     "no_data_available": "Aucune donnée disponible",
     "unknown_user": "Utilisateur Inconnu",
     "unknown_product": "Produit Inconnu",

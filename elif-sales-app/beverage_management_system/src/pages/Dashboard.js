@@ -27,38 +27,10 @@ const Dashboard = () => {
   const fetchDashboardData = async () => {
     try {
       setLoading(true);
-      // For Orders app, fetch order-related data instead of sales reports
-      const [purchaseOrdersResponse, deliveriesResponse, pendingDeliveriesResponse, suppliersResponse] = await Promise.all([
-        api.get('/api/purchases/purchase-orders/'),
-        api.get('/api/purchases/deliveries/'),
-        api.get('/api/purchases/deliveries/pending/'),
-        api.get('/api/purchases/suppliers/')
-      ]);
-      
-      // Calculate order-related metrics
-      const totalOrders = purchaseOrdersResponse.data.length;
-      const totalDeliveries = deliveriesResponse.data.length;
-      const pendingDeliveries = pendingDeliveriesResponse.data.length;
-      const totalSuppliers = suppliersResponse.data.length;
-      
-      // Calculate total order value
-      const totalOrderValue = purchaseOrdersResponse.data.reduce((sum, order) => {
-        return sum + (order.total_amount || 0);
-      }, 0);
-      
-      setDashboardData({
-        orders: {
-          total_orders: totalOrders,
-          total_value: totalOrderValue
-        },
-        deliveries: {
-          total_deliveries: totalDeliveries,
-          pending_deliveries: pendingDeliveries
-        },
-        suppliers: {
-          total_suppliers: totalSuppliers
-        }
-      });
+      // For sales teams, don't send period parameter (backend will default to daily)
+      const url = isSalesTeam ? '/api/reports/dashboard/' : `/api/reports/dashboard/?period=${selectedPeriod}`;
+      const response = await api.get(url);
+      setDashboardData(response.data);
     } catch (err) {
       setError(t('dashboard.failed_to_load'));
       console.error('Dashboard error:', err);
@@ -154,20 +126,20 @@ const Dashboard = () => {
       </div>
 
       <div className="dashboard-grid">
-        {/* Orders Summary Cards */}
+        {/* Sales Summary Cards */}
         <div className="metric-card">
-          <div className="metric-icon orders">
+          <div className="metric-icon sales">
             <svg viewBox="0 0 24 24" fill="currentColor">
-              <path d="M19 7h-1V6a4 4 0 0 0-8 0v1H9a1 1 0 0 0-1 1v11a3 3 0 0 0 3 3h8a3 3 0 0 0 3-3V8a1 1 0 0 0-1-1zM12 4a2 2 0 0 1 2 2v1h-4V6a2 2 0 0 1 2-2zm6 15a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V9h2v1a1 1 0 0 0 2 0V9h4v1a1 1 0 0 0 2 0V9h2v10z"/>
+              <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
             </svg>
           </div>
           <div className="metric-content">
-            <h3>Total Orders</h3>
+            <h3>{t('dashboard.total_revenue')}</h3>
             <p className="metric-value">
-              {dashboardData?.orders?.total_orders || 0}
+              {dashboardData?.sales?.total_sales?.toFixed(2) || '0.00'} MGA
             </p>
             <p className="metric-label">
-              orders
+              {dashboardData?.sales?.total_count || 0} {t('dashboard.transactions')}
             </p>
           </div>
         </div>
@@ -175,35 +147,35 @@ const Dashboard = () => {
         {!isSalesTeam && (
           <>
             <div className="metric-card">
-              <div className="metric-icon deliveries">
+              <div className="metric-icon cost">
                 <svg viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M19 7h-1V6a4 4 0 0 0-8 0v1H9a1 1 0 0 0-1 1v11a3 3 0 0 0 3 3h8a3 3 0 0 0 3-3V8a1 1 0 0 0-1-1zM12 4a2 2 0 0 1 2 2v1h-4V6a2 2 0 0 1 2-2zm6 15a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V9h2v1a1 1 0 0 0 2 0V9h4v1a1 1 0 0 0 2 0V9h2v10z"/>
+                  <path d="M11.8 10.9c-2.27-.59-3-1.2-3-2.15 0-1.09 1.01-1.85 2.7-1.85 1.78 0 2.44.85 2.5 2.1h2.21c-.07-1.72-1.12-3.3-3.21-3.81V3h-3v2.16c-1.94.42-3.5 1.68-3.5 3.61 0 2.31 1.91 3.46 4.7 4.13 2.5.6 3 1.48 3 2.41 0 .69-.49 1.79-2.7 1.79-2.06 0-2.87-.92-2.98-2.1h-2.2c.12 2.19 1.76 3.42 3.68 3.83V21h3v-2.15c1.95-.37 3.5-1.5 3.5-3.55 0-2.84-2.43-3.81-4.7-4.4z"/>
                 </svg>
               </div>
               <div className="metric-content">
-                <h3>Total Deliveries</h3>
+                <h3>{t('dashboard.total_cost')}</h3>
                 <p className="metric-value">
-                  {dashboardData?.deliveries?.total_deliveries || 0}
+                  {dashboardData?.sales?.total_cost?.toFixed(2) || '0.00'} MGA
                 </p>
                 <p className="metric-label">
-                  Completed Deliveries
+                  {t('dashboard.cost_of_goods_sold')}
                 </p>
               </div>
             </div>
 
             <div className="metric-card">
-              <div className="metric-icon pending">
+              <div className="metric-icon profit">
                 <svg viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
+                  <path d="M16 6l2.29 2.29-4.88 4.88-4-4L2 16.59 3.41 18l6-6 4 4 6.3-6.29L22 12V6z"/>
                 </svg>
               </div>
               <div className="metric-content">
-                <h3>Pending Deliveries</h3>
+                <h3>{t('dashboard.profit')}</h3>
                 <p className="metric-value">
-                  {dashboardData?.deliveries?.pending_deliveries || 0}
+                  {dashboardData?.sales?.profit?.toFixed(2) || '0.00'} MGA
                 </p>
                 <p className="metric-label">
-                  Awaiting Confirmation
+                  {dashboardData?.sales?.profit_margin?.toFixed(1) || '0.0'}% {t('dashboard.margin')}
                 </p>
               </div>
             </div>
@@ -211,18 +183,24 @@ const Dashboard = () => {
         )}
 
         <div className="metric-card">
-          <div className="metric-icon suppliers">
+          <div className="metric-icon inventory">
             <svg viewBox="0 0 24 24" fill="currentColor">
               <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
             </svg>
           </div>
           <div className="metric-content">
-            <h3>Total Suppliers</h3>
+            <h3>{isSalesTeam ? t('dashboard.total_products') : t('dashboard.inventory_value')}</h3>
             <p className="metric-value">
-              {dashboardData?.suppliers?.total_suppliers || 0}
+              {isSalesTeam 
+                ? dashboardData?.inventory?.total_products || 0
+                : `${dashboardData?.inventory?.total_inventory_value?.toFixed(2) || '0.00'} MGA`
+              }
             </p>
             <p className="metric-label">
-              Active Suppliers
+              {isSalesTeam 
+                ? t('dashboard.available_products')
+                : `${dashboardData?.inventory?.total_products || 0} ${t('dashboard.products')}`
+              }
             </p>
           </div>
         </div>

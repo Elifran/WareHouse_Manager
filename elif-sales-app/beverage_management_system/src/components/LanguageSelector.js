@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import './LanguageSelector.css';
 
@@ -14,9 +14,20 @@ const LanguageSelector = () => {
 
   const currentLanguage = languages.find(lang => lang.code === i18n.language) || languages[0];
 
+  // Ensure language is loaded from localStorage on mount
+  useEffect(() => {
+    const savedLanguage = localStorage.getItem('i18nextLng');
+    if (savedLanguage && savedLanguage !== i18n.language) {
+      i18n.changeLanguage(savedLanguage);
+    }
+  }, [i18n]);
+
   const handleLanguageChange = (languageCode) => {
     i18n.changeLanguage(languageCode);
     setIsOpen(false);
+    
+    // Explicitly save to localStorage to ensure persistence
+    localStorage.setItem('i18nextLng', languageCode);
     
     // Show success message
     const message = t('language.language_changed');
