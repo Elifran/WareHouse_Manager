@@ -28,9 +28,13 @@ i18n
     debug: false,
     
     detection: {
-      order: ['localStorage', 'navigator', 'htmlTag'],
-      caches: ['localStorage'],
+      order: ['sessionStorage', 'localStorage', 'cookie', 'navigator', 'htmlTag'],
+      caches: ['sessionStorage', 'localStorage', 'cookie'],
+      lookupSessionStorage: 'i18nextLng',
       lookupLocalStorage: 'i18nextLng',
+      lookupCookie: 'i18next',
+      cookieMinutes: 60 * 24 * 30, // 30 days
+      cookieDomain: window.location.hostname,
     },
 
     interpolation: {
@@ -49,6 +53,14 @@ i18n
     // Namespaces
     ns: ['translation'],
     defaultNS: 'translation',
+    
+    // Save language to storage on change
+    saveMissing: false,
+    
+    // React options
+    react: {
+      useSuspense: false,
+    },
   });
 
 export default i18n;
