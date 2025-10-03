@@ -1,0 +1,626 @@
+.dashboard {
+  padding: 2rem;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.dashboard-header {
+  margin-bottom: 2rem;
+}
+
+.header-content {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.header-text h1 {
+  color: #1f2937;
+  font-size: 2rem;
+  font-weight: 700;
+  margin: 0 0 0.5rem 0;
+}
+
+.header-text p {
+  color: #6b7280;
+  margin: 0;
+}
+
+.role-indicator {
+  color: #f59e0b !important;
+  font-size: 0.875rem;
+  font-weight: 500;
+  margin: 0.25rem 0 0 0 !important;
+}
+
+.period-selector {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.period-selector label {
+  color: #374151;
+  font-weight: 500;
+  font-size: 0.875rem;
+}
+
+.period-select {
+  padding: 0.5rem 0.75rem;
+  border: 1px solid #d1d5db;
+  border-radius: 0.375rem;
+  background: white;
+  color: #374151;
+  font-size: 0.875rem;
+  cursor: pointer;
+}
+
+.period-select:focus {
+  outline: none;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 1.5rem;
+  margin-bottom: 3rem;
+}
+
+.metric-card {
+  background: white;
+  border-radius: 0.5rem;
+  padding: 1.5rem;
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+}
+
+.metric-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+}
+
+.metric-icon {
+  width: 3rem;
+  height: 3rem;
+  border-radius: 0.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+}
+
+.metric-icon svg {
+  width: 1.5rem;
+  height: 1.5rem;
+}
+
+.metric-icon.sales {
+  background-color: #10b981;
+}
+
+.metric-icon.cost {
+  background-color: #f59e0b;
+}
+
+.metric-icon.profit {
+  background-color: #3b82f6;
+}
+
+.metric-icon.inventory {
+  background-color: #8b5cf6;
+}
+
+.metric-icon.retail {
+  background-color: #06b6d4;
+}
+
+.metric-icon.alert {
+  background-color: #ef4444;
+}
+
+.metric-content h3 {
+  color: #6b7280;
+  font-size: 0.875rem;
+  font-weight: 500;
+  margin: 0 0 0.25rem 0;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.metric-value {
+  color: #1f2937;
+  font-size: 1.875rem;
+  font-weight: 700;
+  margin: 0 0 0.25rem 0;
+}
+
+.metric-label {
+  color: #6b7280;
+  font-size: 0.875rem;
+  margin: 0;
+}
+
+.dashboard-section {
+  background: white;
+  border-radius: 0.5rem;
+  padding: 1.5rem;
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
+  margin-bottom: 2rem;
+}
+
+.section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+.section-header h2 {
+  margin: 0;
+  color: #1f2937;
+  font-size: 1.25rem;
+  font-weight: 600;
+}
+
+.print-recent-sales-btn {
+  font-size: 0.875rem;
+  padding: 0.5rem 1rem;
+}
+
+.dashboard-section h2 {
+  color: #1f2937;
+  font-size: 1.25rem;
+  font-weight: 600;
+  margin: 0 0 1.5rem 0;
+}
+
+.recent-sales,
+.top-products {
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.sales-list,
+.products-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.sale-item,
+.product-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem;
+  background-color: #f9fafb;
+  border-radius: 0.375rem;
+  border: 1px solid #e5e7eb;
+  transition: all 0.2s ease;
+  position: relative;
+}
+
+.sale-item.clickable {
+  cursor: pointer;
+}
+
+.sale-item.clickable:hover {
+  background-color: #f3f4f6;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  border-color: #3b82f6;
+}
+
+.sale-arrow {
+  color: #9ca3af;
+  transition: all 0.2s ease;
+  margin-left: 0.5rem;
+}
+
+.sale-arrow svg {
+  width: 1rem;
+  height: 1rem;
+}
+
+.sale-item.clickable:hover .sale-arrow {
+  color: #3b82f6;
+  transform: translateX(2px);
+}
+
+.sale-info h4,
+.product-info h4 {
+  color: #1f2937;
+  font-size: 0.875rem;
+  font-weight: 600;
+  margin: 0 0 0.25rem 0;
+}
+
+.sale-info p,
+.product-info p {
+  color: #6b7280;
+  font-size: 0.75rem;
+  margin: 0;
+}
+
+.sale-amount,
+.product-stats {
+  text-align: right;
+}
+
+.sale-amount span,
+.product-stats span {
+  color: #1f2937;
+  font-weight: 600;
+  display: block;
+  margin-bottom: 0.25rem;
+}
+
+.sale-amount small,
+.product-stats small {
+  color: #6b7280;
+  font-size: 0.75rem;
+}
+
+.no-data {
+  color: #6b7280;
+  font-style: italic;
+  text-align: center;
+  padding: 2rem;
+}
+
+/* Sales Chart */
+.sales-chart {
+  background: white;
+  border-radius: 0.5rem;
+  padding: 1.5rem;
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1);
+}
+
+.chart-container {
+  margin-top: 1rem;
+}
+
+.chart-bars {
+  display: flex;
+  align-items: end;
+  gap: 0.5rem;
+  height: 200px;
+  padding: 1rem 0;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.chart-bar {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.bar-group {
+  display: flex;
+  align-items: end;
+  gap: 2px;
+  height: 100%;
+  width: 100%;
+  max-width: 40px;
+}
+
+.bar {
+  width: 100%;
+  border-radius: 2px 2px 0 0;
+  transition: opacity 0.2s ease;
+}
+
+.bar:hover {
+  opacity: 0.8;
+}
+
+.sales-bar {
+  background: linear-gradient(to top, #10b981, #34d399);
+  margin-bottom: 1px;
+}
+
+.cost-bar {
+  background: linear-gradient(to top, #f59e0b, #fbbf24);
+}
+
+.bar-label {
+  font-size: 0.75rem;
+  color: #6b7280;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.bar-values {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  font-size: 0.625rem;
+  text-align: center;
+}
+
+.bar-values .value {
+  padding: 1px 2px;
+  border-radius: 2px;
+  font-weight: 500;
+}
+
+.bar-values .value.sales {
+  background: #d1fae5;
+  color: #065f46;
+}
+
+.bar-values .value.cost {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.chart-legend {
+  display: flex;
+  justify-content: center;
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.875rem;
+  color: #374151;
+}
+
+.legend-color {
+  width: 12px;
+  height: 12px;
+  border-radius: 2px;
+}
+
+.legend-color.sales {
+  background: #10b981;
+}
+
+.legend-color.cost {
+  background: #f59e0b;
+}
+
+/* Enhanced Product Stats */
+.product-stats {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-width: 120px;
+}
+
+.stat-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.75rem;
+}
+
+.stat-label {
+  color: #6b7280;
+  font-weight: 500;
+}
+
+.stat-value {
+  color: #374151;
+  font-weight: 600;
+}
+
+.stat-value.profit {
+  color: #059669;
+}
+
+.stat-value.margin {
+  color: #3b82f6;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .header-content {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  
+  .period-selector {
+    align-self: stretch;
+  }
+  
+  .period-select {
+    flex: 1;
+  }
+  
+  .chart-bars {
+    height: 150px;
+  }
+  
+  .bar-group {
+    max-width: 30px;
+  }
+  
+  .product-stats {
+    min-width: 100px;
+  }
+}
+
+.dashboard-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 4rem;
+  color: #6b7280;
+}
+
+.dashboard-loading .spinner {
+  width: 3rem;
+  height: 3rem;
+  border: 3px solid #e5e7eb;
+  border-top: 3px solid #3b82f6;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin-bottom: 1rem;
+}
+
+.dashboard-error {
+  text-align: center;
+  padding: 4rem;
+  color: #dc2626;
+}
+
+.dashboard-error h2 {
+  margin: 0 0 1rem 0;
+}
+
+.dashboard-error button {
+  background-color: #3b82f6;
+  color: white;
+  border: none;
+  padding: 0.75rem 1.5rem;
+  border-radius: 0.375rem;
+  cursor: pointer;
+  font-weight: 500;
+  margin-top: 1rem;
+}
+
+.dashboard-error button:hover {
+  background-color: #2563eb;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* New Dashboard Elements */
+.latest-products .product-item,
+.best-seller-details .product-item {
+  background: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 0.5rem;
+  padding: 1.5rem;
+  transition: all 0.2s ease-in-out;
+}
+
+/* Cost Icon */
+.metric-icon.cost {
+  background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+}
+
+/* Chart Container */
+.chart-container {
+  background: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 0.5rem;
+  padding: 1.5rem;
+  margin-top: 1rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.latest-products .product-item:hover,
+.best-seller-details .product-item:hover {
+  border-color: #3b82f6;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+}
+
+.best-seller-details .product-item.featured {
+  border-color: #10b981;
+  background: linear-gradient(135deg, #f0fdf4 0%, #ffffff 100%);
+}
+
+.product-item .product-info h4 {
+  color: #1f2937;
+  font-size: 1.125rem;
+  font-weight: 600;
+  margin: 0 0 0.5rem 0;
+}
+
+.product-item .product-info p {
+  color: #6b7280;
+  font-size: 0.875rem;
+  margin: 0;
+}
+
+.product-item .product-stats {
+  margin-top: 1rem;
+}
+
+.product-item .stat-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid #f3f4f6;
+}
+
+.product-item .stat-row:last-child {
+  border-bottom: none;
+}
+
+.product-item .stat-label {
+  color: #6b7280;
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+.product-item .stat-value {
+  color: #1f2937;
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.product-item .stat-value.highlight {
+  color: #10b981;
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+/* Metric Card Icons */
+.metric-icon.profit {
+  background: linear-gradient(135deg, #10b981, #059669);
+}
+
+.metric-icon.best-seller {
+  background: linear-gradient(135deg, #f59e0b, #d97706);
+}
+
+.metric-icon.out-of-stock {
+  background: linear-gradient(135deg, #ef4444, #dc2626);
+}
+
+@media (max-width: 768px) {
+  .dashboard {
+    padding: 1rem;
+  }
+  
+  .dashboard-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .metric-card {
+    padding: 1rem;
+  }
+  
+  .sale-item,
+  .product-item {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.5rem;
+  }
+  
+  .sale-amount,
+  .product-stats {
+    text-align: left;
+  }
+}
