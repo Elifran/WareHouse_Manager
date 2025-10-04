@@ -1,6 +1,27 @@
 import axios from 'axios';
 
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000';
+// Support both static and dynamic IP addresses
+const getApiBaseUrl = () => {
+  const envUrl = process.env.REACT_APP_API_URL;
+  if (envUrl) {
+    return envUrl;
+  }
+  
+  // Try to detect the current host and use appropriate backend URL
+  const currentHost = window.location.hostname;
+  if (currentHost === '10.10.1.1') {
+    return 'http://10.10.1.1:8000';
+  } else if (currentHost === '192.168.13.215') {
+    return 'http://192.168.13.215:8000';
+  } else if (currentHost.includes('elif')) {
+    return 'http://api.elif';
+  }
+  
+  // Default fallback
+  return 'http://localhost:8000';
+};
+
+const API_BASE_URL = getApiBaseUrl();
 
 const api = axios.create({
   baseURL: API_BASE_URL,

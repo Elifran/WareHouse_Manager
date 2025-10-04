@@ -17,7 +17,7 @@ DEBUG = True
 
 ALLOWED_HOSTS = [
     '10.10.1.1',
-    '192.168.237.215',  # Dynamic IP (updated by deploy script)
+    '192.168.13.215',  # Dynamic IP (updated by deploy script)
     '127.0.0.1',  # For health checks and internal routing
     'orders.elif',
     'sales.elif',
@@ -157,9 +157,9 @@ CORS_ALLOWED_ORIGINS = [
     "http://10.10.1.1:3000",
     "http://10.10.1.1:3001",
     "http://10.10.1.1:3002",
-    "http://192.168.237.215:3000",  # Dynamic IP (will be updated by scripts)
-    "http://192.168.237.215:3001",  # Dynamic IP (will be updated by scripts)
-    "http://192.168.237.215:3002",  # Dynamic IP (will be updated by scripts)
+    "http://192.168.13.215:3000",  # Dynamic IP (will be updated by scripts)
+    "http://192.168.13.215:3001",  # Dynamic IP (will be updated by scripts)
+    "http://192.168.13.215:3002",  # Dynamic IP (will be updated by scripts)
     "http://orders.elif",
     "http://sales.elif", 
     "http://admin.elif",
