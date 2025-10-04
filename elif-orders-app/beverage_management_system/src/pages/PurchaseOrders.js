@@ -284,7 +284,7 @@ const PurchaseOrders = () => {
       await api.post('/api/purchases/deliveries/', deliveryData);
       
       // Then archive the purchase order by updating its status
-      await api.patch(`/purchases/purchase-orders/${selectedOrder.id}/`, { status: 'archived' });
+      await api.patch(`/api/purchases/purchase-orders/${selectedOrder.id}/`, { status: 'archived' });
       
       fetchData();
       setShowDeliveryModal(false);

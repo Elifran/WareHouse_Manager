@@ -71,7 +71,7 @@ class PurchaseOrderDetailView(generics.RetrieveUpdateDestroyAPIView):
 
 
 class DeliveryListCreateView(generics.ListCreateAPIView):
-    queryset = Delivery.objects.all()
+    queryset = Delivery.objects.prefetch_related('items__product', 'items__purchase_order_item__product').select_related('purchase_order__supplier', 'received_by')
     permission_classes = [IsAuthenticated]
     
     def get_serializer_class(self):
@@ -91,7 +91,7 @@ class DeliveryListCreateView(generics.ListCreateAPIView):
 
 
 class DeliveryDetailView(generics.RetrieveUpdateDestroyAPIView):
-    queryset = Delivery.objects.all()
+    queryset = Delivery.objects.prefetch_related('items__product', 'items__purchase_order_item__product').select_related('purchase_order__supplier', 'received_by')
     permission_classes = [IsAuthenticated]
     
     def get_serializer_class(self):
@@ -183,7 +183,7 @@ def supplier_products(request, supplier_id):
 @permission_classes([IsAuthenticated])
 def pending_deliveries(request):
     """Get all pending deliveries that need to be confirmed"""
-    pending_deliveries = Delivery.objects.filter(status__in=['pending', 'received', 'verified'])
+    pending_deliveries = Delivery.objects.filter(status__in=['pending', 'received', 'verified']).prefetch_related('items__product', 'items__purchase_order_item__product').select_related('purchase_order__supplier', 'received_by')
     serializer = DeliverySerializer(pending_deliveries, many=True)
     return Response(serializer.data)
 
