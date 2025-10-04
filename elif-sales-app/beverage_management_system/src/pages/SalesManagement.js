@@ -419,19 +419,7 @@ const SalesManagement = () => {
     }
   }, [editFormData.payment_type, editFormData.items]);
 
-  // Check if user has permission to manage sales
-  const canManageSales = user?.role === 'admin' || user?.role === 'manager';
-
-  if (!canManageSales) {
-    return (
-      <div className="sales-management">
-        <div className="access-denied">
-          <h2>Access Denied</h2>
-          <p>You don't have permission to manage sales.</p>
-        </div>
-      </div>
-    );
-  }
+  // Sales app - all authenticated users can access sales management
 
   return (
     <div className="sales-management">

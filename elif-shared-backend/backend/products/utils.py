@@ -55,7 +55,7 @@ def get_unit_conversion_factor(from_unit_id, to_unit_id):
     
     # Check if to_unit is a base unit
     if not to_unit.is_base_unit:
-        print(f"Warning: to_unit {to_unit.name} is not a base unit. Converting to base unit first.")
+        # print(f"Warning: to_unit {to_unit.name} is not a base unit. Converting to base unit first.")
         # Find the base unit for this to_unit
         base_conversion = UnitConversion.objects.filter(
             from_unit=to_unit,
