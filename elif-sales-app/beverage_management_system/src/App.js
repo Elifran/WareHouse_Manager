@@ -4,9 +4,11 @@ import { AuthProvider, useAuth } from './contexts/AuthContext';
 import Navbar from './components/Navbar';
 import ConnectionStatus from './components/ConnectionStatus';
 import Login from './pages/Login';
-import PurchaseOrders from './pages/PurchaseOrders';
-import Suppliers from './pages/Suppliers';
-import Inventory from './pages/Inventory';
+import Dashboard from './pages/Dashboard';
+import PointOfSale from './pages/PointOfSale';
+import PendingSales from './pages/PendingSales';
+import SalesManagement from './pages/SalesManagement';
+import Reports from './pages/Reports';
 import './i18n'; // Initialize i18n
 import './App.css';
 
@@ -66,39 +68,55 @@ const AppRoutes = () => {
           <Routes>
             <Route 
               path="/login" 
-              element={isAuthenticated ? <Navigate to="/purchase-orders" /> : <Login />} 
+              element={isAuthenticated ? <Navigate to="/dashboard" /> : <Login />} 
             />
             <Route 
-              path="/purchase-orders" 
+              path="/dashboard" 
               element={
-                <RoleProtectedRoute allowedRoles={['admin', 'manager', 'purchaser']}>
-                  <PurchaseOrders />
+                <ProtectedRoute>
+                  <Dashboard />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/pos" 
+              element={
+                <ProtectedRoute>
+                  <PointOfSale />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/pending-sales" 
+              element={
+                <RoleProtectedRoute allowedRoles={['admin', 'manager', 'sales']}>
+                  <PendingSales />
                 </RoleProtectedRoute>
               } 
             />
             <Route 
-              path="/suppliers" 
+              path="/sales-management" 
               element={
-                <RoleProtectedRoute allowedRoles={['admin', 'manager', 'purchaser']}>
-                  <Suppliers />
+                <RoleProtectedRoute allowedRoles={['admin', 'manager', 'sales']}>
+                  <SalesManagement />
                 </RoleProtectedRoute>
               } 
             />
             <Route 
-              path="/inventory" 
+              path="/reports" 
               element={
-                <RoleProtectedRoute allowedRoles={['admin', 'manager', 'purchaser']}>
-                  <Inventory />
+                <RoleProtectedRoute allowedRoles={['admin', 'manager', 'sales']}>
+                  <Reports />
                 </RoleProtectedRoute>
               } 
             />
             <Route 
               path="/" 
-              element={<Navigate to="/purchase-orders" />} 
+              element={<Navigate to="/dashboard" />} 
             />
             <Route 
               path="*" 
-              element={<Navigate to="/purchase-orders" />} 
+              element={<Navigate to="/dashboard" />} 
             />
           </Routes>
         </main>

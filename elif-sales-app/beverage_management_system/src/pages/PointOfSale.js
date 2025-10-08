@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../contexts/AuthContext';
 import api from '../services/api';
@@ -23,7 +23,10 @@ const PointOfSale = () => {
   const [loading, setLoading] = useState(true);
   const [processing, setProcessing] = useState(false);
   const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
   const [stockAvailability, setStockAvailability] = useState({});
+  const [categoriesLoaded, setCategoriesLoaded] = useState(false);
+  const [categoryUpdating, setCategoryUpdating] = useState(false);
   const [filters, setFilters] = useState({
     category: '',
     search: ''
@@ -33,7 +36,47 @@ const PointOfSale = () => {
   const [tempQuantity, setTempQuantity] = useState('');
   const [selectedUnits, setSelectedUnits] = useState({}); // Track selected unit for each product
   const searchInputRef = useRef(null); // Ref for search input
+  const filtersRef = useRef(filters); // Ref to store current filters
   const searchTimeoutRef = useRef(null); // Ref for search timeout
+  const categoriesRef = useRef(categories); // Ref to store current categories
+  const categoriesLoadedRef = useRef(categoriesLoaded); // Ref to store categories loaded state
+
+  // Update refs whenever state changes
+  useEffect(() => {
+    filtersRef.current = filters;
+  }, [filters]);
+
+  useEffect(() => {
+    categoriesRef.current = categories;
+  }, [categories]);
+
+  useEffect(() => {
+    categoriesLoadedRef.current = categoriesLoaded;
+  }, [categoriesLoaded]);
+
+  // Function to sync session storage with categories state
+  const syncSessionStorage = useCallback(() => {
+    const sellableStatus = {};
+    categories.forEach(cat => {
+      sellableStatus[cat.id] = cat.is_sellable;
+    });
+    sessionStorage.setItem('sellableCategories', JSON.stringify(sellableStatus));
+  }, [categories]);
+
+  // Sync session storage whenever categories change
+  useEffect(() => {
+    if (categories.length > 0) {
+      syncSessionStorage();
+    }
+  }, [categories, syncSessionStorage]);
+
+  // Handle case where filters are cleared but categories aren't loaded yet
+  useEffect(() => {
+    if (categoriesLoadedRef.current && categoriesRef.current.length > 0 && filtersRef.current.category === '' && filtersRef.current.search === '') {
+      fetchProducts(filtersRef.current);
+    }
+  }, [categoriesLoaded, categories.length, filters]);
+
   const [showSellableToggle, setShowSellableToggle] = useState(false); // Show/hide sellable toggle
   const [priceMode, setPriceMode] = useState('standard'); // 'standard' or 'wholesale'
   const [saleMode, setSaleMode] = useState('complete'); // 'complete' or 'pending'
@@ -121,33 +164,38 @@ const PointOfSale = () => {
   useEffect(() => {
     const initializeData = async () => {
       await fetchCategories();
-      await fetchProducts(); // Wait for categories to be loaded before fetching products
+      // Don't fetch products here - let the categories useEffect handle it
     };
     initializeData();
   }, []);
 
   // Re-filter products when categories are loaded (to apply sellable filtering)
   useEffect(() => {
-    if (categories.length > 0 && products.length > 0) {
+    if (categoriesLoaded && categories.length > 0) {
       fetchProducts(filters); // Re-fetch with current filters to apply sellable filtering
     }
-  }, [categories.length]); // Only when categories are loaded
+  }, [categoriesLoaded]); // Only depend on categoriesLoaded flag
 
-  // Debounced search effect - completely rewritten for stability
+  // Debounced search effect - optimized to prevent focus loss
   useEffect(() => {
     // Clear existing timeout
     if (searchTimeoutRef.current) {
       clearTimeout(searchTimeoutRef.current);
     }
 
-    // Set new timeout
-    searchTimeoutRef.current = setTimeout(() => {
-      if (searchInput !== filters.search) {
-        const newFilters = { ...filters, search: searchInput };
+    // Only set timeout if searchInput is not empty or if it was cleared
+    if (searchInput !== '') {
+      searchTimeoutRef.current = setTimeout(() => {
+        const newFilters = { ...filtersRef.current, search: searchInput };
         setFilters(newFilters);
         fetchProducts(newFilters);
-      }
-    }, 500);
+      }, 500);
+    } else if (filtersRef.current.search !== '') {
+      // If search input is cleared, immediately update filters
+      const newFilters = { ...filtersRef.current, search: '' };
+      setFilters(newFilters);
+      fetchProducts(newFilters);
+    }
 
     // Cleanup function
     return () => {
@@ -155,7 +203,7 @@ const PointOfSale = () => {
         clearTimeout(searchTimeoutRef.current);
       }
     };
-  }, [searchInput, filters]); // Depend on searchInput and filters
+  }, [searchInput]); // Only depend on searchInput to prevent re-renders
 
   useEffect(() => {
     // Fetch stock availability for ALL products in bulk to improve performance
@@ -274,7 +322,7 @@ const PointOfSale = () => {
     });
   };
 
-  const fetchProducts = async (filterParams = {}) => {
+  const fetchProducts = useCallback(async (filterParams = {}) => {
     try {
       setLoading(true);
       const params = new URLSearchParams();
@@ -286,16 +334,12 @@ const PointOfSale = () => {
       if (filterParams.category) params.append('category', filterParams.category);
       if (filterParams.search) params.append('search', filterParams.search);
       
-      const url = `/products/${params.toString() ? '?' + params.toString() : ''}`;
+      const url = `/api/products/${params.toString() ? '?' + params.toString() : ''}`;
       const response = await api.get(url);
       const allProducts = response.data.results || response.data;
       
-      // Debug: Log the first product to see its structure
-      if (allProducts.length > 0) {
-      }
-      
       // If categories are not loaded yet, show all products but log a warning
-      if (categories.length === 0) {
+      if (categoriesRef.current.length === 0 || !categoriesLoadedRef.current) {
         setProducts(allProducts);
         return;
       }
@@ -304,18 +348,19 @@ const PointOfSale = () => {
       const sellableProducts = allProducts.filter(product => {
         let isSellable = false;
         
-        // If product has category information, check if category is sellable
-        if (product.category && product.category.is_sellable !== undefined) {
-          isSellable = product.category.is_sellable;
-        }
         // If product has category_name, find the category in our categories list
-        else if (product.category_name) {
-          const category = categories.find(cat => cat.name === product.category_name);
+        if (product.category_name) {
+          const category = categoriesRef.current.find(cat => cat.name === product.category_name);
           isSellable = category ? category.is_sellable : false; // Default to false if category not found (safer)
         }
         // If product has category ID, find the category in our categories list
         else if (product.category && typeof product.category === 'number') {
-          const category = categories.find(cat => cat.id === product.category);
+          const category = categoriesRef.current.find(cat => cat.id === product.category);
+          isSellable = category ? category.is_sellable : false; // Default to false if category not found (safer)
+        }
+        // If product has category object with ID, find the category in our categories list
+        else if (product.category && product.category.id) {
+          const category = categoriesRef.current.find(cat => cat.id === product.category.id);
           isSellable = category ? category.is_sellable : false; // Default to false if category not found (safer)
         }
         // If no category information, exclude the product (safer approach)
@@ -323,16 +368,12 @@ const PointOfSale = () => {
           isSellable = false;
         }
         
-        // Debug: Log filtering decision
-        if (!isSellable) {
-        }
-        
         return isSellable;
       });
 
       // Additional check: if a specific category is selected, ensure it's sellable
       if (filterParams.category) {
-        const selectedCategory = categories.find(cat => cat.id === parseInt(filterParams.category));
+        const selectedCategory = categoriesRef.current.find(cat => cat.id === parseInt(filterParams.category));
         if (selectedCategory && !selectedCategory.is_sellable) {
           // If selected category is not sellable, return empty array
           setProducts([]);
@@ -346,16 +387,92 @@ const PointOfSale = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, []); // No dependencies to avoid circular references
 
-  const fetchCategories = async () => {
+  const fetchCategories = useCallback(async () => {
     try {
       const response = await api.get('/api/products/categories/');
-      setCategories(response.data.results || response.data);
+      let categoriesData = response.data.results || response.data;
+      
+      // Load session-based sellable status from sessionStorage
+      const sellableStatus = JSON.parse(sessionStorage.getItem('sellableCategories') || '{}');
+      
+      // Apply session-based sellable status
+      categoriesData = categoriesData.map(cat => {
+        const isSellable = sellableStatus.hasOwnProperty(cat.id) ? sellableStatus[cat.id] : cat.is_sellable;
+        return {
+          ...cat,
+          is_sellable: isSellable
+        };
+      });
+      
+      setCategories(categoriesData);
+      setCategoriesLoaded(true);
     } catch (err) {
+      console.error('Error fetching categories:', err);
     }
-  };
+  }, []); // No dependencies needed for fetchCategories
 
+  const toggleCategorySellable = useCallback(async (categoryId, currentStatus) => {
+    try {
+      setCategoryUpdating(true);
+      const newStatus = !currentStatus;
+      
+      // Update session storage
+      const sellableStatus = JSON.parse(sessionStorage.getItem('sellableCategories') || '{}');
+      sellableStatus[categoryId] = newStatus;
+      sessionStorage.setItem('sellableCategories', JSON.stringify(sellableStatus));
+      
+      // Update categories state immediately for UI feedback
+      setCategories(prevCategories => 
+        prevCategories.map(cat => 
+          cat.id === categoryId ? { ...cat, is_sellable: newStatus } : cat
+        )
+      );
+      
+      // Immediately refetch products to apply the new filter
+      fetchProducts(filters); // Don't await - let it run in background for immediate UI response
+      
+      // Reset updating state after a short delay
+      setTimeout(() => setCategoryUpdating(false), 500);
+    } catch (err) {
+      setError('Failed to update category status');
+      console.error('Category toggle error:', err);
+      setCategoryUpdating(false);
+    }
+  }, [categories]); // Only depend on categories
+
+  const resetAllCategoriesToSellable = useCallback(async () => {
+    try {
+      setCategoryUpdating(true);
+      
+      // Create a sellable status object with all categories set to true
+      const allSellableStatus = {};
+      categoriesRef.current.forEach(cat => {
+        allSellableStatus[cat.id] = true;
+      });
+      
+      // Save to session storage
+      sessionStorage.setItem('sellableCategories', JSON.stringify(allSellableStatus));
+      
+      // Update categories state immediately
+      setCategories(prevCategories => 
+        prevCategories.map(cat => ({ ...cat, is_sellable: true }))
+      );
+      
+      // Immediately refetch products to apply the new filter
+      fetchProducts(filters); // Don't await - let it run in background for immediate UI response
+      
+      setSuccess('All categories have been set to sellable');
+      
+      // Reset updating state after a short delay
+      setTimeout(() => setCategoryUpdating(false), 500);
+    } catch (err) {
+      setError('Failed to reset categories');
+      console.error('Category reset error:', err);
+      setCategoryUpdating(false);
+    }
+  }, [categories]); // Only depend on categories
 
   const fetchStockAvailability = async (productId) => {
     try {
@@ -746,38 +863,29 @@ const PointOfSale = () => {
     setError('');
   };
 
-  const handleFilterChange = (filterType, value) => {
+  const handleFilterChange = useCallback((filterType, value) => {
     if (filterType === 'search') {
       // For search, update the input state immediately (no API call)
       setSearchInput(value);
     } else {
       // For other filters (like category), update immediately
-    const newFilters = { ...filters, [filterType]: value };
-    setFilters(newFilters);
-    fetchProducts(newFilters);
+      const newFilters = { ...filtersRef.current, [filterType]: value };
+      setFilters(newFilters);
+      fetchProducts(newFilters);
     }
-  };
+  }, []); // No dependencies needed since we use ref
 
-  const clearFilters = () => {
+  const clearFilters = useCallback(() => {
     const clearedFilters = { category: '', search: '' };
     setFilters(clearedFilters);
     setSearchInput(''); // Clear the search input state
-    fetchProducts(clearedFilters);
-  };
-
-  const toggleCategorySellable = async (categoryId, isSellable) => {
-    try {
-      await api.patch(`/products/categories/${categoryId}/`, {
-        is_sellable: !isSellable
-      });
-      // Refresh categories to show updated status
-      await fetchCategories();
-      // Refresh products to apply new sellable filter
-      fetchProducts(filters);
-    } catch (err) {
-      setError('Failed to update category status');
+    
+    // Only fetch products if categories are loaded
+    if (categoriesLoadedRef.current && categoriesRef.current.length > 0) {
+      fetchProducts(clearedFilters);
     }
-  };
+  }, [categoriesLoaded, categories.length]);
+
 
   const handleQuantityClick = (item) => {
     setEditingQuantity(`${item.id}-${item.unit_id}`);
@@ -1012,6 +1120,7 @@ const PointOfSale = () => {
             <div className="filter-group">
               <label>Search:</label>
               <input
+                key="search-input"
                 ref={searchInputRef}
                 type="text"
                 placeholder={t('pos.search_products')}
@@ -1035,9 +1144,34 @@ const PointOfSale = () => {
               borderRadius: '0.5rem',
               border: '1px solid #e5e7eb'
             }}>
-              <h3 style={{ margin: '0 0 1rem 0', fontSize: '1rem', fontWeight: '600' }}>
-                Manage Sellable Categories
-              </h3>
+              <div style={{ 
+                display: 'flex', 
+                justifyContent: 'space-between', 
+                alignItems: 'center',
+                marginBottom: '1rem'
+              }}>
+                <h3 style={{ margin: '0', fontSize: '1rem', fontWeight: '600' }}>
+                  Manage Sellable Categories
+                  {categoryUpdating && <span style={{ marginLeft: '0.5rem', color: '#3b82f6' }}>⟳</span>}
+                </h3>
+                <button
+                  onClick={resetAllCategoriesToSellable}
+                  disabled={categoryUpdating}
+                  style={{
+                    padding: '0.5rem 1rem',
+                    fontSize: '0.875rem',
+                    borderRadius: '0.375rem',
+                    border: '1px solid #3b82f6',
+                    cursor: categoryUpdating ? 'not-allowed' : 'pointer',
+                    backgroundColor: categoryUpdating ? '#9ca3af' : '#3b82f6',
+                    color: 'white',
+                    fontWeight: '500',
+                    opacity: categoryUpdating ? 0.6 : 1
+                  }}
+                >
+                  Reset All to Sellable
+                </button>
+              </div>
               <div style={{ 
                 display: 'grid', 
                 gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', 

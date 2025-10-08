@@ -239,14 +239,6 @@ const PendingSales = () => {
       const unitPrice = parseFloat(item.unit_price) || 0;
       const calculatedTotalPrice = quantity * unitPrice;
       
-        product_name: item.product_name,
-        quantity_display: item.quantity_display,
-        quantity: item.quantity,
-        unit_price: item.unit_price,
-        calculated_total_price: calculatedTotalPrice,
-        stored_total_price: item.total_price
-      });
-      
       return {
         ...item,
         quantity: quantity,
@@ -266,18 +258,6 @@ const PendingSales = () => {
     // Always use calculated totals to ensure accuracy
     const subtotal = calculatedSubtotal;
     const total_amount = calculatedTotal;
-    
-      sale: sale,
-      items: items,
-      calculatedSubtotal: calculatedSubtotal,
-      calculatedTotal: calculatedTotal,
-      saleSubtotal: sale.subtotal,
-      saleTotalAmount: sale.total_amount,
-      finalSubtotal: subtotal,
-      finalTotalAmount: total_amount,
-      tax_amount: sale.tax_amount,
-      discount_amount: sale.discount_amount
-    });
     
     const formData = {
       customer_name: sale.customer_name || '',
@@ -328,10 +308,9 @@ const PendingSales = () => {
     
     const subtotal = updatedItems.reduce((sum, item) => sum + item.total_price, 0);
     
-      itemIndex: itemIndex,
-      newQuantity: newQuantity,
-      unitPrice: updatedItems[itemIndex].unit_price,
-      totalPrice: updatedItems[itemIndex].total_price,
+    setEditFormData({
+      ...editFormData,
+      items: updatedItems,
       subtotal: subtotal
     });
     
@@ -340,6 +319,7 @@ const PendingSales = () => {
     const discountAmount = parseFloat(editFormData.discount_amount !== undefined ? editFormData.discount_amount : (editingSale?.discount_amount || 0)) || 0;
     const newTotalAmount = subtotal + taxAmount - discountAmount;
     
+    setEditTotals({
       subtotal: subtotal,
       taxAmount: taxAmount,
       discountAmount: discountAmount,
@@ -411,6 +391,7 @@ const PendingSales = () => {
         }))
       };
       
+      console.log('Saving edited sale:', {
         saleId: editingSale.id,
         updateData: updateData,
         editFormData: editFormData

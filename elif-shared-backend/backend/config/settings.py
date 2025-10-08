@@ -16,14 +16,15 @@ SECRET_KEY = 'django-insecure-your-secret-key-here-change-in-production'
 DEBUG = True
 
 ALLOWED_HOSTS = [
-    'localhost', 
-    '127.0.0.1', 
-    '0.0.0.0', 
-    'backend', 
-    'testserver',
-    'orders.yourdomain.com',
-    'sales.yourdomain.com', 
-    'admin.yourdomain.com'
+    '10.10.1.1',
+    '600',  # Dynamic IP (updated by deploy script)
+    '127.0.0.1',  # For health checks and internal routing
+    'orders.elif',
+    'sales.elif',
+    'admin.elif',
+    'api.elif',
+    'backend',
+    'testserver'
 ]
 
 # Application definition
@@ -153,15 +154,18 @@ SIMPLE_JWT = {
 
 # CORS settings
 CORS_ALLOWED_ORIGINS = [
-    "http://localhost:3000",
-    "http://localhost:3001",
-    "http://localhost:3002",
-    "http://127.0.0.1:3000",
-    "http://127.0.0.1:3001",
-    "http://127.0.0.1:3002",
-    "https://orders.yourdomain.com",
-    "https://sales.yourdomain.com", 
-    "https://admin.yourdomain.com",
+    "http://10.10.1.1:3000",
+    "http://10.10.1.1:3001",
+    "http://10.10.1.1:3002",
+    "http://600:3000",  # Dynamic IP (will be updated by scripts)
+    "http://600:3001",  # Dynamic IP (will be updated by scripts)
+    "http://600:3002",  # Dynamic IP (will be updated by scripts)
+    "http://orders.elif",
+    "http://sales.elif", 
+    "http://admin.elif",
+    "https://orders.elif",
+    "https://sales.elif", 
+    "https://admin.elif",
 ]
 
 CORS_ALLOW_CREDENTIALS = True

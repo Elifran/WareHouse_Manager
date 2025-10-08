@@ -7,7 +7,7 @@ from django.db.models import Q
 from django.http import Http404
 from .models import Category, Product, StockMovement, TaxClass, Unit, UnitConversion, ProductUnit
 from .serializers import (
-    CategorySerializer, ProductSerializer, ProductListSerializer, 
+    CategorySerializer, ProductSerializer, 
     StockMovementSerializer, TaxClassSerializer, UnitSerializer, UnitConversionSerializer, ProductUnitSerializer
 )
 from .utils import get_unit_conversion_factor, get_price_conversion_factor
@@ -37,8 +37,6 @@ class ProductListCreateView(generics.ListCreateAPIView):
     ordering = ['name']
     
     def get_serializer_class(self):
-        if self.request.method == 'GET':
-            return ProductListSerializer
         return ProductSerializer
 
 class ProductDetailView(generics.RetrieveUpdateDestroyAPIView):

@@ -30,16 +30,24 @@ class UnitConversionAdmin(admin.ModelAdmin):
 
 @admin.register(Product)
 class ProductAdmin(admin.ModelAdmin):
-    list_display = ['name', 'sku', 'category', 'unit', 'base_unit', 'price', 'cost_price', 'stock_quantity', 'is_active']
-    list_filter = ['category', 'tax_class', 'unit', 'base_unit', 'is_active']
-    search_fields = ['name', 'sku', 'description']
+    list_display = ['name', 'sku', 'category', 'unit', 'base_unit', 'price', 'cost_price', 'stock_quantity', 'has_packaging', 'storage_section', 'storage_type', 'is_active']
+    list_filter = ['category', 'tax_class', 'unit', 'base_unit', 'has_packaging', 'storage_type', 'is_active']
+    search_fields = ['name', 'sku', 'description', 'storage_section']
     ordering = ['name']
     fieldsets = (
         (None, {
             'fields': ('name', 'sku', 'description', 'category', 'is_active')
         }),
         ('Pricing', {
-            'fields': ('price', 'cost_price', 'tax_class')
+            'fields': ('price', 'wholesale_price', 'cost_price', 'tax_class')
+        }),
+        ('Packaging', {
+            'fields': ('has_packaging', 'packaging_price'),
+            'classes': ('collapse',)
+        }),
+        ('Storage', {
+            'fields': ('storage_type', 'storage_section'),
+            'classes': ('collapse',)
         }),
         ('Units & Stock', {
             'fields': ('unit', 'base_unit', 'stock_quantity', 'min_stock_level', 'max_stock_level')

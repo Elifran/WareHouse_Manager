@@ -100,6 +100,15 @@ class Product(models.Model):
     max_stock_level = models.FloatField(default=1000.0, validators=[MinValueValidator(0.0)])
     unit = models.CharField(max_length=20, default='piece')
     base_unit = models.ForeignKey(Unit, on_delete=models.PROTECT, related_name='base_products', null=True, blank=True, help_text="The smallest unit for this product")
+    
+    # Packaging consignation fields
+    has_packaging = models.BooleanField(default=False, help_text="Whether this product has packaging consignation")
+    packaging_price = models.DecimalField(max_digits=10, decimal_places=2, validators=[MinValueValidator(Decimal('0.00'))], null=True, blank=True, help_text="Packaging consignation price (e.g., bottle deposit)")
+    
+    # Storage location fields
+    storage_section = models.CharField(max_length=10, blank=True, help_text="Storage section code (e.g., A12, G11, K10, C33)")
+    storage_type = models.CharField(max_length=3, choices=[('SSO', 'Back Storage'), ('STR', 'Front Storage')], default='STR', help_text="Storage type: SSO for back storage, STR for front storage")
+    
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

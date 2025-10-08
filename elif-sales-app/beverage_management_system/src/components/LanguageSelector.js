@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
+import { setCookie, getCookie } from '../utils/cookieUtils';
 import './LanguageSelector.css';
 
 const LanguageSelector = () => {
@@ -14,9 +15,26 @@ const LanguageSelector = () => {
 
   const currentLanguage = languages.find(lang => lang.code === i18n.language) || languages[0];
 
+  // Load language from storage on mount
+  useEffect(() => {
+    const savedLanguage = sessionStorage.getItem('i18nextLng') || 
+                         localStorage.getItem('i18nextLng') || 
+                         getCookie('i18next') ||
+                         'en';
+    
+    if (savedLanguage !== i18n.language) {
+      i18n.changeLanguage(savedLanguage);
+    }
+  }, [i18n]);
+
   const handleLanguageChange = (languageCode) => {
     i18n.changeLanguage(languageCode);
     setIsOpen(false);
+    
+    // Save to sessionStorage (primary), localStorage (backup), and cookie (fallback)
+    sessionStorage.setItem('i18nextLng', languageCode);
+    localStorage.setItem('i18nextLng', languageCode);
+    setCookie('i18next', languageCode, 30); // 30 days
     
     // Show success message
     const message = t('language.language_changed');
