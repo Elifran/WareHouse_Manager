@@ -1,7 +1,7 @@
 /* Pending Sales Page Styles */
 .pending-sales-page {
   padding: 1.5rem;
-  max-width: 1200px;
+  /* max-width: 1200px; */
   margin: 0 auto;
   background: #f8fafc;
   min-height: 100vh;
@@ -842,4 +842,21 @@
 .payment-type input[type="radio"]:checked + span {
   color: #3b82f6;
   font-weight: 600;
+}
+
+/* Packaging Validation Modal */
+.packaging-validation-modal {
+  max-width: 1000px;
+  width: 95%;
+  max-height: 90vh;
+  overflow-y: auto;
+  background: white;
+  border-radius: 8px;
+  padding: 0;
+}
+
+.packaging-validation-modal .packaging-validation {
+  margin: 0;
+  box-shadow: none;
+  border-radius: 0;
 }

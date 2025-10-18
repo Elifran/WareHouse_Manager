@@ -7,10 +7,11 @@ from django_filters import FilterSet, DateFilter
 from django.db.models import Sum, Count, Q
 from django.utils import timezone
 from datetime import datetime, timedelta
-from .models import Sale, SaleItem, Payment
+from .models import Sale, SaleItem, Payment, SalePackaging, PackagingReturn
 from .serializers import (
     SaleSerializer, SaleCreateSerializer, SaleListSerializer,
-    SaleItemSerializer, PaymentSerializer
+    SaleItemSerializer, PaymentSerializer, SalePackagingSerializer,
+    SalePackagingCreateSerializer, PackagingReturnSerializer
 )
 
 class SaleFilter(FilterSet):
@@ -22,7 +23,7 @@ class SaleFilter(FilterSet):
         fields = ['status', 'payment_method', 'sold_by', 'created_at__date__gte', 'created_at__date__lte']
 
 class SaleListCreateView(generics.ListCreateAPIView):
-    queryset = Sale.objects.select_related('sold_by').prefetch_related('items__product', 'items__unit', 'payments').all()
+    queryset = Sale.objects.select_related('sold_by').prefetch_related('items__product', 'items__unit', 'packaging_items__product', 'packaging_items__unit', 'payments').all()
     permission_classes = [IsAuthenticated]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_class = SaleFilter
@@ -48,7 +49,7 @@ class SaleListCreateView(generics.ListCreateAPIView):
         return Response(full_serializer.data, status=status.HTTP_201_CREATED)
 
 class SaleDetailView(generics.RetrieveUpdateDestroyAPIView):
-    queryset = Sale.objects.select_related('sold_by').prefetch_related('items', 'payments').all()
+    queryset = Sale.objects.select_related('sold_by').prefetch_related('items', 'packaging_items', 'payments').all()
     serializer_class = SaleSerializer
     permission_classes = [IsAuthenticated]
 
@@ -186,8 +187,66 @@ def complete_sale(request, sale_id):
     sale.status = 'completed'
     sale.save()
     
+    # Automatically create packaging transaction if sale has packaging items
+    packaging_transaction = None
+    if sale.packaging_items.exists():
+        try:
+            from packaging_management.models import PackagingTransaction, PackagingItem
+            from products.models import Unit
+            import uuid
+            
+            # Generate transaction number
+            transaction_number = f"PKG-{uuid.uuid4().hex[:8].upper()}"
+            
+            # Create packaging transaction
+            packaging_transaction = PackagingTransaction.objects.create(
+                transaction_number=transaction_number,
+                transaction_type='consignation',
+                sale=sale,
+                customer_name=sale.customer_name,
+                customer_phone=sale.customer_phone,
+                customer_email=sale.customer_email,
+                payment_method='cash',  # Default payment method
+                status='active',
+                notes=f'Automatically created from sale {sale.sale_number}',
+                created_by=request.user
+            )
+            
+            # Create packaging items from sale packaging items
+            for sale_packaging in sale.packaging_items.all():
+                # Get the unit for packaging (use piece unit if not specified)
+                unit = sale_packaging.unit
+                if not unit:
+                    unit = Unit.objects.get(symbol='pc', is_base_unit=True)
+                
+                PackagingItem.objects.create(
+                    transaction=packaging_transaction,
+                    product=sale_packaging.product,
+                    quantity=sale_packaging.quantity,
+                    unit=unit,
+                    unit_price=sale_packaging.unit_price,
+                    notes=sale_packaging.notes
+                )
+            
+            # Calculate packaging transaction totals
+            packaging_transaction.calculate_totals()
+            
+        except Exception as e:
+            # Log the error but don't fail the sale completion
+            print(f"Error creating packaging transaction for sale {sale.sale_number}: {str(e)}")
+    
     serializer = SaleSerializer(sale)
-    return Response(serializer.data)
+    response_data = serializer.data
+    
+    # Add packaging transaction info to response if created
+    if packaging_transaction:
+        response_data['packaging_transaction'] = {
+            'id': packaging_transaction.id,
+            'transaction_number': packaging_transaction.transaction_number,
+            'total_amount': packaging_transaction.total_amount
+        }
+    
+    return Response(response_data)
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
@@ -690,3 +749,190 @@ def make_payment(request, sale_id):
         'message': 'Payment processed successfully',
         'sale': serializer.data
     })
+
+# Packaging Management Views
+
+class SalePackagingListCreateView(generics.ListCreateAPIView):
+    queryset = SalePackaging.objects.select_related('sale', 'product', 'unit').all()
+    serializer_class = SalePackagingSerializer
+    permission_classes = [IsAuthenticated]
+    filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
+    filterset_fields = ['sale', 'product', 'status']
+    ordering_fields = ['created_at']
+    ordering = ['-created_at']
+
+class SalePackagingDetailView(generics.RetrieveUpdateDestroyAPIView):
+    queryset = SalePackaging.objects.select_related('sale', 'product', 'unit').all()
+    serializer_class = SalePackagingSerializer
+    permission_classes = [IsAuthenticated]
+
+class PackagingReturnListCreateView(generics.ListCreateAPIView):
+    queryset = PackagingReturn.objects.select_related('sale_packaging__product', 'processed_by').all()
+    serializer_class = PackagingReturnSerializer
+    permission_classes = [IsAuthenticated]
+    filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
+    filterset_fields = ['sale_packaging', 'return_type']
+    ordering_fields = ['created_at']
+    ordering = ['-created_at']
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def packaging_validation_page(request, sale_id):
+    """Get packaging information for a sale validation page"""
+    try:
+        sale = Sale.objects.get(id=sale_id)
+    except Sale.DoesNotExist:
+        return Response({'error': 'Sale not found'}, status=status.HTTP_404_NOT_FOUND)
+    
+    # Get all packaging items for this sale
+    packaging_items = SalePackaging.objects.filter(sale=sale).select_related('product', 'unit')
+    packaging_serializer = SalePackagingSerializer(packaging_items, many=True)
+    
+    # Get products that have packaging for potential additions
+    from products.models import Product
+    products_with_packaging = Product.objects.filter(has_packaging=True, is_active=True)
+    
+    return Response({
+        'sale': {
+            'id': sale.id,
+            'sale_number': sale.sale_number,
+            'customer_name': sale.customer_name,
+            'customer_phone': sale.customer_phone,
+            'status': sale.status
+        },
+        'packaging_items': packaging_serializer.data,
+        'available_products': [
+            {
+                'id': product.id,
+                'name': product.name,
+                'sku': product.sku,
+                'packaging_price': product.packaging_price
+            }
+            for product in products_with_packaging
+        ]
+    })
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def add_packaging_to_sale(request, sale_id):
+    """Add packaging items to a sale"""
+    try:
+        sale = Sale.objects.get(id=sale_id)
+    except Sale.DoesNotExist:
+        return Response({'error': 'Sale not found'}, status=status.HTTP_404_NOT_FOUND)
+    
+    if sale.status != 'pending':
+        return Response({'error': 'Can only add packaging to pending sales'}, status=status.HTTP_400_BAD_REQUEST)
+    
+    packaging_data = request.data.get('packaging_items', [])
+    if not packaging_data:
+        return Response({'error': 'Packaging items are required'}, status=status.HTTP_400_BAD_REQUEST)
+    
+    from products.models import Product, Unit
+    from decimal import Decimal
+    
+    created_packaging = []
+    for item_data in packaging_data:
+        # Validate product
+        try:
+            product = Product.objects.get(id=item_data['product'])
+        except Product.DoesNotExist:
+            return Response({'error': f"Product with ID {item_data['product']} not found"}, status=status.HTTP_400_BAD_REQUEST)
+        
+        if not product.has_packaging:
+            return Response({'error': f"Product {product.name} does not have packaging"}, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Validate unit
+        try:
+            unit = Unit.objects.get(id=item_data['unit'])
+        except Unit.DoesNotExist:
+            return Response({'error': f"Unit with ID {item_data['unit']} not found"}, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Create packaging item
+        packaging = SalePackaging.objects.create(
+            sale=sale,
+            product=product,
+            unit=unit,
+            quantity=item_data['quantity'],
+            unit_price=item_data.get('unit_price', product.packaging_price or Decimal('0.00')),
+            status=item_data.get('status', 'consignation'),
+            customer_name=item_data.get('customer_name', sale.customer_name),
+            customer_phone=item_data.get('customer_phone', sale.customer_phone),
+            notes=item_data.get('notes', '')
+        )
+        created_packaging.append(packaging)
+    
+    # Recalculate sale totals
+    sale.calculate_totals()
+    
+    # Return updated sale with packaging
+    serializer = SaleSerializer(sale)
+    return Response({
+        'message': f'Successfully added {len(created_packaging)} packaging items',
+        'sale': serializer.data
+    })
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def process_packaging_return(request, packaging_id):
+    """Process a packaging return or exchange"""
+    try:
+        packaging = SalePackaging.objects.get(id=packaging_id)
+    except SalePackaging.DoesNotExist:
+        return Response({'error': 'Packaging item not found'}, status=status.HTTP_404_NOT_FOUND)
+    
+    return_type = request.data.get('return_type')
+    quantity_returned = request.data.get('quantity_returned')
+    notes = request.data.get('notes', '')
+    
+    if not return_type or not quantity_returned:
+        return Response({'error': 'Return type and quantity returned are required'}, status=status.HTTP_400_BAD_REQUEST)
+    
+    if quantity_returned <= 0:
+        return Response({'error': 'Quantity returned must be greater than 0'}, status=status.HTTP_400_BAD_REQUEST)
+    
+    if quantity_returned > packaging.quantity:
+        return Response({'error': 'Quantity returned cannot exceed original quantity'}, status=status.HTTP_400_BAD_REQUEST)
+    
+    # Calculate refund amount
+    refund_amount = (quantity_returned / packaging.quantity) * packaging.total_price
+    
+    # Create packaging return record
+    packaging_return = PackagingReturn.objects.create(
+        sale_packaging=packaging,
+        return_type=return_type,
+        quantity_returned=quantity_returned,
+        refund_amount=refund_amount,
+        notes=notes,
+        processed_by=request.user
+    )
+    
+    # Update packaging status if fully returned
+    if quantity_returned == packaging.quantity:
+        if return_type == 'return':
+            packaging.status = 'consignation'  # Fully returned and refunded
+        elif return_type == 'exchange':
+            packaging.status = 'exchange'  # Exchanged for new packaging
+    
+    packaging.save()
+    
+    # Recalculate sale totals
+    packaging.sale.calculate_totals()
+    
+    serializer = PackagingReturnSerializer(packaging_return)
+    return Response({
+        'message': 'Packaging return processed successfully',
+        'return': serializer.data,
+        'refund_amount': float(refund_amount)
+    })
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def due_packaging_list(request):
+    """Get list of all due packaging items"""
+    due_packaging = SalePackaging.objects.filter(
+        status='due'
+    ).select_related('sale', 'product', 'unit').order_by('-created_at')
+    
+    serializer = SalePackagingSerializer(due_packaging, many=True)
+    return Response(serializer.data)

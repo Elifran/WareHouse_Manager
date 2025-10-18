@@ -334,3 +334,16 @@ echo "   Status:       ./status.sh"
 echo ""
 print_success "✨ Domain access is now fully configured and working!"
 print_success "🌐 Applications are accessible from other devices on the network!"
+
+
+# # Stop all services
+# cd elif-shared-backend && docker compose down && cd ..
+# cd elif-orders-app && docker compose down && cd ..
+# cd elif-sales-app && docker compose down && cd ..
+# cd elif-admin-app && docker compose down && cd ..
+
+# # Rebuild and start all services
+# cd elif-shared-backend && docker compose up -d --build && cd ..
+# cd elif-orders-app && docker compose up -d --build && cd ..
+# cd elif-sales-app && docker compose up -d --build && cd ..
+# cd elif-admin-app && docker compose up -d --build && cd ..

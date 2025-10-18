@@ -4,6 +4,7 @@ import { useAuth } from '../contexts/AuthContext';
 import api from '../services/api';
 import Button from '../components/Button';
 import { generatePrintContent } from '../components/PrintButton';
+import PackagingManager from '../components/PackagingManager';
 import './PointOfSale.css';
 
 const PointOfSale = () => {
@@ -81,6 +82,10 @@ const PointOfSale = () => {
   const [priceMode, setPriceMode] = useState('standard'); // 'standard' or 'wholesale'
   const [saleMode, setSaleMode] = useState('complete'); // 'complete' or 'pending'
   const [printReceipt, setPrintReceipt] = useState(true); // true or false
+  
+  // Packaging state
+  const [packagingCart, setPackagingCart] = useState([]);
+  const [showPackagingManager, setShowPackagingManager] = useState(false);
 
   // Function to get the current price based on price mode
   const getCurrentPrice = (product) => {
@@ -90,13 +95,23 @@ const PointOfSale = () => {
     return parseFloat(product.price);
   };
 
-  // Calculate total amount
+  // Calculate total amount (products only, excluding packaging)
   const calculateTotal = () => {
-    const total = cart.reduce((total, item) => {
+    const cartTotal = cart.reduce((total, item) => {
       const unitPrice = item.unit_price || 0;
       return total + (unitPrice * item.quantity);
     }, 0);
-    return total;
+    return cartTotal;
+  };
+
+  // Calculate total amount including packaging (for display purposes)
+  const calculateTotalWithPackaging = () => {
+    const cartTotal = cart.reduce((total, item) => {
+      const unitPrice = item.unit_price || 0;
+      return total + (unitPrice * item.quantity);
+    }, 0);
+    const packagingTotal = calculatePackagingTotal();
+    return cartTotal + packagingTotal;
   };
 
   // Update paid amount when payment type changes
@@ -110,7 +125,7 @@ const PointOfSale = () => {
         setPaidAmount(0);
       }
     }
-  }, [paymentType, cart]);
+  }, [paymentType, cart, packagingCart]);
 
   // Function to get the current price for a specific unit
   const getCurrentUnitPrice = (product, unitStockInfo) => {
@@ -536,6 +551,8 @@ const PointOfSale = () => {
       item.unit_id === unit.id && 
       item.price_mode === priceMode
     );
+    
+    // Update cart first
     if (existingItem) {
       // Check if adding 1 more would exceed available quantity (only for complete sales)
       if (saleMode === 'complete') {
@@ -546,7 +563,7 @@ const PointOfSale = () => {
           return;
         }
       }
-      setCart(cart.map(item =>
+      setCart(prevCart => prevCart.map(item =>
         item.id === product.id && item.unit_id === unit.id && item.price_mode === priceMode
           ? { ...item, quantity: item.quantity + 1 }
           : item
@@ -574,14 +591,24 @@ const PointOfSale = () => {
         unit_price: getCurrentUnitPrice(product, unitStockInfo) || getCurrentPrice(product),
         price_mode: priceMode
       };
-      setCart([...cart, newCartItem]);
+      setCart(prevCart => [...prevCart, newCartItem]);
     }
+
+    // Automatically add packaging if product has packaging - use setTimeout to ensure cart is updated first
+    if (product.has_packaging && product.packaging_price) {
+      setTimeout(() => {
+        addPackagingAutomatically(product, unit);
+      }, 0);
+    }
+    
     setError('');
   };
 
   const updateQuantity = (productId, unitId, quantity, priceMode = null) => {
     if (quantity <= 0) {
       setCart(cart.filter(item => !(item.id === productId && item.unit_id === unitId && item.price_mode === priceMode)));
+      // Also remove packaging if sales item is removed
+      setPackagingCart(packagingCart.filter(item => item.id !== productId));
     } else {
       // Skip stock validation for pending sales since stock won't be removed until completion
       if (saleMode === 'complete') {
@@ -613,12 +640,198 @@ const PointOfSale = () => {
           ? { ...item, quantity }
           : item
       ));
+
+      // Update packaging quantity automatically if product has packaging
+      const product = products.find(p => p.id === productId);
+      if (product && product.has_packaging && product.packaging_price) {
+        const unit = { id: unitId };
+        updatePackagingQuantityAutomatically(product, unit, quantity);
+      }
+      
       setError('');
     }
   };
 
   const removeFromCart = (productId, unitId, priceMode = null) => {
     setCart(cart.filter(item => !(item.id === productId && item.unit_id === unitId && item.price_mode === priceMode)));
+  };
+
+  // Packaging functions
+  const addPackagingAutomatically = (product, unit) => {
+    if (!product.has_packaging || !product.packaging_price) {
+      return;
+    }
+
+    // Use a callback to get the current cart state
+    setCart(currentCart => {
+      // Calculate packaging quantity based on sales quantity
+      const salesItem = currentCart.find(item => 
+        item.id === product.id && 
+        item.unit_id === unit.id && 
+        item.price_mode === priceMode
+      );
+      
+      if (!salesItem) return currentCart;
+
+      // Get unit information from stock availability
+      const updatedStockInfo = getUpdatedStockAvailability(product.id);
+      const unitStockInfo = updatedStockInfo?.find(u => u.id === unit.id);
+      
+      // For packaging, we use the base unit (pieces) to calculate quantity
+      // If the sales unit is not the base unit, we need to convert to pieces
+      let packagingQuantity = salesItem.quantity;
+      
+      // If the sales unit is not the base unit, convert to pieces
+      if (unitStockInfo && !unitStockInfo.is_base_unit && unitStockInfo.conversion_factor) {
+        packagingQuantity = salesItem.quantity * unitStockInfo.conversion_factor;
+      }
+
+      // Update packaging cart
+      setPackagingCart(currentPackagingCart => {
+        const existingPackaging = currentPackagingCart.find(item => item.id === product.id);
+        if (existingPackaging) {
+          // Update existing packaging quantity to match sales quantity
+          return currentPackagingCart.map(item =>
+            item.id === product.id
+              ? { 
+                  ...item, 
+                  quantity: packagingQuantity,
+                  total_price: parseFloat(product.packaging_price) * packagingQuantity
+                }
+              : item
+          );
+        } else {
+          // Create new packaging item
+          const newPackagingItem = {
+            ...product,
+            quantity: packagingQuantity,
+            unit_price: parseFloat(product.packaging_price),
+            total_price: parseFloat(product.packaging_price) * packagingQuantity,
+            status: 'consignation', // Default status
+            customer_name: customerInfo.name,
+            customer_phone: customerInfo.phone,
+            sales_unit_id: unit.id, // Track which sales unit this packaging is for
+            sales_unit_name: unit.name,
+            sales_unit_symbol: unit.symbol
+          };
+          return [...currentPackagingCart, newPackagingItem];
+        }
+      });
+
+      return currentCart;
+    });
+  };
+
+  const addToPackagingCart = (product) => {
+    if (!product.has_packaging || !product.packaging_price) {
+      setError('This product does not have packaging consignation');
+      return;
+    }
+
+    const existingPackaging = packagingCart.find(item => item.id === product.id);
+    if (existingPackaging) {
+      setPackagingCart(packagingCart.map(item =>
+        item.id === product.id
+          ? { ...item, quantity: item.quantity + 1 }
+          : item
+      ));
+    } else {
+      const newPackagingItem = {
+        ...product,
+        quantity: 1,
+        unit_price: parseFloat(product.packaging_price),
+        total_price: parseFloat(product.packaging_price),
+        status: 'consignation',
+        customer_name: customerInfo.name,
+        customer_phone: customerInfo.phone
+      };
+      setPackagingCart([...packagingCart, newPackagingItem]);
+    }
+    setError('');
+  };
+
+  const updatePackagingQuantityAutomatically = (product, unit, salesQuantity) => {
+    if (!product.has_packaging || !product.packaging_price) {
+      return;
+    }
+
+    // Get unit information from stock availability
+    const updatedStockInfo = getUpdatedStockAvailability(product.id);
+    const unitStockInfo = updatedStockInfo?.find(u => u.id === unit.id);
+    
+    // Calculate packaging quantity based on sales quantity
+    let packagingQuantity = salesQuantity;
+    
+    // If the sales unit is not the base unit, convert to pieces
+    if (unitStockInfo && !unitStockInfo.is_base_unit && unitStockInfo.conversion_factor) {
+      packagingQuantity = salesQuantity * unitStockInfo.conversion_factor;
+    }
+
+    setPackagingCart(currentPackagingCart => {
+      const existingPackaging = currentPackagingCart.find(item => item.id === product.id);
+      if (existingPackaging) {
+        // Update existing packaging quantity to match sales quantity
+        return currentPackagingCart.map(item =>
+          item.id === product.id
+            ? { 
+                ...item, 
+                quantity: packagingQuantity,
+                total_price: parseFloat(product.packaging_price) * packagingQuantity
+              }
+            : item
+        );
+      } else {
+        // Create new packaging item if it doesn't exist
+        const newPackagingItem = {
+          ...product,
+          quantity: packagingQuantity,
+          unit_price: parseFloat(product.packaging_price),
+          total_price: parseFloat(product.packaging_price) * packagingQuantity,
+          status: 'consignation', // Default status
+          customer_name: customerInfo.name,
+          customer_phone: customerInfo.phone,
+          sales_unit_id: unit.id,
+          sales_unit_name: unit.name,
+          sales_unit_symbol: unit.symbol
+        };
+        return [...currentPackagingCart, newPackagingItem];
+      }
+    });
+  };
+
+  const updatePackagingQuantity = (productId, quantity) => {
+    if (quantity <= 0) {
+      setPackagingCart(packagingCart.filter(item => item.id !== productId));
+    } else {
+      setPackagingCart(packagingCart.map(item =>
+        item.id === productId
+          ? { ...item, quantity, total_price: item.unit_price * quantity }
+          : item
+      ));
+    }
+  };
+
+  const updatePackagingStatus = (productId, status) => {
+    setPackagingCart(packagingCart.map(item =>
+      item.id === productId
+        ? { ...item, status }
+        : item
+    ));
+  };
+
+  const removeFromPackagingCart = (productId) => {
+    setPackagingCart(packagingCart.filter(item => item.id !== productId));
+  };
+
+  const calculatePackagingTotal = () => {
+    return packagingCart.reduce((total, item) => {
+      // Only "consignation" (paid) packaging should be included in the total
+      // "exchange" and "due" packaging are not payable
+      if (item.status === 'consignation') {
+        return total + (item.total_price || 0);
+      }
+      return total;
+    }, 0);
   };
 
   const calculateSubtotal = () => {
@@ -753,22 +966,32 @@ const PointOfSale = () => {
         customer_email: customerInfo.email,
         payment_method: paymentMethod,
         paid_amount: paidAmount,
-          items: cart.map(item => {
-            // More robust unit ID extraction
-            let unitId = item.unit_id;
-            if (typeof unitId === 'object' && unitId !== null) {
-              unitId = unitId.id || unitId;
-            }
-            
-            return {
+        items: cart.map(item => {
+          // More robust unit ID extraction
+          let unitId = item.unit_id;
+          if (typeof unitId === 'object' && unitId !== null) {
+            unitId = unitId.id || unitId;
+          }
+          
+          return {
+            product: item.id,
+            quantity: parseFloat(item.quantity),
+            unit: parseInt(unitId),
+            unit_price: parseFloat(item.unit_price),
+            price_mode: item.price_mode || 'standard'
+          };
+        }),
+        packaging_items: packagingCart.map(item => ({
           product: item.id,
-              quantity: parseFloat(item.quantity),
-              unit: parseInt(unitId),
-              unit_price: parseFloat(item.unit_price),
-              price_mode: item.price_mode || 'standard'
-            };
-          })
-        };
+          quantity: parseFloat(item.quantity),
+          unit: 7, // Use the correct piece unit ID (7) for packaging
+          unit_price: parseFloat(item.unit_price),
+          status: item.status || 'consignation',
+          customer_name: item.customer_name || customerInfo.name,
+          customer_phone: item.customer_phone || customerInfo.phone,
+          notes: item.notes || ''
+        }))
+      };
 
 
       // Create the sale
@@ -779,7 +1002,7 @@ const PointOfSale = () => {
       if (saleMode === 'complete') {
         // Complete the sale immediately
         try {
-          await api.post(`/api/sales/${saleId}/complete/`);
+          const completionResponse = await api.post(`/api/sales/${saleId}/complete/`);
           
           // Auto-print the receipt after successful sale completion (only if printReceipt is true)
           if (printReceipt) {
@@ -788,6 +1011,7 @@ const PointOfSale = () => {
       
       // Clear cart and customer info
       setCart([]);
+      setPackagingCart([]);
       setCustomerInfo({ name: '', phone: '', email: '' });
       
           // Reset price mode to standard after sale
@@ -805,13 +1029,20 @@ const PointOfSale = () => {
           // Refresh stock availability for all products
           refreshStockAvailability();
           
-          alert(`Sale completed successfully! Sale Number: ${saleNumber}`);
+          // Show success message with packaging transaction info if created
+          let successMessage = `Sale completed successfully! Sale Number: ${saleNumber}`;
+          if (completionResponse.data.packaging_transaction) {
+            const pkgTransaction = completionResponse.data.packaging_transaction;
+            successMessage += `\n\nPackaging transaction automatically created:\nTransaction: ${pkgTransaction.transaction_number}\nAmount: ${pkgTransaction.total_amount} MGA`;
+          }
+          alert(successMessage);
         } catch (completeError) {
           // Sale was created but completion failed
           setError(`Sale created (${saleNumber}) but completion failed: ${completeError.response?.data?.error || completeError.message}`);
           
           // Still clear the cart since the sale was created
           setCart([]);
+          setPackagingCart([]);
           setCustomerInfo({ name: '', phone: '', email: '' });
           
           // Wait for backend to process any completed stock movements
@@ -832,6 +1063,7 @@ const PointOfSale = () => {
         
         // Clear cart and customer info
         setCart([]);
+        setPackagingCart([]);
         setCustomerInfo({ name: '', phone: '', email: '' });
         
         // Reset price mode to standard after sale
@@ -860,6 +1092,7 @@ const PointOfSale = () => {
 
   const clearCart = () => {
     setCart([]);
+    setPackagingCart([]);
     setError('');
   };
 
@@ -1347,6 +1580,15 @@ const PointOfSale = () => {
                     </Button>
                   )}
                   
+                  {/* Packaging Info - Show for products with packaging */}
+                  {product.has_packaging && product.packaging_price && (
+                    <div className="packaging-info">
+                      <small className="packaging-price">
+                        Packaging: {product.packaging_price} MGA (Auto-added)
+                      </small>
+                    </div>
+                  )}
+                  
                   {/* For products with multiple units, show instruction */}
                   {product.available_units && product.available_units.length > 1 && (
                     <div className="unit-instruction">
@@ -1390,6 +1632,7 @@ const PointOfSale = () => {
                   <div className="header-unit">Unit</div>
                   <div className="header-price">Price</div>
                   <div className="header-quantity">Qty</div>
+                  <div className="header-status">Status</div>
                   <div className="header-total">Total</div>
                   <div className="header-actions">Actions</div>
                 </div>
@@ -1463,6 +1706,9 @@ const PointOfSale = () => {
                         </Button>
                       </div>
                     </div>
+                    <div className="item-status">
+                      <span className="sales-item-status">-</span>
+                    </div>
                     <div className="item-total">
                       {(item.quantity * item.unit_price).toFixed(2)} MGA
                     </div>
@@ -1478,6 +1724,64 @@ const PointOfSale = () => {
                     </div>
                   </div>
                 ))}
+                
+                {/* Packaging Items */}
+                {packagingCart.length > 0 && (
+                  <>
+                    <div className="packaging-section-header">
+                      <h4>Packaging Items (Auto-calculated)</h4>
+                    </div>
+                    {packagingCart.map(item => (
+                      <div key={`packaging-${item.id}`} className="cart-item packaging-item">
+                        <div className="item-product">
+                          <h4>{item.name} (Packaging)</h4>
+                          <p className="item-sku">SKU: {item.sku}</p>
+                          {item.sales_unit_name && (
+                            <p className="packaging-source">
+                              From: {item.quantity} {item.sales_unit_symbol || 'piece'}
+                            </p>
+                          )}
+                        </div>
+                        <div className="item-unit">
+                          piece
+                        </div>
+                        <div className="item-price">
+                          {parseFloat(item.unit_price).toFixed(2)} MGA
+                        </div>
+                        <div className="item-quantity">
+                          <span className="quantity auto-calculated">
+                            {item.quantity}
+                          </span>
+                          <small className="auto-label">Auto</small>
+                        </div>
+                        <div className="item-status">
+                          <select
+                            value={item.status}
+                            onChange={(e) => updatePackagingStatus(item.id, e.target.value)}
+                            className="packaging-status-select"
+                          >
+                            <option value="consignation">Consigned (Paid)</option>
+                            <option value="exchange">Exchange</option>
+                            <option value="due">Due (Return Required)</option>
+                          </select>
+                        </div>
+                        <div className="item-total">
+                          {(item.quantity * item.unit_price).toFixed(2)} MGA
+                        </div>
+                        <div className="item-actions">
+                          <Button
+                            size="small"
+                            variant="danger"
+                            onClick={() => removeFromPackagingCart(item.id)}
+                            title="Remove packaging item"
+                          >
+                            ×
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </>
+                )}
               </>
             )}
           </div>
@@ -1486,9 +1790,15 @@ const PointOfSale = () => {
             <>
               <div className="cart-summary">
                 <div className="summary-row">
-                  <span>Total Amount:</span>
+                  <span>Items Total:</span>
                   <span>{calculateSubtotal().toFixed(2)} MGA</span>
                 </div>
+                {packagingCart.length > 0 && (
+                  <div className="summary-row packaging-breakdown">
+                    <span>Packaging Total:</span>
+                    <span>{calculatePackagingTotal().toFixed(2)} MGA</span>
+                  </div>
+                )}
                 <div className="summary-row cost-breakdown">
                   <span>Cost (excl. tax):</span>
                   <span>{calculateCost().toFixed(2)} MGA</span>
@@ -1497,9 +1807,19 @@ const PointOfSale = () => {
                   <span>Tax included:</span>
                   <span>{calculateTax().toFixed(2)} MGA</span>
                 </div>
+                <div className="summary-row">
+                  <span>Products Total:</span>
+                  <span>{calculateTotal().toFixed(2)} MGA</span>
+                </div>
+                {packagingCart.length > 0 && (
+                  <div className="summary-row">
+                    <span>Packaging Total:</span>
+                    <span>{calculatePackagingTotal().toFixed(2)} MGA</span>
+                  </div>
+                )}
                 <div className="summary-row total">
-                  <span>Total:</span>
-                  <span>{calculateSubtotal().toFixed(2)} MGA</span>
+                  <span>Total (Products Only):</span>
+                  <span>{calculateTotal().toFixed(2)} MGA</span>
                 </div>
               </div>
 
@@ -1589,7 +1909,7 @@ const PointOfSale = () => {
                       }}
                       placeholder={t('forms.enter_amount_to_pay')}
                     />
-                    <small>Total: ${calculateTotal().toFixed(2)} | Remaining: ${(calculateTotal() - (paidAmount || 0)).toFixed(2)}</small>
+                    <small>Products Total: ${calculateTotal().toFixed(2)} | Remaining: ${(calculateTotal() - (paidAmount || 0)).toFixed(2)}</small>
                   </div>
                 )}
               </div>

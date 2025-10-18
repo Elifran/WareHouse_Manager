@@ -5,6 +5,7 @@ import Button from '../components/Button';
 import { formatCurrency, formatDate } from '../utils/helpers';
 import { useAuth } from '../contexts/AuthContext';
 import { generatePrintContent } from '../components/PrintButton';
+import PackagingValidation from './PackagingValidation';
 import './PendingSales.css';
 
 const PendingSales = () => {
@@ -22,6 +23,8 @@ const PendingSales = () => {
   const [stockValidationStatus, setStockValidationStatus] = useState({});
   const [paymentType, setPaymentType] = useState('full');
   const [paidAmount, setPaidAmount] = useState(0);
+  const [showPackagingValidation, setShowPackagingValidation] = useState(false);
+  const [packagingValidationSaleId, setPackagingValidationSaleId] = useState(null);
 
   useEffect(() => {
     if (!authLoading && user) {
@@ -99,6 +102,29 @@ const PendingSales = () => {
     try {
       setCompletingSale(saleId);
       
+      // Check if sale has items with packaging that need validation
+      const sale = pendingSales.find(s => s.id === saleId);
+      const hasPackagingItems = sale.items?.some(item => item.product_has_packaging);
+      
+      if (hasPackagingItems) {
+        // Show packaging validation page
+        setPackagingValidationSaleId(saleId);
+        setShowPackagingValidation(true);
+        setCompletingSale(null);
+        return;
+      }
+      
+      // Proceed with normal completion if no packaging items
+      await performSaleCompletion(saleId);
+    } catch (error) {
+      console.error('Error completing sale:', error);
+      alert('Error completing sale: ' + (error.response?.data?.detail || error.message));
+      setCompletingSale(null);
+    }
+  };
+
+  const performSaleCompletion = async (saleId) => {
+    try {
       // Check stock before completing
       const sale = pendingSales.find(s => s.id === saleId);
       const stockValidationErrors = [];
@@ -143,6 +169,22 @@ const PendingSales = () => {
     } finally {
       setCompletingSale(null);
     }
+  };
+
+  const handlePackagingValidationComplete = async () => {
+    try {
+      await performSaleCompletion(packagingValidationSaleId);
+      setShowPackagingValidation(false);
+      setPackagingValidationSaleId(null);
+    } catch (error) {
+      console.error('Error completing sale after packaging validation:', error);
+    }
+  };
+
+  const handlePackagingValidationCancel = () => {
+    setShowPackagingValidation(false);
+    setPackagingValidationSaleId(null);
+    setCompletingSale(null);
   };
 
   const cancelSale = async (saleId) => {
@@ -925,6 +967,19 @@ const PendingSales = () => {
                 Save Changes
               </Button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Packaging Validation Modal */}
+      {showPackagingValidation && (
+        <div className="modal-overlay">
+          <div className="modal-content packaging-validation-modal">
+            <PackagingValidation
+              saleId={packagingValidationSaleId}
+              onComplete={handlePackagingValidationComplete}
+              onCancel={handlePackagingValidationCancel}
+            />
           </div>
         </div>
       )}

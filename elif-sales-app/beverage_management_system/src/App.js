@@ -8,6 +8,7 @@ import Dashboard from './pages/Dashboard';
 import PointOfSale from './pages/PointOfSale';
 import PendingSales from './pages/PendingSales';
 import SalesManagement from './pages/SalesManagement';
+import PackagingManagement from './pages/PackagingManagement';
 import Reports from './pages/Reports';
 import './i18n'; // Initialize i18n
 import './App.css';
@@ -99,6 +100,14 @@ const AppRoutes = () => {
               element={
                 <RoleProtectedRoute allowedRoles={['admin', 'manager', 'sales']}>
                   <SalesManagement />
+                </RoleProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/packaging-management" 
+              element={
+                <RoleProtectedRoute allowedRoles={['admin', 'manager', 'sales']}>
+                  <PackagingManagement />
                 </RoleProtectedRoute>
               } 
             />
