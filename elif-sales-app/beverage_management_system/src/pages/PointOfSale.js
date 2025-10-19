@@ -3,8 +3,15 @@ import { useTranslation } from 'react-i18next';
 import { useAuth } from '../contexts/AuthContext';
 import api from '../services/api';
 import Button from '../components/Button';
-import { generatePrintContent } from '../components/PrintButton';
 import PackagingManager from '../components/PackagingManager';
+import { 
+  isMobileDevice,
+  openPrintWindow,
+  openPrintPreview,
+  downloadReceiptFile,
+  generateXprinterPrintContent,
+  generateMobilePrintContent
+} from '../utils/printUtils';
 import './PointOfSale.css';
 
 const PointOfSale = () => {
@@ -86,6 +93,413 @@ const PointOfSale = () => {
   // Packaging state
   const [packagingCart, setPackagingCart] = useState([]);
   const [showPackagingManager, setShowPackagingManager] = useState(false);
+
+  // Copy the generatePrintContent function from PrintButton.js
+  const generatePrintContent = (data, title, type) => {
+    const currentDate = new Date().toLocaleDateString();
+    const currentTime = new Date().toLocaleTimeString();
+    
+    let content = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>${title}</title>
+        <meta charset="UTF-8">
+        <style>
+          /* 80mm Thermal Printer Receipt Styles */
+          * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+          }
+          
+          body {
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 12px;
+            line-height: 1.2;
+            color: #000;
+            width: 80mm;
+            max-width: 80mm;
+            margin: 0 auto;
+            padding: 3mm;
+            background: white;
+          }
+          
+          .receipt-header {
+            text-align: center;
+            margin-bottom: 8px;
+            padding-bottom: 6px;
+            border-bottom: 1px dashed #000;
+          }
+          
+          .company-name {
+            font-weight: bold;
+            font-size: 14px;
+            margin-bottom: 2px;
+            text-transform: uppercase;
+          }
+          
+          .document-title {
+            font-weight: bold;
+            font-size: 13px;
+            margin-bottom: 3px;
+            text-transform: uppercase;
+          }
+          
+          .receipt-date {
+            font-size: 11px;
+            color: #555;
+          }
+          
+          .receipt-section {
+            margin-bottom: 8px;
+            padding-bottom: 6px;
+            border-bottom: 1px dotted #ccc;
+          }
+          
+          .section-title {
+            font-weight: bold;
+            font-size: 11px;
+            margin-bottom: 4px;
+            text-transform: uppercase;
+            background: #f0f0f0;
+            padding: 2px 4px;
+          }
+          
+          .receipt-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 3px;
+            font-size: 11px;
+          }
+          
+          .product-item,
+          .order-item,
+          .delivery-item,
+          .sale-item,
+          .packaging-item,
+          .sale-summary {
+            margin-bottom: 4px;
+            padding: 2px 0;
+          }
+          
+          .product-name,
+          .item-name {
+            font-weight: bold;
+            margin-bottom: 1px;
+            word-wrap: break-word;
+          }
+          
+          .product-details,
+          .item-details,
+          .sale-info {
+            display: flex;
+            justify-content: space-between;
+            font-size: 10px;
+            color: #555;
+          }
+          
+          .receipt-totals,
+          .receipt-total {
+            margin: 8px 0;
+            padding-top: 6px;
+            border-top: 2px solid #000;
+          }
+          
+          .total-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 3px;
+            font-weight: bold;
+          }
+          
+          .due-amount {
+            color: #d00;
+          }
+          
+          .no-data {
+            text-align: center;
+            color: #888;
+            font-style: italic;
+            padding: 8px 0;
+          }
+          
+          .truncated-warning {
+            text-align: center;
+            color: #888;
+            font-size: 10px;
+            font-style: italic;
+            margin-top: 4px;
+          }
+          
+          .thank-you {
+            text-align: center;
+            font-weight: bold;
+            margin: 6px 0;
+          }
+          
+          .receipt-footer {
+            text-align: center;
+            margin-top: 10px;
+            padding-top: 6px;
+            border-top: 1px dashed #000;
+            font-size: 10px;
+            color: #666;
+          }
+          
+          .footer-text {
+            margin-bottom: 2px;
+          }
+          
+          .status-consignation { color: #090; }
+          .status-exchange { color: #009; }
+          .status-due { color: #d00; font-weight: bold; }
+          
+          /* Print-specific styles */
+          @media print {
+            body {
+              margin: 0;
+              padding: 2mm;
+              width: 80mm;
+            }
+            
+            .no-print {
+              display: none;
+            }
+            
+            /* Ensure proper sizing for thermal paper */
+            @page {
+              size: 80mm auto;
+              margin: 0;
+            }
+          }
+          
+          /* Force monospace and proper breaking */
+          * {
+            font-family: 'Courier New', Courier, monospace !important;
+          }
+          
+          .default-content {
+            text-align: center;
+            padding: 10px 0;
+            color: #666;
+          }
+        </style>
+      </head>
+      <body>
+    `;
+
+    // Add type-specific content using PrintButton's logic
+    switch (type) {
+      case 'sale':
+        content += generateSaleContent(data, t);
+        break;
+      default:
+        content += generateDefaultContent(data, t);
+    }
+
+    content += `
+      </body>
+      </html>
+    `;
+
+    return content;
+  };
+
+  // Copy the exact helper functions from PrintButton
+  const generateSaleContent = (data, t) => {
+    let items = data.items;
+    if (!items) {
+      const numberedKeys = Object.keys(data).filter(key => /^\d+$/.test(key));
+      if (numberedKeys.length > 0) {
+        items = numberedKeys.map(key => data[key]).filter(item => item && typeof item === 'object');
+      }
+    }
+
+    const paymentStatusText = data.payment_status === 'paid' ? 'PAID' : 
+                            data.payment_status === 'partial' ? 'PARTIAL' : 
+                            data.payment_status === 'pending' ? 'PENDING' : 
+                            'UNKNOWN';
+
+    return `
+      <div class="receipt-header">
+        <div class="company-name">Beverage Management</div>
+        <div class="document-title">SALE RECEIPT</div>
+        <div class="receipt-date">${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}</div>
+      </div>
+      
+      <div class="receipt-section">
+        <div class="section-title">SALE INFO</div>
+        <div class="receipt-row">
+          <span>Sale No:</span>
+          <span>${data.sale_number || 'N/A'}</span>
+        </div>
+        <div class="receipt-row">
+          <span>Customer:</span>
+          <span>${(data.customer_name || 'Walk-in Customer').substring(0, 25)}</span>
+        </div>
+        ${data.customer_phone ? `
+          <div class="receipt-row">
+            <span>Phone:</span>
+            <span>${data.customer_phone}</span>
+          </div>
+        ` : ''}
+        <div class="receipt-row">
+          <span>Status:</span>
+          <span>${paymentStatusText}</span>
+        </div>
+      </div>
+      
+      <div class="receipt-section">
+        <div class="section-title">ITEMS SOLD</div>
+        ${items && Array.isArray(items) ? items.slice(0, 20).map(item => `
+          <div class="sale-item">
+            <div class="item-name">${(item.product_name || 'N/A').substring(0, 25)}</div>
+            <div class="item-details">
+              <span>${item.quantity_display || item.quantity || 0} x ${parseFloat(item.unit_price || 0).toFixed(2)}</span>
+              <span>${parseFloat(item.total_price || 0).toFixed(2)} MGA</span>
+            </div>
+          </div>
+        `).join('') : '<div class="no-data">No items found</div>'}
+      </div>
+      
+      <div class="receipt-totals">
+        <div class="total-row">
+          <span>Subtotal:</span>
+          <span>${parseFloat(data.total_amount || 0).toFixed(2)} MGA</span>
+        </div>
+        <div class="total-row">
+          <span>Paid:</span>
+          <span>${parseFloat(data.paid_amount || 0).toFixed(2)} MGA</span>
+        </div>
+        ${data.payment_status === 'partial' ? `
+          <div class="total-row due-amount">
+            <span>Due:</span>
+            <span>${parseFloat(data.remaining_amount || 0).toFixed(2)} MGA</span>
+          </div>
+        ` : ''}
+      </div>
+      
+      <div class="receipt-footer">
+        <div class="thank-you">Thank you for your business!</div>
+        <div class="footer-text">${data.sale_number || ''}</div>
+      </div>
+    `;
+  };
+
+  const generateDefaultContent = (data, t) => {
+    return `
+      <div class="receipt-header">
+        <div class="company-name">Beverage Management</div>
+        <div class="document-title">DOCUMENT</div>
+        <div class="receipt-date">${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}</div>
+      </div>
+      
+      <div class="receipt-section">
+        <div class="section-title">CONTENT</div>
+        <div class="default-content">
+          Document generated successfully
+        </div>
+      </div>
+      
+      <div class="receipt-footer">
+        <div class="footer-text">Document printed</div>
+      </div>
+    `;
+  };
+
+  // Replace the handlePrintReceipt function with PrintButton's robust logic
+  const handlePrintReceipt = async (printData, title = 'Sale Receipt', usePreview = false) => {
+    try {
+      // Validate data structure
+      if (!printData) {
+        console.error('No data provided for printing');
+        window.alert('No data available to print.');
+        return false;
+      }
+
+      const isMobile = isMobileDevice();
+      let printContent;
+      
+      // Use the same content generation logic as PrintButton
+      if (isMobile) {
+        // Use mobile-optimized content
+        printContent = generateMobilePrintContent(printData, title, 'sale', t);
+      } else {
+        // Use Xprinter-optimized content for better compatibility
+        printContent = generateXprinterPrintContent(printData, title, 'sale', t);
+      }
+
+      // Handle print preview
+      if (usePreview) {
+        const previewSuccess = openPrintPreview(printContent, title);
+        if (previewSuccess) {
+          return true;
+        } else {
+          throw new Error('Failed to open print preview window.');
+        }
+      }
+
+      // Use mobile-friendly printing for mobile devices
+      if (isMobile) {
+        // Try direct print window for mobile
+        const success = await openPrintWindow(printContent, title);
+        if (!success) {
+          // If mobile printing fails, offer receipt app option
+          const useReceiptApp = window.confirm('Mobile printing failed. Would you like to download a file for receipt printer apps instead?');
+          if (useReceiptApp) {
+            const downloadSuccess = downloadReceiptFile(printData, title);
+            if (downloadSuccess) {
+              window.alert('Receipt file downloaded! You can now open it with any receipt printer app to print directly to your Xprinter.');
+              return true;
+            }
+          }
+          throw new Error('Mobile printing failed. Please try again or check your printer connection.');
+        }
+        return true;
+      } else {
+        // Desktop printing with enhanced error handling
+        // Try print preview first for better visibility
+        const previewSuccess = openPrintPreview(printContent, title);
+        if (previewSuccess) {
+          // Preview opened successfully, user can print from there
+          return true;
+        } else {
+          // Fallback to direct print window
+          const success = await openPrintWindow(printContent, title);
+          if (!success) {
+            throw new Error('Failed to open print window. Please check popup blockers and try again.');
+          }
+          return true;
+        }
+      }
+      
+    } catch (error) {
+      console.error('Print error:', error);
+      
+      // Provide more specific error messages
+      let errorMessage = 'Failed to print. Please try again.';
+      
+      if (error.message.includes('popup')) {
+        errorMessage = 'Popup blocked. Please allow popups for this site and try again.';
+      } else if (error.message.includes('Mobile printing failed')) {
+        errorMessage = 'Mobile printing failed. Please check your printer connection and try again.';
+      } else if (error.message.includes('window.open')) {
+        errorMessage = 'Could not open print window. Please check your browser settings.';
+      } else if (error.message.includes('Failed to download')) {
+        errorMessage = 'Failed to download receipt file. Please try again.';
+      }
+      
+      window.alert(errorMessage);
+      return false;
+    }
+  };
+
+  // Update the print preview button in the checkout actions
+  const handlePrintPreview = async () => {
+    const printData = preparePrintData(`PREVIEW-${Date.now()}`, saleMode === 'pending' ? 'pending' : 'completed');
+    await handlePrintReceipt(printData, t('titles.sale_receipt'), true);
+  };
 
   // Function to get the current price based on price mode
   const getCurrentPrice = (product) => {
@@ -265,8 +679,6 @@ const PointOfSale = () => {
         stockData[productStock.product_id] = productStock.available_units;
       });
       
-      
-      
       setStockAvailability(stockData);
     } catch (err) {
       // Fallback to individual calls if bulk fails
@@ -282,7 +694,6 @@ const PointOfSale = () => {
       fetchBulkStockAvailability();
     }
   };
-
 
   const getUpdatedStockAvailability = (productId) => {
     // Get the base stock availability for this product
@@ -311,7 +722,6 @@ const PointOfSale = () => {
     const baseUnit = baseStockInfo.find(u => u.is_base_unit);
     const totalBaseStock = baseUnit ? baseUnit.available_quantity : 0;
     const remainingPieces = Math.max(0, totalBaseStock - totalPiecesInCart);
-
 
     // Update each unit's available quantity based on remaining pieces
     return baseStockInfo.map(unit => {
@@ -865,68 +1275,36 @@ const PointOfSale = () => {
     return totalCost;
   };
 
-
-  const autoPrintReceipt = async (saleNumber, saleData, saleStatus = 'completed') => {
-    try {
-      // Create print content for the sale
-      const total = calculateSubtotal();
-      const remaining = total - paidAmount;
-      
-      const printData = {
-        sale_number: saleNumber,
-        customer_name: customerInfo.name || 'Walk-in Customer',
-        customer_phone: customerInfo.phone || '',
-        customer_email: customerInfo.email || '',
-        user_name: user?.username || 'Unknown User',
-        user_id: user?.id || 'unknown',
-        created_at: new Date().toISOString(),
-        print_timestamp: new Date().toISOString(),
-        print_id: `PRINT-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-        status: saleStatus,
-        total_amount: total,
-        paid_amount: paidAmount,
-        remaining_amount: remaining,
-        payment_status: remaining > 0 ? 'partial' : 'paid',
-        due_date: remaining > 0 ? new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toLocaleDateString() : null, // 30 days from now
-        items: cart.map(item => ({
-          product_name: item.name,
-          product_sku: item.sku,
-          quantity: item.quantity,
-          unit_name: item.unit_name || item.unit?.name || 'piece',
-          unit_price: item.unit_price,
-          total_price: item.unit_price * item.quantity
-        }))
-      };
-
-      // Generate print content using the same logic as PrintButton
-      const printContent = generatePrintContent(printData, 'Sale Receipt', 'sale', t);
-      
-      // Open print window
-      const printWindow = window.open('', '_blank', 'width=800,height=600');
-      printWindow.document.write(printContent);
-      printWindow.document.close();
-      
-      // Wait for content to load then print
-      const printAfterLoad = () => {
-        printWindow.focus();
-        printWindow.print();
-        // Close the window after a short delay
-        setTimeout(() => {
-          printWindow.close();
-        }, 1000);
-      };
-      
-      // Check if window is already loaded
-      if (printWindow.document.readyState === 'complete') {
-        printAfterLoad();
-      } else {
-        printWindow.onload = printAfterLoad;
-      }
-      
-    } catch (error) {
-      // Don't show error to user as it's not critical
-      console.log("Printings got Error : ", error);
-    }
+  // Prepare print data for printing
+  const preparePrintData = (saleNumber, saleStatus = 'completed') => {
+    const total = calculateSubtotal();
+    const remaining = total - paidAmount;
+    
+    return {
+      sale_number: saleNumber,
+      customer_name: customerInfo.name || 'Walk-in Customer',
+      customer_phone: customerInfo.phone || '',
+      customer_email: customerInfo.email || '',
+      user_name: user?.username || 'Unknown User',
+      user_id: user?.id || 'unknown',
+      created_at: new Date().toISOString(),
+      print_timestamp: new Date().toISOString(),
+      print_id: `PRINT-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      status: saleStatus,
+      total_amount: total,
+      paid_amount: paidAmount,
+      remaining_amount: remaining,
+      payment_status: remaining > 0 ? 'partial' : 'paid',
+      due_date: remaining > 0 ? new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toLocaleDateString() : null, // 30 days from now
+      items: cart.map(item => ({
+        product_name: item.name,
+        product_sku: item.sku,
+        quantity: item.quantity,
+        unit_name: item.unit_name || item.unit?.name || 'piece',
+        unit_price: item.unit_price,
+        total_price: item.unit_price * item.quantity
+      }))
+    };
   };
 
   const handleCheckout = async () => {
@@ -994,7 +1372,6 @@ const PointOfSale = () => {
         }))
       };
 
-
       // Create the sale
       const response = await api.post('/api/sales/', saleData);
       const saleId = response.data.id;
@@ -1007,13 +1384,16 @@ const PointOfSale = () => {
           
           // Auto-print the receipt after successful sale completion (only if printReceipt is true)
           if (printReceipt) {
-            await autoPrintReceipt(saleNumber, response.data, 'completed');
+            // Use the improved printing logic for completed sale
+            const printData = preparePrintData(saleNumber, 'completed');
+            await handlePrintReceipt(printData, t('titles.sale_receipt'));
           }
       
-      // Clear cart and customer info
-      setCart([]);
-      setPackagingCart([]);
-      setCustomerInfo({ name: '', phone: '', email: '' });
+          // Clear cart and customer info
+          setCart([]);
+          setPackagingCart([]);
+          setCustomerInfo({ name: '', phone: '', email: '' });
+          setPaidAmount(0);
       
           // Reset price mode to standard after sale
           setPriceMode('standard');
@@ -1045,6 +1425,7 @@ const PointOfSale = () => {
           setCart([]);
           setPackagingCart([]);
           setCustomerInfo({ name: '', phone: '', email: '' });
+          setPaidAmount(0);
           
           // Wait for backend to process any completed stock movements
           await new Promise(resolve => setTimeout(resolve, 1000));
@@ -1059,21 +1440,23 @@ const PointOfSale = () => {
         
         // Print receipt for pending sale if requested
         if (printReceipt) {
-          await autoPrintReceipt(saleNumber, response.data, 'pending');
+          // Use the improved printing logic for pending sale
+          const printData = preparePrintData(saleNumber, 'pending');
+          await handlePrintReceipt(printData, t('titles.sale_receipt'));
         }
         
         // Clear cart and customer info
         setCart([]);
         setPackagingCart([]);
         setCustomerInfo({ name: '', phone: '', email: '' });
+        setPaidAmount(0);
         
         // Reset price mode to standard after sale
         setPriceMode('standard');
         
-        alert(t('messages.pending_sale_created', { saleNumber }));
+        alert(`Pending sale created successfully! Sale Number: ${saleNumber}`);
       }
     } catch (err) {
-      
       // Handle different types of errors
       if (err.response?.data?.error) {
         setError(err.response.data.error);
@@ -1119,7 +1502,6 @@ const PointOfSale = () => {
       fetchProducts(clearedFilters);
     }
   }, [categoriesLoaded, categories.length]);
-
 
   const handleQuantityClick = (item) => {
     setEditingQuantity(`${item.id}-${item.unit_id}`);
@@ -1439,7 +1821,7 @@ const PointOfSale = () => {
                     >
                       {category.is_sellable ? 'Sellable' : 'Not Sellable'}
                     </button>
-          </div>
+                  </div>
                 ))}
               </div>
             </div>
@@ -1601,7 +1983,6 @@ const PointOfSale = () => {
             ))}
           </div>
         </div>
-
 
         {/* Cart and Checkout */}
         <div className="pos-cart">
@@ -1917,6 +2298,16 @@ const PointOfSale = () => {
               </form>
 
               <div className="checkout-actions">
+                {/* Print Preview Button - Using the improved printing logic */}
+                <Button
+                  variant="outline"
+                  size="large"
+                  onClick={handlePrintPreview}
+                  className="print-preview-btn"
+                >
+                  🖨️ Print Preview
+                </Button>
+                
                 <Button
                   onClick={handleCheckout}
                   loading={processing}
