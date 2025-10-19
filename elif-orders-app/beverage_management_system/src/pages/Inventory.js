@@ -44,6 +44,11 @@ const Inventory = () => {
   const [availableUnits, setAvailableUnits] = useState([]);
   const [isMobile, setIsMobile] = useState(false);
 
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage] = useState(20);
+  const [totalProducts, setTotalProducts] = useState(0);
+
   // Check screen size on mount and resize
   useEffect(() => {
     const checkScreenSize = () => {
@@ -60,9 +65,16 @@ const Inventory = () => {
   const fetchProducts = useCallback(async () => {
     try {
       setLoading(true);
-      const response = await api.get('/api/products/');
-      const productsData = response.data.results || response.data;
-      setProducts(productsData);
+      let products = [];
+      let nextUrl = '/api/products/';
+      while (nextUrl) {
+        const response = await api.get(nextUrl);
+        const data = response.data;
+        products = [...products, ...data.results];
+        nextUrl = data.next; // null when no more pages
+      }
+      setProducts(products);
+      setTotalProducts(products.length);
     } catch (err) {
       console.error('Error fetching products:', err);
       setError('Failed to fetch products');
@@ -150,6 +162,80 @@ const Inventory = () => {
     fetchUnits();
     fetchTaxClasses();
   }, [fetchProducts, fetchCategories, fetchUnits, fetchTaxClasses]);
+
+  // Filter products based on search term, category, and stock filter
+  const filteredProducts = products.filter(product => {
+    const matchesSearch = product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         (product.sku && product.sku.toLowerCase().includes(searchTerm.toLowerCase()));
+    const matchesCategory = !selectedCategory || product.category === parseInt(selectedCategory);
+    const matchesStock = stockFilter === 'all' || 
+      (stockFilter === 'low' && product.stock_quantity <= product.min_stock_level) ||
+      (stockFilter === 'out' && product.stock_quantity === 0);
+    
+    return matchesSearch && matchesCategory && matchesStock;
+  });
+
+  // Pagination calculations
+  const totalPages = Math.ceil(filteredProducts.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const currentProducts = filteredProducts.slice(startIndex, endIndex);
+
+  // Pagination handlers
+  const handlePageChange = (pageNumber) => {
+    setCurrentPage(pageNumber);
+    // Scroll to top when page changes
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleNextPage = () => {
+    if (currentPage < totalPages) {
+      handlePageChange(currentPage + 1);
+    }
+  };
+
+  const handlePrevPage = () => {
+    if (currentPage > 1) {
+      handlePageChange(currentPage - 1);
+    }
+  };
+
+  // Reset to page 1 when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, selectedCategory, stockFilter]);
+
+  // Generate page numbers for pagination
+  const getPageNumbers = () => {
+    const pageNumbers = [];
+    const maxVisiblePages = isMobile ? 3 : 5;
+    
+    let startPage = Math.max(1, currentPage - Math.floor(maxVisiblePages / 2));
+    let endPage = Math.min(totalPages, startPage + maxVisiblePages - 1);
+    
+    if (endPage - startPage + 1 < maxVisiblePages) {
+      startPage = Math.max(1, endPage - maxVisiblePages + 1);
+    }
+    
+    for (let i = startPage; i <= endPage; i++) {
+      pageNumbers.push(i);
+    }
+    
+    return pageNumbers;
+  };
+
+  // Handle filter changes
+  const handleSearchChange = (e) => {
+    setSearchTerm(e.target.value);
+  };
+
+  const handleCategoryChange = (e) => {
+    setSelectedCategory(e.target.value);
+  };
+
+  const handleStockFilterChange = (e) => {
+    setStockFilter(e.target.value);
+  };
 
   const handleAddProduct = () => {
     setEditingProduct(null);
@@ -376,15 +462,13 @@ const Inventory = () => {
     return unitName || '';
   };
 
-  const filteredProducts = products.filter(product => {
-    const matchesSearch = product.name.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesCategory = !selectedCategory || product.category === parseInt(selectedCategory);
-    const matchesStock = stockFilter === 'all' || 
-      (stockFilter === 'low' && product.stock_quantity <= product.min_stock_level) ||
-      (stockFilter === 'out' && product.stock_quantity === 0);
-    
-    return matchesSearch && matchesCategory && matchesStock;
-  });
+  // Clear all filters
+  const handleClearFilters = () => {
+    setSearchTerm('');
+    setSelectedCategory('');
+    setStockFilter('all');
+    setCurrentPage(1);
+  };
 
   // Mobile card view component
   const ProductCard = ({ product }) => {
@@ -509,7 +593,7 @@ const Inventory = () => {
             type="text"
             placeholder="Search products..."
             value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
+            onChange={handleSearchChange}
             className="search-input"
           />
         </div>
@@ -517,7 +601,7 @@ const Inventory = () => {
         <div className="filter-group">
           <select 
             value={selectedCategory}
-            onChange={(e) => setSelectedCategory(e.target.value)}
+            onChange={handleCategoryChange}
             className="filter-select"
           >
             <option value="">All Categories</option>
@@ -532,7 +616,7 @@ const Inventory = () => {
         <div className="filter-group">
           <select 
             value={stockFilter}
-            onChange={(e) => setStockFilter(e.target.value)}
+            onChange={handleStockFilterChange}
             className="filter-select"
           >
             <option value="all">All Stock</option>
@@ -540,6 +624,26 @@ const Inventory = () => {
             <option value="out">Out of Stock</option>
           </select>
         </div>
+
+        {(searchTerm || selectedCategory || stockFilter !== 'all') && (
+          <div className="filter-group">
+            <Button 
+              variant="outline" 
+              size="small"
+              onClick={handleClearFilters}
+              style={{ marginTop: 'auto' }}
+            >
+              Clear Filters
+            </Button>
+          </div>
+        )}
+      </div>
+
+      {/* Products Count */}
+      <div className="products-count">
+        Showing {currentProducts.length} of {filteredProducts.length} products
+        {filteredProducts.length !== totalProducts && ` (filtered from ${totalProducts} total)`}
+        {currentPage > 1 && ` - Page ${currentPage} of ${totalPages}`}
       </div>
 
       {/* Desktop Table View */}
@@ -561,7 +665,7 @@ const Inventory = () => {
               </tr>
             </thead>
             <tbody>
-              {filteredProducts.map(product => {
+              {currentProducts.map(product => {
                 const defaultUnit = product.compatible_units?.find(cu => cu.is_default);
                 const defaultUnitName = defaultUnit ? 
                   `${defaultUnit.unit_name || defaultUnit.unit?.name || 'N/A'} (${defaultUnit.unit_symbol || defaultUnit.unit?.symbol || ''})` : 
@@ -639,15 +743,69 @@ const Inventory = () => {
       {/* Mobile Card View */}
       {isMobile && (
         <div className="products-grid">
-          {filteredProducts.map(product => (
+          {currentProducts.map(product => (
             <ProductCard key={product.id} product={product} />
           ))}
         </div>
       )}
 
-      {filteredProducts.length === 0 && !loading && (
+      {currentProducts.length === 0 && !loading && (
         <div className="no-products">
           <p>No products found{searchTerm || selectedCategory || stockFilter !== 'all' ? ' matching your filters' : ''}.</p>
+          {(searchTerm || selectedCategory || stockFilter !== 'all') && (
+            <Button 
+              variant="outline" 
+              onClick={handleClearFilters}
+            >
+              Clear Filters
+            </Button>
+          )}
+        </div>
+      )}
+
+      {/* Pagination Controls */}
+      {totalPages > 1 && (
+        <div className="pagination">
+          <div className="pagination-info">
+            Page {currentPage} of {totalPages} - {filteredProducts.length} products
+            {filteredProducts.length !== totalProducts && ' (filtered)'}
+          </div>
+          
+          <div className="pagination-controls">
+            <Button
+              variant="outline"
+              size="small"
+              onClick={handlePrevPage}
+              disabled={currentPage === 1}
+            >
+              Previous
+            </Button>
+            
+            <div className="pagination-numbers">
+              {getPageNumbers().map(pageNumber => (
+                <button
+                  key={pageNumber}
+                  className={`pagination-number ${pageNumber === currentPage ? 'active' : ''}`}
+                  onClick={() => handlePageChange(pageNumber)}
+                >
+                  {pageNumber}
+                </button>
+              ))}
+              
+              {totalPages > getPageNumbers()[getPageNumbers().length - 1] && (
+                <span className="pagination-ellipsis">...</span>
+              )}
+            </div>
+            
+            <Button
+              variant="outline"
+              size="small"
+              onClick={handleNextPage}
+              disabled={currentPage === totalPages}
+            >
+              Next
+            </Button>
+          </div>
         </div>
       )}
 

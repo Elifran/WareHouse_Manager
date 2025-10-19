@@ -45,10 +45,8 @@ const Navbar = () => {
   };
 
   const toggleCollapse = () => {
-    // Don't allow collapse toggle on mobile - use hamburger menu instead
-    if (!isMobile) {
-      setIsCollapsed(!isCollapsed);
-    }
+    // Allow collapse toggle on both desktop and mobile
+    setIsCollapsed(!isCollapsed);
   };
 
   const toggleDropdown = (category) => {
@@ -108,22 +106,19 @@ const Navbar = () => {
                     {(!isCollapsed || isMobile) && <h1>{t('app.title')}</h1>}
                     {isCollapsed && !isMobile && <div className="brand-icon">📊</div>}
                   </Link>
-                  
+                  {/* Collapse Toggle Button - Show on both desktop and mobile */}
+                  <button 
+                    className="navbar-toggle"
+                    onClick={toggleCollapse}
+                    aria-label={isCollapsed ? "Expand navigation" : "Collapse navigation"}
+                    title={isCollapsed ? "Expand navigation" : "Collapse navigation"}
+                  >
+                    {isCollapsed ? '→' : '←'}
+                  </button>
                   <div className="navbar-controls">
-                    {!isMobile && (
-                      <>
-                        <LanguageSelector />
-                        <button 
-                          className="navbar-toggle"
-                          onClick={toggleCollapse}
-                          aria-label={isCollapsed ? "Expand navigation" : "Collapse navigation"}
-                          title={isCollapsed ? "Expand navigation" : "Collapse navigation"}
-                        >
-                          {isCollapsed ? '→' : '←'}
-                        </button>
-                      </>
-                    )}
-                    
+                    {/* Language Selector - Always show on desktop, show on mobile when not collapsed */}
+                    {(!isMobile || !isCollapsed) && <LanguageSelector />}
+                    {/* Hamburger Menu - Only show on mobile */}
                     {isMobile && (
                       <button 
                         className="navbar-hamburger"
