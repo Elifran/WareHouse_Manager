@@ -306,7 +306,88 @@ const PointOfSale = () => {
     return content;
   };
 
-  // Copy the exact helper functions from PrintButton
+  // // Copy the exact helper functions from PrintButton
+  // const generateSaleContent = (data, t) => {
+  //   let items = data.items;
+  //   if (!items) {
+  //     const numberedKeys = Object.keys(data).filter(key => /^\d+$/.test(key));
+  //     if (numberedKeys.length > 0) {
+  //       items = numberedKeys.map(key => data[key]).filter(item => item && typeof item === 'object');
+  //     }
+  //   }
+
+  //   const paymentStatusText = data.payment_status === 'paid' ? 'PAID' : 
+  //                           data.payment_status === 'partial' ? 'PARTIAL' : 
+  //                           data.payment_status === 'pending' ? 'PENDING' : 
+  //                           'UNKNOWN';
+
+  //   return `
+  //     <div class="receipt-header">
+  //       <div class="company-name">______ANTATSIMO______</div>
+  //       <div class="document-title">SALE RECEIPT</div>
+  //       <div class="receipt-date">${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}</div>
+  //     </div>
+      
+  //     <div class="receipt-section">
+  //       <div class="section-title">SALE INFO</div>
+  //       <div class="receipt-row">
+  //         <span>Sale No:</span>
+  //         <span>${data.sale_number || 'N/A'}</span>
+  //       </div>
+  //       <div class="receipt-row">
+  //         <span>Customer:</span>
+  //         <span>${(data.customer_name || 'Walk-in Customer').substring(0, 25)}</span>
+  //       </div>
+  //       ${data.customer_phone ? `
+  //         <div class="receipt-row">
+  //           <span>Phone:</span>
+  //           <span>${data.customer_phone}</span>
+  //         </div>
+  //       ` : ''}
+  //       <div class="receipt-row">
+  //         <span>Status:</span>
+  //         <span>${paymentStatusText}</span>
+  //       </div>
+  //     </div>
+      
+  //     <div class="receipt-section">
+  //       <div class="section-title">ITEMS SOLD</div>
+  //       ${items && Array.isArray(items) ? items.slice(0, 20).map(item => `
+  //         <div class="sale-item">
+  //           <div class="item-name">${(item.product_name || 'N/A').substring(0, 25)}</div>
+  //           <div class="item-details">
+  //             <span>${item.quantity_display || item.quantity || 0} x ${parseFloat(item.unit_price || 0).toFixed(2)}</span>
+  //             <span>${parseFloat(item.total_price || 0).toFixed(2)} MGA</span>
+  //           </div>
+  //         </div>
+  //       `).join('') : '<div class="no-data">No items found</div>'}
+  //     </div>
+      
+  //     <div class="receipt-totals">
+  //       <div class="total-row">
+  //         <span>Subtotal:</span>
+  //         <span>${parseFloat(data.total_amount || 0).toFixed(2)} MGA</span>
+  //       </div>
+  //       <div class="total-row">
+  //         <span>Paid:</span>
+  //         <span>${parseFloat(data.paid_amount || 0).toFixed(2)} MGA</span>
+  //       </div>
+  //       ${data.payment_status === 'partial' ? `
+  //         <div class="total-row due-amount">
+  //           <span>Due:</span>
+  //           <span>${parseFloat(data.remaining_amount || 0).toFixed(2)} MGA</span>
+  //         </div>
+  //       ` : ''}
+  //     </div>
+      
+  //     <div class="receipt-footer">
+  //       <div class="thank-you">Thank you for your business!</div>
+  //       <div class="footer-text">${data.sale_number || ''}</div>
+  //     </div>
+  //   `;
+  // };
+  // REPLACE THE EXISTING generateSaleContent FUNCTION WITH THIS:
+
   const generateSaleContent = (data, t) => {
     let items = data.items;
     if (!items) {
@@ -323,30 +404,30 @@ const PointOfSale = () => {
 
     return `
       <div class="receipt-header">
-        <div class="company-name">Beverage Management</div>
+        <div class="company-name">______ANTATSIMO______</div>
         <div class="document-title">SALE RECEIPT</div>
         <div class="receipt-date">${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}</div>
       </div>
       
       <div class="receipt-section">
-        <div class="section-title">SALE INFO</div>
+        <div class="section-title">SALE INFORMATION</div>
         <div class="receipt-row">
-          <span>Sale No:</span>
-          <span>${data.sale_number || 'N/A'}</span>
+          <span><strong>Sale No:</strong></span>
+          <span><strong>${data.sale_number || 'N/A'}</strong></span>
         </div>
         <div class="receipt-row">
-          <span>Customer:</span>
-          <span>${(data.customer_name || 'Walk-in Customer').substring(0, 25)}</span>
+          <span><strong>Customer:</strong></span>
+          <span><strong>${(data.customer_name || 'WALK-IN CUSTOMER').substring(0, 25)}</strong></span>
         </div>
         ${data.customer_phone ? `
           <div class="receipt-row">
-            <span>Phone:</span>
-            <span>${data.customer_phone}</span>
+            <span><strong>Phone:</strong></span>
+            <span><strong>${data.customer_phone}</strong></span>
           </div>
         ` : ''}
         <div class="receipt-row">
-          <span>Status:</span>
-          <span>${paymentStatusText}</span>
+          <span><strong>Status:</strong></span>
+          <span><strong>${paymentStatusText}</strong></span>
         </div>
       </div>
       
@@ -357,7 +438,7 @@ const PointOfSale = () => {
             <div class="item-name">${(item.product_name || 'N/A').substring(0, 25)}</div>
             <div class="item-details">
               <span>${item.quantity_display || item.quantity || 0} x ${parseFloat(item.unit_price || 0).toFixed(2)}</span>
-              <span>${parseFloat(item.total_price || 0).toFixed(2)} MGA</span>
+              <span><strong>${parseFloat(item.total_price || 0).toFixed(2)} MGA</strong></span>
             </div>
           </div>
         `).join('') : '<div class="no-data">No items found</div>'}
@@ -365,32 +446,32 @@ const PointOfSale = () => {
       
       <div class="receipt-totals">
         <div class="total-row">
-          <span>Subtotal:</span>
+          <span>SUBTOTAL:</span>
           <span>${parseFloat(data.total_amount || 0).toFixed(2)} MGA</span>
         </div>
         <div class="total-row">
-          <span>Paid:</span>
+          <span>PAID AMOUNT:</span>
           <span>${parseFloat(data.paid_amount || 0).toFixed(2)} MGA</span>
         </div>
         ${data.payment_status === 'partial' ? `
           <div class="total-row due-amount">
-            <span>Due:</span>
+            <span>BALANCE DUE:</span>
             <span>${parseFloat(data.remaining_amount || 0).toFixed(2)} MGA</span>
           </div>
         ` : ''}
       </div>
       
       <div class="receipt-footer">
-        <div class="thank-you">Thank you for your business!</div>
+        <div class="thank-you">THANK YOU FOR YOUR BUSINESS!</div>
         <div class="footer-text">${data.sale_number || ''}</div>
+        <div class="footer-text">Printed: ${new Date().toLocaleString()}</div>
       </div>
     `;
   };
-
   const generateDefaultContent = (data, t) => {
     return `
       <div class="receipt-header">
-        <div class="company-name">Beverage Management</div>
+        <div class="company-name">______ANTATSIMO______</div>
         <div class="document-title">DOCUMENT</div>
         <div class="receipt-date">${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}</div>
       </div>
@@ -408,7 +489,94 @@ const PointOfSale = () => {
     `;
   };
 
-  // Replace the handlePrintReceipt function with PrintButton's robust logic
+  // // Replace the handlePrintReceipt function with PrintButton's robust logic
+  // const handlePrintReceipt = async (printData, title = 'Sale Receipt', usePreview = false) => {
+  //   try {
+  //     // Validate data structure
+  //     if (!printData) {
+  //       console.error('No data provided for printing');
+  //       window.alert('No data available to print.');
+  //       return false;
+  //     }
+
+  //     const isMobile = isMobileDevice();
+  //     let printContent;
+      
+  //     // Use the same content generation logic as PrintButton
+  //     if (isMobile) {
+  //       // Use mobile-optimized content
+  //       printContent = generateMobilePrintContent(printData, title, 'sale', t);
+  //     } else {
+  //       // Use Xprinter-optimized content for better compatibility
+  //       printContent = generateXprinterPrintContent(printData, title, 'sale', t);
+  //     }
+
+  //     // Handle print preview
+  //     if (usePreview) {
+  //       const previewSuccess = openPrintPreview(printContent, title);
+  //       if (previewSuccess) {
+  //         return true;
+  //       } else {
+  //         throw new Error('Failed to open print preview window.');
+  //       }
+  //     }
+
+  //     // Use mobile-friendly printing for mobile devices
+  //     if (isMobile) {
+  //       // Try direct print window for mobile
+  //       const success = await openPrintWindow(printContent, title);
+  //       if (!success) {
+  //         // If mobile printing fails, offer receipt app option
+  //         const useReceiptApp = window.confirm('Mobile printing failed. Would you like to download a file for receipt printer apps instead?');
+  //         if (useReceiptApp) {
+  //           const downloadSuccess = downloadReceiptFile(printData, title);
+  //           if (downloadSuccess) {
+  //             window.alert('Receipt file downloaded! You can now open it with any receipt printer app to print directly to your Xprinter.');
+  //             return true;
+  //           }
+  //         }
+  //         throw new Error('Mobile printing failed. Please try again or check your printer connection.');
+  //       }
+  //       return true;
+  //     } else {
+  //       // Desktop printing with enhanced error handling
+  //       // Try print preview first for better visibility
+  //       const previewSuccess = openPrintPreview(printContent, title);
+  //       if (previewSuccess) {
+  //         // Preview opened successfully, user can print from there
+  //         return true;
+  //       } else {
+  //         // Fallback to direct print window
+  //         const success = await openPrintWindow(printContent, title);
+  //         if (!success) {
+  //           throw new Error('Failed to open print window. Please check popup blockers and try again.');
+  //         }
+  //         return true;
+  //       }
+  //     }
+      
+  //   } catch (error) {
+  //     console.error('Print error:', error);
+      
+  //     // Provide more specific error messages
+  //     let errorMessage = 'Failed to print. Please try again.';
+      
+  //     if (error.message.includes('popup')) {
+  //       errorMessage = 'Popup blocked. Please allow popups for this site and try again.';
+  //     } else if (error.message.includes('Mobile printing failed')) {
+  //       errorMessage = 'Mobile printing failed. Please check your printer connection and try again.';
+  //     } else if (error.message.includes('window.open')) {
+  //       errorMessage = 'Could not open print window. Please check your browser settings.';
+  //     } else if (error.message.includes('Failed to download')) {
+  //       errorMessage = 'Failed to download receipt file. Please try again.';
+  //     }
+      
+  //     window.alert(errorMessage);
+  //     return false;
+  //   }
+  // };
+  // REPLACE THE EXISTING handlePrintReceipt FUNCTION WITH THIS:
+
   const handlePrintReceipt = async (printData, title = 'Sale Receipt', usePreview = false) => {
     try {
       // Validate data structure
@@ -419,16 +587,9 @@ const PointOfSale = () => {
       }
 
       const isMobile = isMobileDevice();
-      let printContent;
       
-      // Use the same content generation logic as PrintButton
-      if (isMobile) {
-        // Use mobile-optimized content
-        printContent = generateMobilePrintContent(printData, title, 'sale', t);
-      } else {
-        // Use Xprinter-optimized content for better compatibility
-        printContent = generateXprinterPrintContent(printData, title, 'sale', t);
-      }
+      // Generate optimized content for thermal printers
+      const printContent = generateThermalOptimizedContent(printData, title, 'sale');
 
       // Handle print preview
       if (usePreview) {
@@ -458,41 +619,325 @@ const PointOfSale = () => {
         }
         return true;
       } else {
-        // Desktop printing with enhanced error handling
-        // Try print preview first for better visibility
-        const previewSuccess = openPrintPreview(printContent, title);
-        if (previewSuccess) {
-          // Preview opened successfully, user can print from there
-          return true;
-        } else {
-          // Fallback to direct print window
-          const success = await openPrintWindow(printContent, title);
-          if (!success) {
-            throw new Error('Failed to open print window. Please check popup blockers and try again.');
+        // Desktop printing - use direct thermal printing method
+        const success = await printThermalReceipt(printContent, title);
+        if (!success) {
+          // Fallback to preview
+          const previewSuccess = openPrintPreview(printContent, title);
+          if (!previewSuccess) {
+            throw new Error('Failed to print receipt. Please try print preview instead.');
           }
-          return true;
         }
+        return true;
       }
       
     } catch (error) {
       console.error('Print error:', error);
-      
-      // Provide more specific error messages
-      let errorMessage = 'Failed to print. Please try again.';
-      
-      if (error.message.includes('popup')) {
-        errorMessage = 'Popup blocked. Please allow popups for this site and try again.';
-      } else if (error.message.includes('Mobile printing failed')) {
-        errorMessage = 'Mobile printing failed. Please check your printer connection and try again.';
-      } else if (error.message.includes('window.open')) {
-        errorMessage = 'Could not open print window. Please check your browser settings.';
-      } else if (error.message.includes('Failed to download')) {
-        errorMessage = 'Failed to download receipt file. Please try again.';
-      }
-      
-      window.alert(errorMessage);
+      window.alert('Failed to print receipt. Please try print preview or check your printer settings.');
       return false;
     }
+  };
+
+  // ADD THESE NEW FUNCTIONS AFTER handlePrintReceipt:
+
+  const generateThermalOptimizedContent = (data, title, type) => {
+    // Generate the sale content first
+    const saleContent = generateSaleContent(data, t);
+    
+    return `
+  <!DOCTYPE html>
+  <html>
+  <head>
+    <title>${title}</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+      /* Thermal Printer Optimized CSS - 80mm width */
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+        font-family: 'Courier New', Courier, monospace;
+      }
+      
+      body {
+        font-family: 'Courier New', Courier, monospace;
+        font-size: 12px;
+        line-height: 1.3;
+        color: #000000;
+        width: 80mm;
+        max-width: 80mm;
+        margin: 0 auto;
+        padding: 2mm;
+        background: white;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+      }
+      
+      .receipt-header {
+        text-align: center;
+        margin-bottom: 8px;
+        padding-bottom: 6px;
+        border-bottom: 1px solid #000000;
+      }
+      
+      .company-name {
+        font-weight: bold;
+        font-size: 14px;
+        margin-bottom: 3px;
+        text-transform: uppercase;
+      }
+      
+      .document-title {
+        font-weight: bold;
+        font-size: 13px;
+        margin-bottom: 4px;
+        text-transform: uppercase;
+      }
+      
+      .receipt-date {
+        font-size: 11px;
+        color: #000000;
+      }
+      
+      .receipt-section {
+        margin-bottom: 8px;
+        padding-bottom: 6px;
+        border-bottom: 1px solid #000000;
+      }
+      
+      .section-title {
+        font-weight: bold;
+        font-size: 11px;
+        margin-bottom: 5px;
+        text-transform: uppercase;
+        background-color: #f0f0f0;
+        padding: 3px 5px;
+        border: 1px solid #000000;
+      }
+      
+      .receipt-row {
+        display: flex;
+        justify-content: space-between;
+        margin-bottom: 4px;
+        font-size: 11px;
+        padding: 1px 0;
+      }
+      
+      .sale-item {
+        margin-bottom: 5px;
+        padding: 2px 0;
+        border-bottom: 1px dotted #666666;
+      }
+      
+      .item-name {
+        font-weight: bold;
+        margin-bottom: 2px;
+        word-wrap: break-word;
+        font-size: 11px;
+      }
+      
+      .item-details {
+        display: flex;
+        justify-content: space-between;
+        font-size: 10px;
+        color: #000000;
+      }
+      
+      .receipt-totals {
+        margin: 10px 0;
+        padding-top: 8px;
+        border-top: 2px solid #000000;
+      }
+      
+      .total-row {
+        display: flex;
+        justify-content: space-between;
+        margin-bottom: 4px;
+        font-weight: bold;
+        font-size: 12px;
+      }
+      
+      .due-amount {
+        color: #000000;
+        font-weight: bold;
+      }
+      
+      .no-data {
+        text-align: center;
+        color: #666666;
+        font-style: italic;
+        padding: 10px 0;
+        border: 1px dotted #666666;
+      }
+      
+      .thank-you {
+        text-align: center;
+        font-weight: bold;
+        margin: 8px 0;
+        font-size: 12px;
+      }
+      
+      .receipt-footer {
+        text-align: center;
+        margin-top: 12px;
+        padding-top: 8px;
+        border-top: 1px solid #000000;
+        font-size: 10px;
+        color: #000000;
+      }
+      
+      .footer-text {
+        margin-bottom: 3px;
+      }
+      
+      /* Force visibility for printing */
+      .section-title,
+      .receipt-section,
+      .receipt-header,
+      .receipt-footer {
+        border-color: #000000 !important;
+      }
+      
+      /* Print-specific styles with !important to override any conflicts */
+      @media print {
+        body {
+          margin: 0 !important;
+          padding: 1mm !important;
+          width: 80mm !important;
+          max-width: 80mm !important;
+          font-size: 12px !important;
+        }
+        
+        .receipt-header {
+          border-bottom: 1px solid #000000 !important;
+        }
+        
+        .receipt-section {
+          border-bottom: 1px solid #000000 !important;
+        }
+        
+        .receipt-footer {
+          border-top: 1px solid #000000 !important;
+        }
+        
+        .section-title {
+          border: 1px solid #000000 !important;
+          background-color: #f0f0f0 !important;
+        }
+        
+        .sale-item {
+          border-bottom: 1px dotted #666666 !important;
+        }
+        
+        .receipt-totals {
+          border-top: 2px solid #000000 !important;
+        }
+        
+        /* Hide non-printable elements */
+        .no-print {
+          display: none !important;
+        }
+        
+        /* Ensure proper sizing for thermal paper */
+        @page {
+          size: 80mm auto;
+          margin: 0;
+          padding: 0;
+        }
+      }
+      
+      /* Force monospace and prevent font changes */
+      * {
+        font-family: 'Courier New', Courier, monospace !important;
+      }
+    </style>
+  </head>
+  <body>
+    ${saleContent}
+  </body>
+  </html>`;
+  };
+
+  const printThermalReceipt = (printContent, title) => {
+    return new Promise((resolve) => {
+      try {
+        // Create a hidden iframe for printing
+        const printFrame = document.createElement('iframe');
+        printFrame.style.position = 'fixed';
+        printFrame.style.right = '0';
+        printFrame.style.bottom = '0';
+        printFrame.style.width = '0';
+        printFrame.style.height = '0';
+        printFrame.style.border = 'none';
+        printFrame.style.visibility = 'hidden';
+        
+        document.body.appendChild(printFrame);
+        
+        let printDocument = printFrame.contentWindow || printFrame.contentDocument;
+        if (printDocument.document) {
+          printDocument = printDocument.document;
+        }
+        
+        // Write the content to the iframe
+        printDocument.open();
+        printDocument.write(printContent);
+        printDocument.close();
+        
+        // Wait for content to load then trigger print
+        const printTimeout = setTimeout(() => {
+          try {
+            printFrame.contentWindow.focus();
+            
+            // Use a longer timeout to ensure CSS is applied
+            setTimeout(() => {
+              printFrame.contentWindow.print();
+              
+              // Clean up
+              setTimeout(() => {
+                if (document.body.contains(printFrame)) {
+                  document.body.removeChild(printFrame);
+                }
+                resolve(true);
+              }, 1000);
+            }, 500);
+          } catch (printError) {
+            console.error('Print error:', printError);
+            if (document.body.contains(printFrame)) {
+              document.body.removeChild(printFrame);
+            }
+            resolve(false);
+          }
+        }, 1000);
+        
+        // Fallback if onload doesn't fire
+        printFrame.onload = function() {
+          clearTimeout(printTimeout);
+          try {
+            printFrame.contentWindow.focus();
+            setTimeout(() => {
+              printFrame.contentWindow.print();
+              setTimeout(() => {
+                if (document.body.contains(printFrame)) {
+                  document.body.removeChild(printFrame);
+                }
+                resolve(true);
+              }, 1000);
+            }, 500);
+          } catch (error) {
+            console.error('Print error:', error);
+            if (document.body.contains(printFrame)) {
+              document.body.removeChild(printFrame);
+            }
+            resolve(false);
+          }
+        };
+        
+      } catch (error) {
+        console.error('Print setup error:', error);
+        resolve(false);
+      }
+    });
   };
 
   // Update the print preview button in the checkout actions
