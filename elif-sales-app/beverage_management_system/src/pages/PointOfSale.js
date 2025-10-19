@@ -925,6 +925,7 @@ const PointOfSale = () => {
       
     } catch (error) {
       // Don't show error to user as it's not critical
+      console.log("Printings got Error : ", error);
     }
   };
 

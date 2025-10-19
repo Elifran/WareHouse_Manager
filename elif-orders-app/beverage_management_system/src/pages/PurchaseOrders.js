@@ -23,6 +23,16 @@ const EditDeliveryModal = ({ delivery, onClose, onSubmit }) => {
     }))
   });
   const [loading, setLoading] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const checkScreenSize = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+    checkScreenSize();
+    window.addEventListener('resize', checkScreenSize);
+    return () => window.removeEventListener('resize', checkScreenSize);
+  }, []);
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -103,7 +113,7 @@ const EditDeliveryModal = ({ delivery, onClose, onSubmit }) => {
 
   return (
     <div className="modal-overlay">
-      <div className="modal-content delivery-modal">
+      <div className={`modal-content delivery-modal ${isMobile ? 'mobile-modal' : ''}`}>
         <div className="modal-header">
           <h2>Edit Delivery</h2>
           <div className="header-actions">
@@ -111,8 +121,9 @@ const EditDeliveryModal = ({ delivery, onClose, onSubmit }) => {
               data={delivery}
               title="Delivery Receipt"
               type="delivery"
-              printText="Print Receipt"
+              printText={isMobile ? "📄" : "Print Receipt"}
               className="print-edit-delivery-btn"
+              size={isMobile ? "small" : "medium"}
             />
             <button className="close-button" onClick={onClose}>×</button>
           </div>
@@ -120,17 +131,19 @@ const EditDeliveryModal = ({ delivery, onClose, onSubmit }) => {
         
         <form onSubmit={handleSubmit}>
           <div className="delivery-info">
-            <div className="info-row">
-              <span className="label">Delivery Number:</span>
-              <span className="value">{delivery.delivery_number}</span>
-            </div>
-            <div className="info-row">
-              <span className="label">Purchase Order:</span>
-              <span className="value">{delivery.purchase_order?.order_number}</span>
-            </div>
-            <div className="info-row">
-              <span className="label">Supplier:</span>
-              <span className="value">{delivery.purchase_order?.supplier?.name}</span>
+            <div className="info-grid">
+              <div className="info-row">
+                <span className="label">Delivery Number:</span>
+                <span className="value">{delivery.delivery_number}</span>
+              </div>
+              <div className="info-row">
+                <span className="label">Purchase Order:</span>
+                <span className="value">{delivery.purchase_order?.order_number}</span>
+              </div>
+              <div className="info-row">
+                <span className="label">Supplier:</span>
+                <span className="value">{delivery.purchase_order?.supplier?.name}</span>
+              </div>
             </div>
             <div className="form-group full-width">
               <label htmlFor="notes">Delivery Notes</label>
@@ -139,68 +152,154 @@ const EditDeliveryModal = ({ delivery, onClose, onSubmit }) => {
                 name="notes"
                 value={formData.notes}
                 onChange={handleInputChange}
+                rows={isMobile ? 2 : 3}
               ></textarea>
             </div>
           </div>
 
           <div className="form-section">
             <h3>Items to Receive</h3>
-            <div className="delivery-items-header">
-              <span>Product</span>
-              <span>Received</span>
-              <span>Unit Cost</span>
-              <span>Tax Rate</span>
-              <span>Condition Notes</span>
-              <span>Line Total</span>
-              <span>Tax Amount</span>
-            </div>
-            {formData.items.map((item, index) => {
-              const originalItem = delivery.items.find(delItem => delItem.id === item.id);
-              const product = originalItem?.product;
-              const taxClass = originalItem?.tax_class;
+            <div className={`delivery-items ${isMobile ? 'mobile-view' : 'desktop-view'}`}>
+              {!isMobile ? (
+                <>
+                  <div className="delivery-items-header">
+                    <span>Product</span>
+                    <span>Received</span>
+                    <span>Unit Cost</span>
+                    <span>Tax Rate</span>
+                    <span>Condition Notes</span>
+                    <span>Line Total</span>
+                    <span>Tax Amount</span>
+                  </div>
+                  {formData.items.map((item, index) => {
+                    const originalItem = delivery.items.find(delItem => delItem.id === item.id);
+                    const product = originalItem?.product;
+                    const taxClass = originalItem?.tax_class;
 
-              return (
-                <div key={item.id} className="delivery-item-row">
-                  <span>{product?.name} ({product?.sku})</span>
-                  <input
-                    type="number"
-                    value={item.quantity_received}
-                    onChange={(e) => handleItemChange(index, 'quantity_received', e.target.value)}
-                    min="0"
-                    required
-                  />
-                  <input
-                    type="number"
-                    value={item.unit_cost}
-                    onChange={(e) => handleItemChange(index, 'unit_cost', e.target.value)}
-                    step="0.01"
-                    min="0"
-                    required
-                  />
-                  <span>{taxClass ? `${taxClass.name} (${taxClass.tax_rate}%)` : 'N/A'}</span>
-                  <input
-                    type="text"
-                    value={item.condition_notes}
-                    onChange={(e) => handleItemChange(index, 'condition_notes', e.target.value)}
-                  />
-                  <span>{calculateItemTotal(item).toFixed(2)} MGA</span>
-                  <span>{calculateTaxAmount(item).toFixed(2)} MGA</span>
+                    return (
+                      <div key={item.id} className="delivery-item-row">
+                        <span className="product-name">{product?.name} ({product?.sku})</span>
+                        <input
+                          type="number"
+                          value={item.quantity_received}
+                          onChange={(e) => handleItemChange(index, 'quantity_received', e.target.value)}
+                          min="0"
+                          required
+                        />
+                        <input
+                          type="number"
+                          value={item.unit_cost}
+                          onChange={(e) => handleItemChange(index, 'unit_cost', e.target.value)}
+                          step="0.01"
+                          min="0"
+                          required
+                        />
+                        <span>{taxClass ? `${taxClass.name} (${taxClass.tax_rate}%)` : 'N/A'}</span>
+                        <input
+                          type="text"
+                          value={item.condition_notes}
+                          onChange={(e) => handleItemChange(index, 'condition_notes', e.target.value)}
+                          placeholder="Condition notes..."
+                        />
+                        <span>{calculateItemTotal(item).toFixed(2)} MGA</span>
+                        <span>{calculateTaxAmount(item).toFixed(2)} MGA</span>
+                      </div>
+                    );
+                  })}
+                </>
+              ) : (
+                // Mobile view for delivery items
+                <div className="mobile-delivery-items">
+                  {formData.items.map((item, index) => {
+                    const originalItem = delivery.items.find(delItem => delItem.id === item.id);
+                    const product = originalItem?.product;
+                    const taxClass = originalItem?.tax_class;
+
+                    return (
+                      <div key={item.id} className="mobile-delivery-item">
+                        <div className="mobile-item-header">
+                          <strong>{product?.name}</strong>
+                          <span className="sku">{product?.sku}</span>
+                        </div>
+                        <div className="mobile-item-fields">
+                          <div className="field-group">
+                            <label>Quantity Received</label>
+                            <input
+                              type="number"
+                              value={item.quantity_received}
+                              onChange={(e) => handleItemChange(index, 'quantity_received', e.target.value)}
+                              min="0"
+                              required
+                            />
+                          </div>
+                          <div className="field-group">
+                            <label>Unit Cost (MGA)</label>
+                            <input
+                              type="number"
+                              value={item.unit_cost}
+                              onChange={(e) => handleItemChange(index, 'unit_cost', e.target.value)}
+                              step="0.01"
+                              min="0"
+                              required
+                            />
+                          </div>
+                          <div className="field-group">
+                            <label>Tax Rate</label>
+                            <span className="tax-info">{taxClass ? `${taxClass.name} (${taxClass.tax_rate}%)` : 'N/A'}</span>
+                          </div>
+                          <div className="field-group full-width">
+                            <label>Condition Notes</label>
+                            <input
+                              type="text"
+                              value={item.condition_notes}
+                              onChange={(e) => handleItemChange(index, 'condition_notes', e.target.value)}
+                              placeholder="Condition notes..."
+                            />
+                          </div>
+                          <div className="mobile-item-totals">
+                            <span>Line Total: {calculateItemTotal(item).toFixed(2)} MGA</span>
+                            <span>Tax: {calculateTaxAmount(item).toFixed(2)} MGA</span>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
-              );
-            })}
+              )}
+            </div>
           </div>
 
           <div className="order-summary">
-            <div>Subtotal: {totals.subtotal.toFixed(2)} MGA</div>
-            <div>Tax: {totals.taxAmount.toFixed(2)} MGA</div>
-            <div className="total-amount">Total: {totals.total.toFixed(2)} MGA</div>
+            <div className="summary-item">
+              <span>Subtotal:</span>
+              <span>{totals.subtotal.toFixed(2)} MGA</span>
+            </div>
+            <div className="summary-item">
+              <span>Tax:</span>
+              <span>{totals.taxAmount.toFixed(2)} MGA</span>
+            </div>
+            <div className="summary-item total-amount">
+              <span>Total:</span>
+              <span>{totals.total.toFixed(2)} MGA</span>
+            </div>
           </div>
 
           <div className="modal-actions">
-            <Button type="button" variant="secondary" onClick={onClose} disabled={loading}>
+            <Button 
+              type="button" 
+              variant="secondary" 
+              onClick={onClose} 
+              disabled={loading}
+              fullWidth={isMobile}
+            >
               Cancel
             </Button>
-            <Button type="submit" variant="primary" disabled={loading}>
+            <Button 
+              type="submit" 
+              variant="primary" 
+              disabled={loading}
+              fullWidth={isMobile}
+            >
               {loading ? 'Updating...' : 'Update Delivery'}
             </Button>
           </div>
@@ -218,16 +317,26 @@ const PurchaseOrders = () => {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showDeliveryModal, setShowDeliveryModal] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState(null);
-  const [deliveryAction, setDeliveryAction] = useState('create'); // 'create' or 'create_and_archive'
+  const [deliveryAction, setDeliveryAction] = useState('create');
   const [showViewModal, setShowViewModal] = useState(false);
   const [viewOrder, setViewOrder] = useState(null);
   const [showEditDeliveryModal, setShowEditDeliveryModal] = useState(false);
   const [selectedDelivery, setSelectedDelivery] = useState(null);
   const [allDeliveries, setAllDeliveries] = useState([]);
   const [pendingDeliveries, setPendingDeliveries] = useState([]);
-  const [activeTab, setActiveTab] = useState('orders'); // 'orders', 'pending', 'history'
-  const [orderFilter, setOrderFilter] = useState('active'); // 'active', 'archived'
+  const [activeTab, setActiveTab] = useState('orders');
+  const [orderFilter, setOrderFilter] = useState('active');
+  const [isMobile, setIsMobile] = useState(false);
   const api = useApi();
+
+  useEffect(() => {
+    const checkScreenSize = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+    checkScreenSize();
+    window.addEventListener('resize', checkScreenSize);
+    return () => window.removeEventListener('resize', checkScreenSize);
+  }, []);
 
   useEffect(() => {
     fetchData();
@@ -271,7 +380,6 @@ const PurchaseOrders = () => {
       fetchData();
       setShowDeliveryModal(false);
       setSelectedOrder(null);
-      // Note: Stock is not updated until delivery is confirmed
     } catch (error) {
       console.error('Error creating delivery:', error);
       alert('Error creating delivery: ' + (error.response?.data?.detail || error.message));
@@ -280,17 +388,13 @@ const PurchaseOrders = () => {
 
   const handleCreateDeliveryAndArchiveOrder = async (deliveryData) => {
     try {
-      // Create delivery first
       await api.post('/api/purchases/deliveries/', deliveryData);
-      
-      // Then archive the purchase order by updating its status
       await api.patch(`/api/purchases/purchase-orders/${selectedOrder.id}/`, { status: 'archived' });
       
       fetchData();
       setShowDeliveryModal(false);
       setSelectedOrder(null);
       alert('Delivery created and purchase order archived successfully!');
-      // Note: Stock is not updated until delivery is confirmed
     } catch (error) {
       console.error('Error creating delivery and archiving order:', error);
       alert('Error: ' + (error.response?.data?.detail || error.message));
@@ -333,7 +437,6 @@ const PurchaseOrders = () => {
     const confirmMessage = `Are you sure you want to permanently delete ALL ${archivedOrders.length} archived purchase orders? This action cannot be undone.`;
     if (window.confirm(confirmMessage)) {
       try {
-        // Delete all archived orders
         const deletePromises = archivedOrders.map(order => 
           api.delete(`/api/purchases/purchase-orders/${order.id}/`)
         );
@@ -396,10 +499,171 @@ const PurchaseOrders = () => {
     
     return (
       <span className={`status-badge ${statusClasses[status] || 'status-default'}`}>
-        {status.replace('_', ' ').toUpperCase()}
+        {isMobile ? status.charAt(0).toUpperCase() : status.replace('_', ' ').toUpperCase()}
       </span>
     );
   };
+
+  // Mobile Card Components
+  const PurchaseOrderCard = ({ order }) => (
+    <div className="purchase-order-card">
+      <div className="card-header">
+        <div className="card-title">
+          <h3 className="order-number">{order.order_number}</h3>
+          <span className="supplier-name">{order.supplier?.name}</span>
+        </div>
+        <div className="card-status">
+          {getStatusBadge(order.status)}
+        </div>
+      </div>
+      
+      <div className="card-details">
+        <div className="detail-row">
+          <span className="label">Order Date:</span>
+          <span className="value">{new Date(order.order_date).toLocaleDateString()}</span>
+        </div>
+        <div className="detail-row">
+          <span className="label">Expected Delivery:</span>
+          <span className="value">{order.expected_delivery_date ? new Date(order.expected_delivery_date).toLocaleDateString() : '-'}</span>
+        </div>
+        <div className="detail-row">
+          <span className="label">Total Amount:</span>
+          <span className="value amount">{parseFloat(order.total_amount).toFixed(2)} MGA</span>
+        </div>
+      </div>
+
+      <div className="card-actions">
+        <div className="action-buttons">
+          <PrintButton
+            data={order}
+            title="Purchase Order"
+            type="purchase_order"
+            printText={isMobile ? "📄" : "Print"}
+            className="print-po-btn"
+            size="small"
+          />
+          <Button
+            size="small"
+            variant="secondary"
+            onClick={() => {
+              setSelectedOrder(order);
+              setDeliveryAction('create');
+              setShowDeliveryModal(true);
+            }}
+            disabled={order.status === 'cancelled' || order.status === 'delivered' || order.status === 'archived'}
+            fullWidth={isMobile}
+          >
+            {isMobile ? '📦 Create' : 'Create Delivery'}
+          </Button>
+          <Button
+            size="small"
+            variant="primary"
+            onClick={() => {
+              setSelectedOrder(order);
+              setDeliveryAction('create_and_archive');
+              setShowDeliveryModal(true);
+            }}
+            disabled={order.status === 'cancelled' || order.status === 'delivered' || order.status === 'archived'}
+            fullWidth={isMobile}
+          >
+            {isMobile ? '📦✓ Create & Archive' : 'Create & Archive Order'}
+          </Button>
+          <Button
+            size="small"
+            variant="outline"
+            onClick={() => handleViewOrder(order)}
+            fullWidth={isMobile}
+          >
+            {isMobile ? '👁️ View' : 'View Order'}
+          </Button>
+          {order.status === 'archived' && (
+            <Button
+              size="small"
+              variant="danger"
+              onClick={() => handleDeleteOrder(order.id)}
+              fullWidth={isMobile}
+            >
+              {isMobile ? '🗑️ Delete' : 'Delete'}
+            </Button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+
+  const DeliveryCard = ({ delivery }) => (
+    <div className="delivery-card">
+      <div className="card-header">
+        <div className="card-title">
+          <h3 className="delivery-number">{delivery.delivery_number}</h3>
+          <span className="order-number">PO: {delivery.purchase_order?.order_number}</span>
+        </div>
+        <div className="card-status">
+          {getStatusBadge(delivery.status)}
+        </div>
+      </div>
+      
+      <div className="card-details">
+        <div className="detail-row">
+          <span className="label">Delivery Date:</span>
+          <span className="value">{new Date(delivery.delivery_date).toLocaleDateString()}</span>
+        </div>
+        <div className="detail-row">
+          <span className="label">Total Amount:</span>
+          <span className="value amount">{parseFloat(delivery.total_amount).toFixed(2)} MGA</span>
+        </div>
+        {delivery.received_by && (
+          <div className="detail-row">
+            <span className="label">Received By:</span>
+            <span className="value">{delivery.received_by}</span>
+          </div>
+        )}
+      </div>
+
+      <div className="card-actions">
+        <div className="action-buttons">
+          <PrintButton
+            data={delivery}
+            title="Delivery Receipt"
+            type="delivery"
+            printText={isMobile ? "📄" : "Print"}
+            className="print-delivery-btn"
+            size="small"
+          />
+          {delivery.status === 'pending' && (
+            <>
+              <Button
+                size="small"
+                variant="primary"
+                onClick={() => handleConfirmDelivery(delivery.id)}
+                fullWidth={isMobile}
+              >
+                {isMobile ? '✓ Confirm' : 'Confirm & Update Stock'}
+              </Button>
+              <Button
+                size="small"
+                variant="secondary"
+                onClick={() => handleEditDelivery(delivery)}
+                fullWidth={isMobile}
+              >
+                {isMobile ? '✏️ Edit' : 'Edit Delivery'}
+              </Button>
+            </>
+          )}
+          {delivery.status === 'completed' && (
+            <Button
+              size="small"
+              variant="outline"
+              onClick={() => handleViewOrder(delivery.purchase_order)}
+              fullWidth={isMobile}
+            >
+              {isMobile ? '👁️ View PO' : 'View Order'}
+            </Button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
 
   const purchaseOrderColumns = [
     {
@@ -443,6 +707,7 @@ const PurchaseOrders = () => {
             type="purchase_order"
             printText="Print"
             className="print-po-btn"
+            size="small"
           />
           <Button
             size="small"
@@ -466,22 +731,14 @@ const PurchaseOrders = () => {
             }}
             disabled={row.status === 'cancelled' || row.status === 'delivered' || row.status === 'archived'}
           >
-            Create & Archive Order
-          </Button>
-          <Button
-            size="small"
-            variant="secondary"
-            onClick={() => handleArchiveOrder(row.id)}
-            disabled={row.status === 'delivered' || row.status === 'archived'}
-          >
-            Archive Order
+            Create & Archive
           </Button>
           <Button
             size="small"
             variant="outline"
             onClick={() => handleViewOrder(row)}
           >
-            View Order
+            View
           </Button>
           {row.status === 'archived' && (
             <Button
@@ -534,6 +791,7 @@ const PurchaseOrders = () => {
             type="delivery"
             printText="Print"
             className="print-delivery-btn"
+            size="small"
           />
           {row.status === 'pending' && (
             <>
@@ -542,14 +800,14 @@ const PurchaseOrders = () => {
                 variant="primary"
                 onClick={() => handleConfirmDelivery(row.id)}
               >
-                Confirm & Update Stock
+                Confirm
               </Button>
               <Button
                 size="small"
                 variant="secondary"
                 onClick={() => handleEditDelivery(row)}
               >
-                Edit Delivery
+                Edit
               </Button>
             </>
           )}
@@ -559,7 +817,7 @@ const PurchaseOrders = () => {
               variant="outline"
               onClick={() => handleViewOrder(row.purchase_order)}
             >
-              View Order
+              View PO
             </Button>
           )}
         </div>
@@ -622,15 +880,15 @@ const PurchaseOrders = () => {
             type="delivery"
             printText="Print"
             className="print-delivery-history-btn"
+            size="small"
           />
           <Button
             size="small"
             variant="outline"
             onClick={() => handleViewOrder(row.purchase_order)}
           >
-            View Order
+            View PO
           </Button>
-          {/* Delivery history is read-only - no edit buttons */}
         </div>
       )
     }
@@ -675,22 +933,24 @@ const PurchaseOrders = () => {
           <Button
             variant="primary"
             onClick={() => setShowCreateModal(true)}
+            size={isMobile ? "small" : "medium"}
+            fullWidth={isMobile}
           >
-            Create Purchase Order
+            {isMobile ? '📝 Create PO' : 'Create Purchase Order'}
           </Button>
         </div>
       </div>
 
-      <div className="management-layout">
-        {/* Mini Navigation */}
-        <div className="mini-navbar">
+      <div className={`management-layout ${isMobile ? 'mobile-layout' : 'desktop-layout'}`}>
+        {/* Navigation */}
+        <div className={`navigation-section ${isMobile ? 'mobile-nav' : 'desktop-nav'}`}>
           <div className="nav-tabs">
             <button 
               className={`nav-tab ${activeTab === 'orders' ? 'active' : ''}`}
               onClick={() => setActiveTab('orders')}
             >
               <span className="tab-icon">📋</span>
-              {t('titles.purchase_orders')}
+              <span className="tab-text">{isMobile ? 'Orders' : t('titles.purchase_orders')}</span>
               <span className="tab-count">({purchaseOrders.length})</span>
             </button>
             <button 
@@ -698,7 +958,7 @@ const PurchaseOrders = () => {
               onClick={() => setActiveTab('pending')}
             >
               <span className="tab-icon">⏳</span>
-              Pending Deliveries
+              <span className="tab-text">{isMobile ? 'Pending' : 'Pending Deliveries'}</span>
               <span className="tab-count">({pendingDeliveries.length})</span>
             </button>
             <button 
@@ -706,7 +966,7 @@ const PurchaseOrders = () => {
               onClick={() => setActiveTab('history')}
             >
               <span className="tab-icon">📦</span>
-              Delivery History
+              <span className="tab-text">{isMobile ? 'History' : 'Delivery History'}</span>
               <span className="tab-count">({allDeliveries.length})</span>
             </button>
           </div>
@@ -716,13 +976,13 @@ const PurchaseOrders = () => {
         <div className="main-content">
           <div className="content-header">
             <h2>
-              {activeTab === 'orders' && t('titles.purchase_orders')}
-              {activeTab === 'pending' && 'Pending Deliveries'}
-              {activeTab === 'history' && 'Delivery History'}
+              {activeTab === 'orders' && (isMobile ? 'Purchase Orders' : t('titles.purchase_orders'))}
+              {activeTab === 'pending' && (isMobile ? 'Pending Deliveries' : 'Pending Deliveries')}
+              {activeTab === 'history' && (isMobile ? 'Delivery History' : 'Delivery History')}
             </h2>
           </div>
 
-          {/* Order Filter Section - Only show for orders tab */}
+          {/* Order Filter Section */}
           {activeTab === 'orders' && (
             <div className="order-filter-section">
               <div className="filter-buttons">
@@ -732,7 +992,7 @@ const PurchaseOrders = () => {
                   onClick={() => setOrderFilter('active')}
                 >
                   <span className="filter-icon">📋</span>
-                  Active Orders
+                  <span className="filter-text">{isMobile ? 'Active' : 'Active Orders'}</span>
                   <span className="filter-count">
                     ({purchaseOrders.filter(order => order.status !== 'archived').length})
                   </span>
@@ -743,22 +1003,23 @@ const PurchaseOrders = () => {
                   onClick={() => setOrderFilter('archived')}
                 >
                   <span className="filter-icon">📁</span>
-                  Archived Orders
+                  <span className="filter-text">{isMobile ? 'Archived' : 'Archived Orders'}</span>
                   <span className="filter-count">
                     ({purchaseOrders.filter(order => order.status === 'archived').length})
                   </span>
                 </button>
               </div>
               
-              {/* Delete All Archived Button - Only show when viewing archived orders */}
+              {/* Delete All Archived Button */}
               {orderFilter === 'archived' && purchaseOrders.filter(order => order.status === 'archived').length > 0 && (
                 <div className="bulk-actions">
                   <Button
                     variant="danger"
                     size="small"
                     onClick={handleDeleteAllArchived}
+                    fullWidth={isMobile}
                   >
-                    🗑️ Delete All Archived
+                    {isMobile ? '🗑️ Delete All' : '🗑️ Delete All Archived'}
                   </Button>
                 </div>
               )}
@@ -766,11 +1027,33 @@ const PurchaseOrders = () => {
           )}
           
           <div className="table-container">
-            <Table
-              data={currentData.data}
-              columns={currentData.columns}
-              emptyMessage={currentData.emptyMessage}
-            />
+            {/* Mobile Card View */}
+            {isMobile ? (
+              <div className="mobile-cards-container">
+                {currentData.data.length === 0 ? (
+                  <div className="empty-state">
+                    <p>{currentData.emptyMessage}</p>
+                  </div>
+                ) : (
+                  <div className="cards-grid">
+                    {currentData.data.map(item => 
+                      activeTab === 'orders' ? (
+                        <PurchaseOrderCard key={item.id} order={item} />
+                      ) : (
+                        <DeliveryCard key={item.id} delivery={item} />
+                      )
+                    )}
+                  </div>
+                )}
+              </div>
+            ) : (
+              /* Desktop Table View */
+              <Table
+                data={currentData.data}
+                columns={currentData.columns}
+                emptyMessage={currentData.emptyMessage}
+              />
+            )}
           </div>
         </div>
       </div>
@@ -780,6 +1063,7 @@ const PurchaseOrders = () => {
           suppliers={suppliers}
           onClose={() => setShowCreateModal(false)}
           onSubmit={handleCreateOrder}
+          isMobile={isMobile}
         />
       )}
 
@@ -793,6 +1077,7 @@ const PurchaseOrders = () => {
             setDeliveryAction('create');
           }}
           onSubmit={deliveryAction === 'create_and_archive' ? handleCreateDeliveryAndArchiveOrder : handleCreateDelivery}
+          isMobile={isMobile}
         />
       )}
 
@@ -803,6 +1088,7 @@ const PurchaseOrders = () => {
             setShowViewModal(false);
             setViewOrder(null);
           }}
+          isMobile={isMobile}
         />
       )}
 
@@ -821,11 +1107,11 @@ const PurchaseOrders = () => {
 };
 
 // ViewOrderModal Component
-const ViewOrderModal = ({ order, onClose }) => {
+const ViewOrderModal = ({ order, onClose, isMobile = false }) => {
   const { t } = useTranslation();
   return (
     <div className="modal-overlay">
-      <div className="modal-content view-order-modal">
+      <div className={`modal-content view-order-modal ${isMobile ? 'mobile-modal' : ''}`}>
         <div className="modal-header">
           <h2>Purchase Order Details</h2>
           <div className="header-actions">
@@ -833,8 +1119,9 @@ const ViewOrderModal = ({ order, onClose }) => {
               data={order}
               title={t('titles.purchase_order')}
               type="purchase_order"
-              printText={t('buttons.print_order')}
+              printText={isMobile ? "📄" : t('buttons.print_order')}
               className="print-view-order-btn"
+              size={isMobile ? "small" : "medium"}
             />
             <button className="close-button" onClick={onClose}>×</button>
           </div>
@@ -844,7 +1131,7 @@ const ViewOrderModal = ({ order, onClose }) => {
           <div className="order-details">
             <div className="detail-section">
               <h3>Order Information</h3>
-              <div className="detail-grid">
+              <div className={`detail-grid ${isMobile ? 'mobile-grid' : 'desktop-grid'}`}>
                 <div className="detail-item">
                   <label>Order Number:</label>
                   <span>{order.order_number}</span>
@@ -885,31 +1172,64 @@ const ViewOrderModal = ({ order, onClose }) => {
 
             <div className="detail-section">
               <h3>Order Items</h3>
-              <div className="items-table">
-                <div className="items-header">
-                  <span>Product</span>
-                  <span>SKU</span>
-                  <span>Quantity</span>
-                  <span>Unit Cost</span>
-                  <span>Tax</span>
-                  <span>Line Total</span>
-                </div>
-                {order.items?.map((item, index) => (
-                  <div key={index} className="item-row">
-                    <span>{item.product?.name}</span>
-                    <span>{item.product?.sku}</span>
-                    <span>{item.quantity_ordered}</span>
-                    <span>{parseFloat(item.unit_cost).toFixed(2)} MGA</span>
-                    <span>{item.tax_class ? `${item.tax_class.name} (${item.tax_class.tax_rate}%)` : 'No Tax'}</span>
-                    <span>{parseFloat(item.line_total).toFixed(2)} MGA</span>
+              <div className={`items-table ${isMobile ? 'mobile-items' : 'desktop-items'}`}>
+                {!isMobile ? (
+                  <>
+                    <div className="items-header">
+                      <span>Product</span>
+                      <span>SKU</span>
+                      <span>Quantity</span>
+                      <span>Unit Cost</span>
+                      <span>Tax</span>
+                      <span>Line Total</span>
+                    </div>
+                    {order.items?.map((item, index) => (
+                      <div key={index} className="item-row">
+                        <span>{item.product?.name}</span>
+                        <span>{item.product?.sku}</span>
+                        <span>{item.quantity_ordered}</span>
+                        <span>{parseFloat(item.unit_cost).toFixed(2)} MGA</span>
+                        <span>{item.tax_class ? `${item.tax_class.name} (${item.tax_class.tax_rate}%)` : 'No Tax'}</span>
+                        <span>{parseFloat(item.line_total).toFixed(2)} MGA</span>
+                      </div>
+                    ))}
+                  </>
+                ) : (
+                  <div className="mobile-items-list">
+                    {order.items?.map((item, index) => (
+                      <div key={index} className="mobile-item">
+                        <div className="mobile-item-header">
+                          <strong>{item.product?.name}</strong>
+                          <span className="sku">{item.product?.sku}</span>
+                        </div>
+                        <div className="mobile-item-details">
+                          <div className="detail">
+                            <span>Quantity:</span>
+                            <span>{item.quantity_ordered}</span>
+                          </div>
+                          <div className="detail">
+                            <span>Unit Cost:</span>
+                            <span>{parseFloat(item.unit_cost).toFixed(2)} MGA</span>
+                          </div>
+                          <div className="detail">
+                            <span>Tax:</span>
+                            <span>{item.tax_class ? `${item.tax_class.name} (${item.tax_class.tax_rate}%)` : 'No Tax'}</span>
+                          </div>
+                          <div className="detail total">
+                            <span>Line Total:</span>
+                            <span>{parseFloat(item.line_total).toFixed(2)} MGA</span>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
                   </div>
-                ))}
+                )}
               </div>
             </div>
 
             <div className="detail-section">
               <h3>Order Summary</h3>
-              <div className="summary-grid">
+              <div className={`summary-grid ${isMobile ? 'mobile-summary' : 'desktop-summary'}`}>
                 <div className="summary-item">
                   <label>Subtotal:</label>
                   <span>{parseFloat(order.subtotal).toFixed(2)} MGA</span>
@@ -928,7 +1248,7 @@ const ViewOrderModal = ({ order, onClose }) => {
         </div>
 
         <div className="modal-footer">
-          <Button variant="secondary" onClick={onClose}>
+          <Button variant="secondary" onClick={onClose} fullWidth={isMobile}>
             Close
           </Button>
         </div>

@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { useAuth } from '../contexts/AuthContext';
 import api from '../services/api';
 import Button from '../components/Button';
+import PrintButton from '../components/PrintButton';
 import './PackagingValidation.css';
 
 const PackagingValidation = ({ saleId, onComplete, onCancel }) => {
@@ -140,6 +141,29 @@ const PackagingValidation = ({ saleId, onComplete, onCancel }) => {
     return packagingItems.reduce((total, item) => {
       return total + (parseFloat(item.total_price) || 0);
     }, 0);
+  };
+
+  const generatePrintData = () => {
+    return {
+      sale_number: sale?.sale_number || 'N/A',
+      customer_name: sale?.customer_name || 'Walk-in Customer',
+      customer_phone: sale?.customer_phone || '',
+      customer_email: sale?.customer_email || '',
+      user_name: user?.username || t('app.unknown_user'),
+      user_id: user?.id || 'unknown',
+      created_at: sale?.created_at || new Date().toISOString(),
+      print_timestamp: new Date().toISOString(),
+      print_id: `PACKAGING-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      packaging_items: packagingItems.map(item => ({
+        product_name: item.product_name,
+        quantity: item.quantity,
+        unit_name: item.unit_name,
+        unit_price: item.unit_price,
+        total_price: item.total_price,
+        status: item.status
+      })),
+      packaging_total: calculatePackagingTotal()
+    };
   };
 
   if (loading) {
@@ -317,6 +341,16 @@ const PackagingValidation = ({ saleId, onComplete, onCancel }) => {
       </div>
 
       <div className="validation-actions">
+        <PrintButton
+          data={generatePrintData()}
+          title="Packaging Validation Report"
+          type="packaging_validation"
+          printText="Print Report"
+          className="print-packaging-btn"
+          showValidateOption={true}
+          onValidate={handleCompleteValidation}
+          validateText="Validate & Print"
+        />
         <Button onClick={handleCompleteValidation} variant="primary" size="large">
           Complete Validation
         </Button>

@@ -9,16 +9,42 @@ const PackagingManagement = () => {
   const { t } = useTranslation();
   const { user } = useAuth();
   const [transactions, setTransactions] = useState([]);
+  const [filteredTransactions, setFilteredTransactions] = useState([]);
+  const [sales, setSales] = useState([]);
+  const [filteredSales, setFilteredSales] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [showPaymentForm, setShowPaymentForm] = useState(false);
   const [showSettleForm, setShowSettleForm] = useState(false);
+  const [showDetailsModal, setShowDetailsModal] = useState(false);
   const [selectedTransaction, setSelectedTransaction] = useState(null);
-  const [sales, setSales] = useState([]);
+  const [transactionDetails, setTransactionDetails] = useState(null);
   const [statistics, setStatistics] = useState({});
   
+  // Pagination states
+  const [currentTransactionPage, setCurrentTransactionPage] = useState(1);
+  const [currentSalePage, setCurrentSalePage] = useState(1);
+  const itemsPerPage = 10;
+  
+  // Filter states
+  const [transactionFilters, setTransactionFilters] = useState({
+    search: '',
+    status: '',
+    paymentStatus: '',
+    startDate: '',
+    endDate: '',
+    transactionType: ''
+  });
+
+  const [saleFilters, setSaleFilters] = useState({
+    search: '',
+    status: '',
+    startDate: '',
+    endDate: ''
+  });
+
   // Form data
   const [formData, setFormData] = useState({
     transaction_type: 'consignation',
@@ -49,6 +75,14 @@ const PackagingManagement = () => {
     fetchStatistics();
   }, []);
 
+  useEffect(() => {
+    applyTransactionFilters();
+  }, [transactions, transactionFilters]);
+
+  useEffect(() => {
+    applySaleFilters();
+  }, [sales, saleFilters]);
+
   const fetchTransactions = async () => {
     try {
       setLoading(true);
@@ -59,6 +93,18 @@ const PackagingManagement = () => {
       console.error('Error fetching transactions:', err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchTransactionDetails = async (transactionId) => {
+    try {
+      const response = await api.get(`/api/packaging/transactions/${transactionId}/`);
+      setTransactionDetails(response.data);
+      return response.data;
+    } catch (err) {
+      setError('Failed to load transaction details');
+      console.error('Error fetching transaction details:', err);
+      return null;
     }
   };
 
@@ -80,6 +126,156 @@ const PackagingManagement = () => {
     }
   };
 
+  // Filter functions
+  const applyTransactionFilters = () => {
+    let filtered = [...transactions];
+
+    // Search filter
+    if (transactionFilters.search) {
+      const searchLower = transactionFilters.search.toLowerCase();
+      filtered = filtered.filter(transaction =>
+        transaction.transaction_number?.toLowerCase().includes(searchLower) ||
+        transaction.customer_name?.toLowerCase().includes(searchLower) ||
+        transaction.sale_number?.toLowerCase().includes(searchLower)
+      );
+    }
+
+    // Status filter
+    if (transactionFilters.status) {
+      filtered = filtered.filter(transaction => transaction.status === transactionFilters.status);
+    }
+
+    // Payment status filter
+    if (transactionFilters.paymentStatus) {
+      filtered = filtered.filter(transaction => transaction.payment_status === transactionFilters.paymentStatus);
+    }
+
+    // Transaction type filter
+    if (transactionFilters.transactionType) {
+      filtered = filtered.filter(transaction => transaction.transaction_type === transactionFilters.transactionType);
+    }
+
+    // Date range filter
+    if (transactionFilters.startDate) {
+      filtered = filtered.filter(transaction => 
+        new Date(transaction.created_at) >= new Date(transactionFilters.startDate)
+      );
+    }
+
+    if (transactionFilters.endDate) {
+      filtered = filtered.filter(transaction => 
+        new Date(transaction.created_at) <= new Date(transactionFilters.endDate + 'T23:59:59')
+      );
+    }
+
+    setFilteredTransactions(filtered);
+    setCurrentTransactionPage(1); // Reset to first page when filters change
+  };
+
+  const applySaleFilters = () => {
+    let filtered = sales.filter(sale => sale.packaging_items && sale.packaging_items.length > 0);
+
+    // Search filter
+    if (saleFilters.search) {
+      const searchLower = saleFilters.search.toLowerCase();
+      filtered = filtered.filter(sale =>
+        sale.sale_number?.toLowerCase().includes(searchLower) ||
+        sale.customer_name?.toLowerCase().includes(searchLower)
+      );
+    }
+
+    // Status filter
+    if (saleFilters.status) {
+      filtered = filtered.filter(sale => sale.status === saleFilters.status);
+    }
+
+    // Date range filter
+    if (saleFilters.startDate) {
+      filtered = filtered.filter(sale => 
+        new Date(sale.created_at) >= new Date(saleFilters.startDate)
+      );
+    }
+
+    if (saleFilters.endDate) {
+      filtered = filtered.filter(sale => 
+        new Date(sale.created_at) <= new Date(saleFilters.endDate + 'T23:59:59')
+      );
+    }
+
+    setFilteredSales(filtered);
+    setCurrentSalePage(1); // Reset to first page when filters change
+  };
+
+  const handleTransactionFilterChange = (key, value) => {
+    setTransactionFilters(prev => ({
+      ...prev,
+      [key]: value
+    }));
+  };
+
+  const handleSaleFilterChange = (key, value) => {
+    setSaleFilters(prev => ({
+      ...prev,
+      [key]: value
+    }));
+  };
+
+  const clearTransactionFilters = () => {
+    setTransactionFilters({
+      search: '',
+      status: '',
+      paymentStatus: '',
+      startDate: '',
+      endDate: '',
+      transactionType: ''
+    });
+  };
+
+  const clearSaleFilters = () => {
+    setSaleFilters({
+      search: '',
+      status: '',
+      startDate: '',
+      endDate: ''
+    });
+  };
+
+  const handleViewDetails = async (transaction) => {
+    try {
+      setSelectedTransaction(transaction);
+      setLoading(true);
+      const details = await fetchTransactionDetails(transaction.id);
+      if (details) {
+        setTransactionDetails(details);
+        setShowDetailsModal(true);
+      }
+    } catch (err) {
+      setError('Failed to load transaction details');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Pagination calculations
+  const getCurrentTransactions = () => {
+    const startIndex = (currentTransactionPage - 1) * itemsPerPage;
+    const endIndex = startIndex + itemsPerPage;
+    return filteredTransactions.slice(startIndex, endIndex);
+  };
+
+  const getCurrentSales = () => {
+    const startIndex = (currentSalePage - 1) * itemsPerPage;
+    const endIndex = startIndex + itemsPerPage;
+    return filteredSales.slice(startIndex, endIndex);
+  };
+
+  const getTotalTransactionPages = () => {
+    return Math.ceil(filteredTransactions.length / itemsPerPage);
+  };
+
+  const getTotalSalePages = () => {
+    return Math.ceil(filteredSales.length / itemsPerPage);
+  };
 
   const handleMakePayment = async () => {
     try {
@@ -127,13 +323,16 @@ const PackagingManagement = () => {
     }
   };
 
-
   const formatCurrency = (amount) => {
     return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount);
   };
 
   const formatDate = (dateString) => {
     return new Date(dateString).toLocaleDateString();
+  };
+
+  const formatDateTime = (dateString) => {
+    return new Date(dateString).toLocaleString();
   };
 
   const getStatusBadge = (status) => {
@@ -161,13 +360,21 @@ const PackagingManagement = () => {
     return <span className={`payment-badge ${paymentClasses[paymentStatus] || ''}`}>{paymentLabels[paymentStatus] || paymentStatus}</span>;
   };
 
-  if (loading) {
+  if (loading && !showDetailsModal) {
     return (
       <div className="packaging-management">
         <div className="loading">Loading packaging transactions...</div>
       </div>
     );
   }
+
+  const currentTransactions = getCurrentTransactions();
+  const currentSales = getCurrentSales();
+  const totalTransactionPages = getTotalTransactionPages();
+  const totalSalePages = getTotalSalePages();
+
+  const hasActiveTransactionFilters = Object.values(transactionFilters).some(value => value !== '');
+  const hasActiveSaleFilters = Object.values(saleFilters).some(value => value !== '');
 
   return (
     <div className="packaging-management">
@@ -207,134 +414,492 @@ const PackagingManagement = () => {
         </div>
       </div>
 
-      {/* Recent Sales with Packaging */}
-      <div className="sales-section">
-        <h2>Recent Sales with Packaging</h2>
-        {sales.length === 0 ? (
-          <div className="no-data">No sales found</div>
+      {/* Transactions List */}
+      <div className="transactions-section">
+        <div className="section-header">
+          <h2>Packaging Transactions</h2>
+          {totalTransactionPages > 1 && (
+            <div className="pagination-info">
+              Page {currentTransactionPage} of {totalTransactionPages} 
+              ({filteredTransactions.length} filtered of {transactions.length} total)
+            </div>
+          )}
+        </div>
+
+        {/* Transaction Filters */}
+        <div className="filters-section">
+          <div className="filters-header">
+            <h3>Filters</h3>
+            {hasActiveTransactionFilters && (
+              <Button onClick={clearTransactionFilters} variant="text" size="small">
+                Clear All Filters
+              </Button>
+            )}
+          </div>
+          <div className="filters-grid">
+            <div className="filter-group">
+              <label>Search</label>
+              <input
+                type="text"
+                placeholder="Search by transaction, customer, or sale..."
+                value={transactionFilters.search}
+                onChange={(e) => handleTransactionFilterChange('search', e.target.value)}
+              />
+            </div>
+            <div className="filter-group">
+              <label>Status</label>
+              <select
+                value={transactionFilters.status}
+                onChange={(e) => handleTransactionFilterChange('status', e.target.value)}
+              >
+                <option value="">All Statuses</option>
+                <option value="active">Active</option>
+                <option value="completed">Completed</option>
+                <option value="cancelled">Cancelled</option>
+              </select>
+            </div>
+            <div className="filter-group">
+              <label>Payment Status</label>
+              <select
+                value={transactionFilters.paymentStatus}
+                onChange={(e) => handleTransactionFilterChange('paymentStatus', e.target.value)}
+              >
+                <option value="">All Payment Statuses</option>
+                <option value="pending">Unpaid</option>
+                <option value="partial">Partial</option>
+                <option value="paid">Paid</option>
+                <option value="refunded">Refunded</option>
+              </select>
+            </div>
+            <div className="filter-group">
+              <label>Transaction Type</label>
+              <select
+                value={transactionFilters.transactionType}
+                onChange={(e) => handleTransactionFilterChange('transactionType', e.target.value)}
+              >
+                <option value="">All Types</option>
+                <option value="consignation">Consignation</option>
+                <option value="exchange">Exchange</option>
+              </select>
+            </div>
+            <div className="filter-group">
+              <label>Start Date</label>
+              <input
+                type="date"
+                value={transactionFilters.startDate}
+                onChange={(e) => handleTransactionFilterChange('startDate', e.target.value)}
+              />
+            </div>
+            <div className="filter-group">
+              <label>End Date</label>
+              <input
+                type="date"
+                value={transactionFilters.endDate}
+                onChange={(e) => handleTransactionFilterChange('endDate', e.target.value)}
+              />
+            </div>
+          </div>
+        </div>
+        
+        {filteredTransactions.length === 0 ? (
+          <div className="no-data">
+            {transactions.length === 0 
+              ? 'No packaging transactions found' 
+              : 'No transactions match your filters'}
+          </div>
         ) : (
-          <div className="sales-list">
-            {sales.filter(sale => sale.packaging_items && sale.packaging_items.length > 0).slice(0, 5).map(sale => (
-              <div key={sale.id} className="sale-card">
-                <div className="sale-header">
-                  <div className="sale-info">
-                    <h3>{sale.sale_number}</h3>
-                    <p>Customer: {sale.customer_name || 'Walk-in Customer'}</p>
-                    <p>Date: {formatDate(sale.created_at)}</p>
-                    <p>Status: {sale.status}</p>
+          <>
+            <div className="transactions-list">
+              {currentTransactions.map(transaction => (
+                <div key={transaction.id} className="transaction-card">
+                  <div className="transaction-header">
+                    <div className="transaction-info">
+                      <h3>{transaction.transaction_number}</h3>
+                      <p>Sale: {transaction.sale_number}</p>
+                      <p>Customer: {transaction.customer_name || 'N/A'}</p>
+                    </div>
+                    <div className="transaction-status">
+                      {getStatusBadge(transaction.status)}
+                      {getPaymentStatusBadge(transaction.payment_status)}
+                    </div>
+                  </div>
+                  
+                  <div className="transaction-details">
+                    <div className="detail-row">
+                      <span>Type:</span>
+                      <span>{transaction.transaction_type}</span>
+                    </div>
+                    <div className="detail-row">
+                      <span>Total Amount:</span>
+                      <span>{formatCurrency(transaction.total_amount)}</span>
+                    </div>
+                    <div className="detail-row">
+                      <span>Paid Amount:</span>
+                      <span>{formatCurrency(transaction.paid_amount)}</span>
+                    </div>
+                    <div className="detail-row">
+                      <span>Remaining:</span>
+                      <span>{formatCurrency(transaction.remaining_amount)}</span>
+                    </div>
+                    <div className="detail-row">
+                      <span>Created:</span>
+                      <span>{formatDate(transaction.created_at)}</span>
+                    </div>
+                  </div>
+
+                  <div className="transaction-actions">
+                    {transaction.remaining_amount > 0 && (
+                      <Button 
+                        onClick={() => {
+                          setSelectedTransaction(transaction);
+                          setPaymentData(prev => ({ ...prev, amount: transaction.remaining_amount }));
+                          setShowPaymentForm(true);
+                        }}
+                        variant="primary"
+                        size="small"
+                      >
+                        Make Payment
+                      </Button>
+                    )}
+                    {transaction.status === 'active' && (
+                      <Button 
+                        onClick={() => {
+                          setSelectedTransaction(transaction);
+                          setSettleData({ settlement_type: 'return', notes: '' });
+                          setShowSettleForm(true);
+                        }}
+                        variant="success"
+                        size="small"
+                      >
+                        Settle
+                      </Button>
+                    )}
+                    <Button 
+                      onClick={() => handleViewDetails(transaction)}
+                      variant="secondary"
+                      size="small"
+                    >
+                      View Details
+                    </Button>
                   </div>
                 </div>
+              ))}
+            </div>
+
+            {/* Transactions Pagination */}
+            {totalTransactionPages > 1 && (
+              <div className="pagination-controls">
+                <Button 
+                  onClick={() => setCurrentTransactionPage(prev => Math.max(prev - 1, 1))}
+                  disabled={currentTransactionPage === 1}
+                  variant="secondary"
+                  size="small"
+                >
+                  Previous
+                </Button>
                 
-                <div className="packaging-summary">
-                  <h4>Packaging Items ({sale.packaging_items.length})</h4>
-                  <div className="packaging-items">
-                    {sale.packaging_items.map((item, index) => (
-                      <div key={index} className="packaging-item">
-                        <span>{item.product_name} x {item.quantity} = {formatCurrency(item.total_price)}</span>
-                        <span className={`status-badge ${item.status}`}>{item.status}</span>
-                      </div>
-                    ))}
+                <span className="page-indicator">
+                  Page {currentTransactionPage} of {totalTransactionPages}
+                </span>
+                
+                <Button 
+                  onClick={() => setCurrentTransactionPage(prev => Math.min(prev + 1, totalTransactionPages))}
+                  disabled={currentTransactionPage === totalTransactionPages}
+                  variant="secondary"
+                  size="small"
+                >
+                  Next
+                </Button>
+              </div>
+            )}
+          </>
+        )}
+      </div>
+
+      {/* Sales with Packaging */}
+      <div className="sales-section">
+        <div className="section-header">
+          <h2>Sales with Packaging</h2>
+          {totalSalePages > 1 && (
+            <div className="pagination-info">
+              Page {currentSalePage} of {totalSalePages}
+              ({filteredSales.length} filtered)
+            </div>
+          )}
+        </div>
+
+        {/* Sale Filters */}
+        <div className="filters-section">
+          <div className="filters-header">
+            <h3>Filters</h3>
+            {hasActiveSaleFilters && (
+              <Button onClick={clearSaleFilters} variant="text" size="small">
+                Clear All Filters
+              </Button>
+            )}
+          </div>
+          <div className="filters-grid">
+            <div className="filter-group">
+              <label>Search</label>
+              <input
+                type="text"
+                placeholder="Search by sale number or customer..."
+                value={saleFilters.search}
+                onChange={(e) => handleSaleFilterChange('search', e.target.value)}
+              />
+            </div>
+            <div className="filter-group">
+              <label>Status</label>
+              <select
+                value={saleFilters.status}
+                onChange={(e) => handleSaleFilterChange('status', e.target.value)}
+              >
+                <option value="">All Statuses</option>
+                <option value="pending">Pending</option>
+                <option value="completed">Completed</option>
+                <option value="cancelled">Cancelled</option>
+              </select>
+            </div>
+            <div className="filter-group">
+              <label>Start Date</label>
+              <input
+                type="date"
+                value={saleFilters.startDate}
+                onChange={(e) => handleSaleFilterChange('startDate', e.target.value)}
+              />
+            </div>
+            <div className="filter-group">
+              <label>End Date</label>
+              <input
+                type="date"
+                value={saleFilters.endDate}
+                onChange={(e) => handleSaleFilterChange('endDate', e.target.value)}
+              />
+            </div>
+          </div>
+        </div>
+        
+        {filteredSales.length === 0 ? (
+          <div className="no-data">
+            {sales.filter(s => s.packaging_items && s.packaging_items.length > 0).length === 0
+              ? 'No sales with packaging found' 
+              : 'No sales match your filters'}
+          </div>
+        ) : (
+          <>
+            <div className="sales-list">
+              {currentSales.map(sale => (
+                <div key={sale.id} className="sale-card">
+                  <div className="sale-header">
+                    <div className="sale-info">
+                      <h3>{sale.sale_number}</h3>
+                      <p>Customer: {sale.customer_name || 'Walk-in Customer'}</p>
+                      <p>Date: {formatDate(sale.created_at)}</p>
+                      <p>Status: {sale.status}</p>
+                    </div>
                   </div>
-                  {sale.status === 'completed' && (
-                    <div className="auto-created-notice">
-                      <small>✅ Packaging transaction automatically created</small>
+                  
+                  <div className="packaging-summary">
+                    <h4>Packaging Items ({sale.packaging_items.length})</h4>
+                    <div className="packaging-items">
+                      {sale.packaging_items.map((item, index) => (
+                        <div key={index} className="packaging-item">
+                          <span>{item.product_name} x {item.quantity} = {formatCurrency(item.total_price)}</span>
+                          <span className={`status-badge ${item.status}`}>{item.status}</span>
+                        </div>
+                      ))}
+                    </div>
+                    {sale.status === 'completed' && (
+                      <div className="auto-created-notice">
+                        <small>✅ Packaging transaction automatically created</small>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Sales Pagination */}
+            {totalSalePages > 1 && (
+              <div className="pagination-controls">
+                <Button 
+                  onClick={() => setCurrentSalePage(prev => Math.max(prev - 1, 1))}
+                  disabled={currentSalePage === 1}
+                  variant="secondary"
+                  size="small"
+                >
+                  Previous
+                </Button>
+                
+                <span className="page-indicator">
+                  Page {currentSalePage} of {totalSalePages}
+                </span>
+                
+                <Button 
+                  onClick={() => setCurrentSalePage(prev => Math.min(prev + 1, totalSalePages))}
+                  disabled={currentSalePage === totalSalePages}
+                  variant="secondary"
+                  size="small"
+                >
+                  Next
+                </Button>
+              </div>
+            )}
+          </>
+        )}
+      </div>
+
+      {/* Transaction Details Modal */}
+      {showDetailsModal && selectedTransaction && (
+        <div className="modal-overlay">
+          <div className="modal-content large-modal">
+            <div className="modal-header">
+              <h2>Transaction Details - {selectedTransaction.transaction_number}</h2>
+              <button onClick={() => setShowDetailsModal(false)} className="close-btn">&times;</button>
+            </div>
+            
+            <div className="modal-body">
+              {loading ? (
+                <div className="loading">Loading details...</div>
+              ) : transactionDetails ? (
+                <div className="transaction-details-content">
+                  {/* Basic Information */}
+                  <div className="details-section">
+                    <h3>Basic Information</h3>
+                    <div className="details-grid">
+                      <div className="detail-item">
+                        <label>Transaction Number:</label>
+                        <span>{transactionDetails.transaction_number}</span>
+                      </div>
+                      <div className="detail-item">
+                        <label>Sale Number:</label>
+                        <span>{transactionDetails.sale_number}</span>
+                      </div>
+                      <div className="detail-item">
+                        <label>Customer:</label>
+                        <span>{transactionDetails.customer_name || 'N/A'}</span>
+                      </div>
+                      <div className="detail-item">
+                        <label>Transaction Type:</label>
+                        <span>{transactionDetails.transaction_type}</span>
+                      </div>
+                      <div className="detail-item">
+                        <label>Status:</label>
+                        <span>{getStatusBadge(transactionDetails.status)}</span>
+                      </div>
+                      <div className="detail-item">
+                        <label>Payment Status:</label>
+                        <span>{getPaymentStatusBadge(transactionDetails.payment_status)}</span>
+                      </div>
+                      <div className="detail-item">
+                        <label>Created Date:</label>
+                        <span>{formatDateTime(transactionDetails.created_at)}</span>
+                      </div>
+                      <div className="detail-item">
+                        <label>Last Updated:</label>
+                        <span>{formatDateTime(transactionDetails.updated_at)}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Financial Summary */}
+                  <div className="details-section">
+                    <h3>Financial Summary</h3>
+                    <div className="financial-grid">
+                      <div className="financial-item">
+                        <label>Total Amount:</label>
+                        <span className="amount">{formatCurrency(transactionDetails.total_amount)}</span>
+                      </div>
+                      <div className="financial-item">
+                        <label>Paid Amount:</label>
+                        <span className="amount paid">{formatCurrency(transactionDetails.paid_amount)}</span>
+                      </div>
+                      <div className="financial-item">
+                        <label>Remaining Amount:</label>
+                        <span className="amount remaining">{formatCurrency(transactionDetails.remaining_amount)}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Packaging Items */}
+                  {transactionDetails.items && transactionDetails.items.length > 0 && (
+                    <div className="details-section">
+                      <h3>Packaging Items ({transactionDetails.items.length})</h3>
+                      <div className="items-table">
+                        <div className="table-header">
+                          <div>Product Name</div>
+                          <div>Quantity</div>
+                          <div>Unit Price</div>
+                          <div>Total Price</div>
+                          <div>Status</div>
+                        </div>
+                        <div className="table-body">
+                          {transactionDetails.items.map((item, index) => (
+                            <div key={index} className="table-row">
+                              <div>{item.product_name}</div>
+                              <div>{item.quantity}</div>
+                              <div>{formatCurrency(item.unit_price)}</div>
+                              <div>{formatCurrency(item.total_price)}</div>
+                              <div>
+                                <span className={`status-badge ${item.status}`}>
+                                  {item.status}
+                                </span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Payment History */}
+                  {transactionDetails.payments && transactionDetails.payments.length > 0 && (
+                    <div className="details-section">
+                      <h3>Payment History ({transactionDetails.payments.length})</h3>
+                      <div className="items-table">
+                        <div className="table-header">
+                          <div>Date</div>
+                          <div>Amount</div>
+                          <div>Method</div>
+                          <div>Notes</div>
+                        </div>
+                        <div className="table-body">
+                          {transactionDetails.payments.map((payment, index) => (
+                            <div key={index} className="table-row">
+                              <div>{formatDateTime(payment.created_at)}</div>
+                              <div>{formatCurrency(payment.amount)}</div>
+                              <div>{payment.payment_method}</div>
+                              <div>{payment.notes || '-'}</div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Notes */}
+                  {transactionDetails.notes && (
+                    <div className="details-section">
+                      <h3>Notes</h3>
+                      <div className="notes-content">
+                        {transactionDetails.notes}
+                      </div>
                     </div>
                   )}
                 </div>
-              </div>
-            ))}
+              ) : (
+                <div className="error-message">Failed to load transaction details</div>
+              )}
+            </div>
+
+            <div className="modal-footer">
+              <Button onClick={() => setShowDetailsModal(false)} variant="secondary">
+                Close
+              </Button>
+            </div>
           </div>
-        )}
-      </div>
-
-      {/* Transactions List */}
-      <div className="transactions-section">
-        <h2>Packaging Transactions</h2>
-        {transactions.length === 0 ? (
-          <div className="no-data">No packaging transactions found</div>
-        ) : (
-          <div className="transactions-list">
-            {transactions.map(transaction => (
-              <div key={transaction.id} className="transaction-card">
-                <div className="transaction-header">
-                  <div className="transaction-info">
-                    <h3>{transaction.transaction_number}</h3>
-                    <p>Sale: {transaction.sale_number}</p>
-                    <p>Customer: {transaction.customer_name || 'N/A'}</p>
-                  </div>
-                  <div className="transaction-status">
-                    {getStatusBadge(transaction.status)}
-                    {getPaymentStatusBadge(transaction.payment_status)}
-                  </div>
-                </div>
-                
-                <div className="transaction-details">
-                  <div className="detail-row">
-                    <span>Type:</span>
-                    <span>{transaction.transaction_type}</span>
-                  </div>
-                  <div className="detail-row">
-                    <span>Total Amount:</span>
-                    <span>{formatCurrency(transaction.total_amount)}</span>
-                  </div>
-                  <div className="detail-row">
-                    <span>Paid Amount:</span>
-                    <span>{formatCurrency(transaction.paid_amount)}</span>
-                  </div>
-                  <div className="detail-row">
-                    <span>Remaining:</span>
-                    <span>{formatCurrency(transaction.remaining_amount)}</span>
-                  </div>
-                  <div className="detail-row">
-                    <span>Created:</span>
-                    <span>{formatDate(transaction.created_at)}</span>
-                  </div>
-                </div>
-
-                <div className="transaction-actions">
-                  {transaction.remaining_amount > 0 && (
-                    <Button 
-                      onClick={() => {
-                        setSelectedTransaction(transaction);
-                        setPaymentData(prev => ({ ...prev, amount: transaction.remaining_amount }));
-                        setShowPaymentForm(true);
-                      }}
-                      variant="primary"
-                      size="small"
-                    >
-                      Make Payment
-                    </Button>
-                  )}
-                  {transaction.status === 'active' && (
-                    <Button 
-                      onClick={() => {
-                        setSelectedTransaction(transaction);
-                        setSettleData({ settlement_type: 'return', notes: '' });
-                        setShowSettleForm(true);
-                      }}
-                      variant="success"
-                      size="small"
-                    >
-                      Settle
-                    </Button>
-                  )}
-                  <Button 
-                    onClick={() => {
-                      // View details
-                      console.log('View transaction details:', transaction);
-                    }}
-                    variant="secondary"
-                    size="small"
-                    >
-                    View Details
-                  </Button>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-
+        </div>
+      )}
 
       {/* Payment Modal */}
       {showPaymentForm && selectedTransaction && (
