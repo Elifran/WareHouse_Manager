@@ -407,30 +407,34 @@ const PointOfSale = () => {
         <div class="company-name">______ANTATSIMO______</div>
         <div class="document-title">SALE RECEIPT</div>
         <div class="receipt-date">${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}</div>
+        <div class="no-data">_________________________</div>
+        <div class="no-data">                         </div>
       </div>
-      
       <div class="receipt-section">
-        <div class="section-title">SALE INFORMATION</div>
+        <div class="section-title">SALE INFO</div>
         <div class="receipt-row">
-          <span><strong>Sale No:</strong></span>
-          <span><strong>${data.sale_number || 'N/A'}</strong></span>
+          <span>Sale No:</span>
+          <span>${data.sale_number || 'N/A'}</span>
         </div>
         <div class="receipt-row">
-          <span><strong>Customer:</strong></span>
-          <span><strong>${(data.customer_name || 'WALK-IN CUSTOMER').substring(0, 25)}</strong></span>
+          <span>Customer:</span>
+          <span>${(data.customer_name || 'Walk-in Customer').substring(0, 25)}</span>
         </div>
         ${data.customer_phone ? `
           <div class="receipt-row">
-            <span><strong>Phone:</strong></span>
-            <span><strong>${data.customer_phone}</strong></span>
+            <span>Phone:</span>
+            <span>${data.customer_phone}</span>
           </div>
         ` : ''}
         <div class="receipt-row">
-          <span><strong>Status:</strong></span>
-          <span><strong>${paymentStatusText}</strong></span>
+          <span>Status:</span>
+          <span>${paymentStatusText}</span>
         </div>
+
+        <div class="no-data">_________________________</div>
+        <div class="no-data">                         </div>
+
       </div>
-      
       <div class="receipt-section">
         <div class="section-title">ITEMS SOLD</div>
         ${items && Array.isArray(items) ? items.slice(0, 20).map(item => `
@@ -438,33 +442,36 @@ const PointOfSale = () => {
             <div class="item-name">${(item.product_name || 'N/A').substring(0, 25)}</div>
             <div class="item-details">
               <span>${item.quantity_display || item.quantity || 0} x ${parseFloat(item.unit_price || 0).toFixed(2)}</span>
-              <span><strong>${parseFloat(item.total_price || 0).toFixed(2)} MGA</strong></span>
+              <span>${parseFloat(item.total_price || 0).toFixed(2)} MGA</span>
             </div>
           </div>
         `).join('') : '<div class="no-data">No items found</div>'}
+
+        <div class="no-data">_________________________</div>
+        <div class="no-data">                         </div>
+
       </div>
-      
       <div class="receipt-totals">
         <div class="total-row">
-          <span>SUBTOTAL:</span>
+          <span>Subtotal:</span>
           <span>${parseFloat(data.total_amount || 0).toFixed(2)} MGA</span>
         </div>
         <div class="total-row">
-          <span>PAID AMOUNT:</span>
+          <span>Paid:</span>
           <span>${parseFloat(data.paid_amount || 0).toFixed(2)} MGA</span>
         </div>
         ${data.payment_status === 'partial' ? `
           <div class="total-row due-amount">
-            <span>BALANCE DUE:</span>
+            <span>Due:</span>
             <span>${parseFloat(data.remaining_amount || 0).toFixed(2)} MGA</span>
           </div>
         ` : ''}
+        <div class="no-data">_________________________</div>
+        <div class="no-data">                         </div>
       </div>
-      
       <div class="receipt-footer">
-        <div class="thank-you">THANK YOU FOR YOUR BUSINESS!</div>
+        <div class="thank-you">Thank you for your business!</div>
         <div class="footer-text">${data.sale_number || ''}</div>
-        <div class="footer-text">Printed: ${new Date().toLocaleString()}</div>
       </div>
     `;
   };
@@ -650,206 +657,184 @@ const PointOfSale = () => {
   <head>
     <title>${title}</title>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <style>
-      /* Thermal Printer Optimized CSS - 80mm width */
+      /* 80mm Thermal Printer Receipt Styles */
       * {
         margin: 0;
         padding: 0;
         box-sizing: border-box;
-        font-family: 'Courier New', Courier, monospace;
       }
       
       body {
         font-family: 'Courier New', Courier, monospace;
         font-size: 12px;
-        line-height: 1.3;
-        color: #000000;
+        line-height: 1.2;
+        color: #000;
         width: 80mm;
         max-width: 80mm;
         margin: 0 auto;
-        padding: 2mm;
+        padding: 3mm;
         background: white;
-        -webkit-print-color-adjust: exact;
-        print-color-adjust: exact;
       }
       
       .receipt-header {
         text-align: center;
         margin-bottom: 8px;
         padding-bottom: 6px;
-        border-bottom: 1px solid #000000;
+        border-bottom: 1px dashed #000;
       }
       
       .company-name {
         font-weight: bold;
         font-size: 14px;
-        margin-bottom: 3px;
+        margin-bottom: 2px;
         text-transform: uppercase;
       }
       
       .document-title {
         font-weight: bold;
         font-size: 13px;
-        margin-bottom: 4px;
+        margin-bottom: 3px;
         text-transform: uppercase;
       }
       
       .receipt-date {
         font-size: 11px;
-        color: #000000;
+        color: #555;
       }
       
       .receipt-section {
         margin-bottom: 8px;
         padding-bottom: 6px;
-        border-bottom: 1px solid #000000;
+        border-bottom: 1px dotted #ccc;
       }
       
       .section-title {
         font-weight: bold;
         font-size: 11px;
-        margin-bottom: 5px;
+        margin-bottom: 4px;
         text-transform: uppercase;
-        background-color: #f0f0f0;
-        padding: 3px 5px;
-        border: 1px solid #000000;
+        background: #f0f0f0;
+        padding: 2px 4px;
       }
       
       .receipt-row {
         display: flex;
         justify-content: space-between;
-        margin-bottom: 4px;
+        margin-bottom: 3px;
         font-size: 11px;
-        padding: 1px 0;
       }
       
-      .sale-item {
-        margin-bottom: 5px;
+      .product-item,
+      .order-item,
+      .delivery-item,
+      .sale-item,
+      .packaging-item,
+      .sale-summary {
+        margin-bottom: 4px;
         padding: 2px 0;
-        border-bottom: 1px dotted #666666;
       }
       
+      .product-name,
       .item-name {
         font-weight: bold;
-        margin-bottom: 2px;
+        margin-bottom: 1px;
         word-wrap: break-word;
-        font-size: 11px;
       }
       
-      .item-details {
+      .product-details,
+      .item-details,
+      .sale-info {
         display: flex;
         justify-content: space-between;
         font-size: 10px;
-        color: #000000;
+        color: #555;
       }
       
-      .receipt-totals {
-        margin: 10px 0;
-        padding-top: 8px;
-        border-top: 2px solid #000000;
+      .receipt-totals,
+      .receipt-total {
+        margin: 8px 0;
+        padding-top: 6px;
+        border-top: 2px solid #000;
       }
       
       .total-row {
         display: flex;
         justify-content: space-between;
-        margin-bottom: 4px;
+        margin-bottom: 3px;
         font-weight: bold;
-        font-size: 12px;
       }
       
       .due-amount {
-        color: #000000;
-        font-weight: bold;
+        color: #d00;
       }
       
       .no-data {
         text-align: center;
-        color: #666666;
+        color: #888;
         font-style: italic;
-        padding: 10px 0;
-        border: 1px dotted #666666;
+        padding: 8px 0;
+      }
+      
+      .truncated-warning {
+        text-align: center;
+        color: #888;
+        font-size: 10px;
+        font-style: italic;
+        margin-top: 4px;
       }
       
       .thank-you {
         text-align: center;
         font-weight: bold;
-        margin: 8px 0;
-        font-size: 12px;
+        margin: 6px 0;
       }
       
       .receipt-footer {
         text-align: center;
-        margin-top: 12px;
-        padding-top: 8px;
-        border-top: 1px solid #000000;
+        margin-top: 10px;
+        padding-top: 6px;
+        border-top: 1px dashed #000;
         font-size: 10px;
-        color: #000000;
+        color: #666;
       }
       
       .footer-text {
-        margin-bottom: 3px;
+        margin-bottom: 2px;
       }
       
-      /* Force visibility for printing */
-      .section-title,
-      .receipt-section,
-      .receipt-header,
-      .receipt-footer {
-        border-color: #000000 !important;
-      }
+      .status-consignation { color: #090; }
+      .status-exchange { color: #009; }
+      .status-due { color: #d00; font-weight: bold; }
       
-      /* Print-specific styles with !important to override any conflicts */
+      /* Print-specific styles */
       @media print {
         body {
-          margin: 0 !important;
-          padding: 1mm !important;
-          width: 80mm !important;
-          max-width: 80mm !important;
-          font-size: 12px !important;
+          margin: 0;
+          padding: 2mm;
+          width: 80mm;
         }
         
-        .receipt-header {
-          border-bottom: 1px solid #000000 !important;
-        }
-        
-        .receipt-section {
-          border-bottom: 1px solid #000000 !important;
-        }
-        
-        .receipt-footer {
-          border-top: 1px solid #000000 !important;
-        }
-        
-        .section-title {
-          border: 1px solid #000000 !important;
-          background-color: #f0f0f0 !important;
-        }
-        
-        .sale-item {
-          border-bottom: 1px dotted #666666 !important;
-        }
-        
-        .receipt-totals {
-          border-top: 2px solid #000000 !important;
-        }
-        
-        /* Hide non-printable elements */
         .no-print {
-          display: none !important;
+          display: none;
         }
         
         /* Ensure proper sizing for thermal paper */
         @page {
           size: 80mm auto;
           margin: 0;
-          padding: 0;
         }
       }
       
-      /* Force monospace and prevent font changes */
+      /* Force monospace and proper breaking */
       * {
         font-family: 'Courier New', Courier, monospace !important;
+      }
+      
+      .default-content {
+        text-align: center;
+        padding: 10px 0;
+        color: #666;
       }
     </style>
   </head>
