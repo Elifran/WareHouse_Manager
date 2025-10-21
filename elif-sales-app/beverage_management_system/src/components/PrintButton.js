@@ -182,6 +182,85 @@ const generateDeliveryContent = (data, t) => {
   `;
 };
 
+// const generateSaleContent = (data, t) => {
+//   let items = data.items;
+//   if (!items) {
+//     const numberedKeys = Object.keys(data).filter(key => /^\d+$/.test(key));
+//     if (numberedKeys.length > 0) {
+//       items = numberedKeys.map(key => data[key]).filter(item => item && typeof item === 'object');
+//     }
+//   }
+
+//   const paymentStatusText = data.payment_status === 'paid' ? t('payment_status.paid', 'PAID') : 
+//                           data.payment_status === 'partial' ? t('payment_status.partial_payment', 'PARTIAL') : 
+//                           data.payment_status === 'pending' ? t('payment_status.pending_payment', 'PENDING') : 
+//                           t('payment_status.unknown', 'UNKNOWN');
+
+//   return `
+//     <div class="receipt-header">
+//       <div class="company-name">${t('company.name', '______ANTATSIMO______')}</div>
+//       <div class="document-title">SALE RECEIPT</div>
+//       <div class="receipt-date">${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}</div>
+//     </div>
+    
+//     <div class="receipt-section">
+//       <div class="section-title">SALE INFO</div>
+//       <div class="receipt-row">
+//         <span>Sale No:</span>
+//         <span>${data.sale_number || 'N/A'}</span>
+//       </div>
+//       <div class="receipt-row">
+//         <span>Customer:</span>
+//         <span>${(data.customer_name || t('customer.walk_in', 'Walk-in Customer')).substring(0, 25)}</span>
+//       </div>
+//       ${data.customer_phone ? `
+//         <div class="receipt-row">
+//           <span>Phone:</span>
+//           <span>${data.customer_phone}</span>
+//         </div>
+//       ` : ''}
+//       <div class="receipt-row">
+//         <span>Status:</span>
+//         <span>${paymentStatusText}</span>
+//       </div>
+//     </div>
+    
+//     <div class="receipt-section">
+//       <div class="section-title">ITEMS SOLD</div>
+//       ${items && Array.isArray(items) ? items.slice(0, 20).map(item => `
+//         <div class="sale-item">
+//           <div class="item-name">${(item.product_name || 'N/A').substring(0, 25)}</div>
+//           <div class="item-details">
+//             <span>${item.quantity_display || item.quantity || 0} x ${parseFloat(item.unit_price || 0).toFixed(2)}</span>
+//             <span>${parseFloat(item.total_price || 0).toFixed(2)} MGA</span>
+//           </div>
+//         </div>
+//       `).join('') : '<div class="no-data">No items found</div>'}
+//     </div>
+    
+//     <div class="receipt-totals">
+//       <div class="total-row">
+//         <span>Subtotal:</span>
+//         <span>${parseFloat(data.total_amount || 0).toFixed(2)} MGA</span>
+//       </div>
+//       <div class="total-row">
+//         <span>Paid:</span>
+//         <span>${parseFloat(data.paid_amount || 0).toFixed(2)} MGA</span>
+//       </div>
+//       ${data.payment_status === 'partial' ? `
+//         <div class="total-row due-amount">
+//           <span>Due:</span>
+//           <span>${parseFloat(data.remaining_amount || 0).toFixed(2)} MGA</span>
+//         </div>
+//       ` : ''}
+//     </div>
+    
+//     <div class="receipt-footer">
+//       <div class="thank-you">${t('receipt.thank_you', 'Thank you for your business!')}</div>
+//       <div class="footer-text">${data.sale_number || ''}</div>
+//     </div>
+//   `;
+// };
 const generateSaleContent = (data, t) => {
   let items = data.items;
   if (!items) {
@@ -191,18 +270,18 @@ const generateSaleContent = (data, t) => {
     }
   }
 
-  const paymentStatusText = data.payment_status === 'paid' ? t('payment_status.paid', 'PAID') : 
-                          data.payment_status === 'partial' ? t('payment_status.partial_payment', 'PARTIAL') : 
-                          data.payment_status === 'pending' ? t('payment_status.pending_payment', 'PENDING') : 
-                          t('payment_status.unknown', 'UNKNOWN');
+  const paymentStatusText = data.payment_status === 'paid' ? 'PAID' : 
+                          data.payment_status === 'partial' ? 'PARTIAL' : 
+                          data.payment_status === 'pending' ? 'PENDING' : 
+                          'UNKNOWN';
 
   return `
     <div class="receipt-header">
-      <div class="company-name">${t('company.name', '______ANTATSIMO______')}</div>
+      <div class="company-name">________ANTATSIMO_______</div>
+      <div class="company-name">________________________</div>
       <div class="document-title">SALE RECEIPT</div>
       <div class="receipt-date">${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}</div>
     </div>
-    
     <div class="receipt-section">
       <div class="section-title">SALE INFO</div>
       <div class="receipt-row">
@@ -210,8 +289,12 @@ const generateSaleContent = (data, t) => {
         <span>${data.sale_number || 'N/A'}</span>
       </div>
       <div class="receipt-row">
+        <span>Status:</span>
+        <span>${data.status || 'N/A'}</span>
+      </div>
+      <div class="receipt-row">
         <span>Customer:</span>
-        <span>${(data.customer_name || t('customer.walk_in', 'Walk-in Customer')).substring(0, 25)}</span>
+        <span>${(data.customer_name || 'Walk-in Customer').substring(0, 25)}</span>
       </div>
       ${data.customer_phone ? `
         <div class="receipt-row">
@@ -223,10 +306,13 @@ const generateSaleContent = (data, t) => {
         <span>Status:</span>
         <span>${paymentStatusText}</span>
       </div>
+
+      <div class="no-data">==================================================</div>
+
     </div>
-    
     <div class="receipt-section">
       <div class="section-title">ITEMS SOLD</div>
+      <div class="no-data">.</div>
       ${items && Array.isArray(items) ? items.slice(0, 20).map(item => `
         <div class="sale-item">
           <div class="item-name">${(item.product_name || 'N/A').substring(0, 25)}</div>
@@ -236,28 +322,33 @@ const generateSaleContent = (data, t) => {
           </div>
         </div>
       `).join('') : '<div class="no-data">No items found</div>'}
-    </div>
-    
+
+      <div class="no-data">__________________________________________________</div>
+      <div class="no-data">==================================================</</div>
+
+    </div>        
     <div class="receipt-totals">
-      <div class="total-row">
+      <div class="receipt-row">
         <span>Subtotal:</span>
         <span>${parseFloat(data.total_amount || 0).toFixed(2)} MGA</span>
       </div>
-      <div class="total-row">
+      <div class="receipt-row">
         <span>Paid:</span>
         <span>${parseFloat(data.paid_amount || 0).toFixed(2)} MGA</span>
       </div>
       ${data.payment_status === 'partial' ? `
-        <div class="total-row due-amount">
-          <span>Due:</span>
-          <span>${parseFloat(data.remaining_amount || 0).toFixed(2)} MGA</span>
+        <div class="receipt-row">
+          <span>Paid:</span>
+          <span>${parseFloat(data.paid_amount || 0).toFixed(2)} MGA</span>
         </div>
       ` : ''}
+      <div class="no-data">__________________________________________________</div>
+      <div class="no-data">==================================================</</div>
     </div>
-    
     <div class="receipt-footer">
-      <div class="thank-you">${t('receipt.thank_you', 'Thank you for your business!')}</div>
+      <div class="thank-you">Thank you!</div>
       <div class="footer-text">${data.sale_number || ''}</div>
+      <div class="footer-text">Print id : ${data.print_id || 'N/A'}</div>
     </div>
   `;
 };
@@ -340,6 +431,10 @@ const generatePackagingValidationContent = (data, t) => {
       <div class="receipt-row">
         <span>Sale No:</span>
         <span>${data.sale_number || 'N/A'}</span>
+      </div>
+      <div class="receipt-row">
+        <span>Status:</span>
+        <span>${data.status || 'N/A'}</span>
       </div>
       <div class="receipt-row">
         <span>Customer:</span>

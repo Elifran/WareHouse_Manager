@@ -404,17 +404,20 @@ const PointOfSale = () => {
 
     return `
       <div class="receipt-header">
-        <div class="company-name">______ANTATSIMO______</div>
+        <div class="company-name">________ANTATSIMO_______</div>
+        <div class="company-name">________________________</div>
         <div class="document-title">SALE RECEIPT</div>
         <div class="receipt-date">${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}</div>
-        <div class="no-data">_________________________</div>
-        <div class="no-data">                         </div>
       </div>
       <div class="receipt-section">
         <div class="section-title">SALE INFO</div>
         <div class="receipt-row">
           <span>Sale No:</span>
           <span>${data.sale_number || 'N/A'}</span>
+        </div>
+        <div class="receipt-row">
+          <span>Sale Status:</span>
+          <span>${data.status || 'N/A'}</span>
         </div>
         <div class="receipt-row">
           <span>Customer:</span>
@@ -427,16 +430,16 @@ const PointOfSale = () => {
           </div>
         ` : ''}
         <div class="receipt-row">
-          <span>Status:</span>
+          <span>Peyment Status:</span>
           <span>${paymentStatusText}</span>
         </div>
 
-        <div class="no-data">_________________________</div>
-        <div class="no-data">                         </div>
+        <div class="no-data">==================================================</div>
 
       </div>
       <div class="receipt-section">
         <div class="section-title">ITEMS SOLD</div>
+        <div class="no-data">.</div>
         ${items && Array.isArray(items) ? items.slice(0, 20).map(item => `
           <div class="sale-item">
             <div class="item-name">${(item.product_name || 'N/A').substring(0, 25)}</div>
@@ -447,31 +450,33 @@ const PointOfSale = () => {
           </div>
         `).join('') : '<div class="no-data">No items found</div>'}
 
-        <div class="no-data">_________________________</div>
-        <div class="no-data">                         </div>
+        <div class="no-data">__________________________________________________</div>
+        <div class="no-data">==================================================</</div>
 
-      </div>
+      </div>        
       <div class="receipt-totals">
-        <div class="total-row">
+        <div class="receipt-row">
           <span>Subtotal:</span>
           <span>${parseFloat(data.total_amount || 0).toFixed(2)} MGA</span>
         </div>
-        <div class="total-row">
+        <div class="receipt-row">
           <span>Paid:</span>
           <span>${parseFloat(data.paid_amount || 0).toFixed(2)} MGA</span>
         </div>
         ${data.payment_status === 'partial' ? `
-          <div class="total-row due-amount">
+          <div class="receipt-row">
             <span>Due:</span>
             <span>${parseFloat(data.remaining_amount || 0).toFixed(2)} MGA</span>
           </div>
         ` : ''}
-        <div class="no-data">_________________________</div>
-        <div class="no-data">                         </div>
+        <div class="no-data">__________________________________________________</div>
+        <div class="no-data">==================================================</</div>
       </div>
       <div class="receipt-footer">
-        <div class="thank-you">Thank you for your business!</div>
+        <div class="thank-you">Thank you!</div>
         <div class="footer-text">${data.sale_number || ''}</div>
+        <div class="footer-text">Print by : ${user?.username || 'N/A'}</div>
+        <div class="footer-text">Print id : ${data.print_id || 'N/A'}</div>
       </div>
     `;
   };
@@ -1747,8 +1752,8 @@ const PointOfSale = () => {
     setError('');
 
     // Validate customer name for partial payments
-    if (paymentType === 'partial' && (!customerInfo.name || !customerInfo.name.trim())) {
-      setError('Customer name is required for partial payments');
+    if ((saleMode !== 'complete' || paymentType === 'partial') && (!customerInfo.name || !customerInfo.name.trim())) {
+      setError('Customer name is required for partial/uncompleted payments');
       setProcessing(false);
       return;
     }
@@ -2641,10 +2646,10 @@ const PointOfSale = () => {
                 <div className="form-group">
                   <input
                     type="text"
-                    placeholder={paymentType === 'partial' ? "Customer Name (Required for Partial Payment)" : "Customer Name (Optional)"}
+                    placeholder={(saleMode !== 'complete' || paymentType === 'partial' )? "Customer Name (Required for Partial Payment)" : "Customer Name (Optional)"}
                     value={customerInfo.name}
                     onChange={(e) => setCustomerInfo({...customerInfo, name: e.target.value})}
-                    className={paymentType === 'partial' && !customerInfo.name ? 'required-field' : ''}
+                    className={(saleMode !== 'complete' || paymentType === 'partial') && !customerInfo.name ? 'required-field' : ''}
                   />
                 </div>
                 <div className="form-group">

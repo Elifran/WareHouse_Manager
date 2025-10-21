@@ -677,6 +677,10 @@ export const generatePDFContent = (data, title) => {
           <span>${data.sale_number || 'N/A'}</span>
         </div>
         <div class="receipt-row">
+          <span>Status:</span>
+          <span>${data.status || 'N/A'}</span>
+        </div>
+        <div class="receipt-row">
           <span>Customer:</span>
           <span>${(data.customer_name || 'Walk-in Customer').substring(0, 22)}</span>
         </div>
@@ -686,6 +690,10 @@ export const generatePDFContent = (data, title) => {
             <span>${data.customer_phone}</span>
           </div>
         ` : ''}
+        <div class="receipt-row">
+          <span>Peyment Status:</span>
+          <span>${data.payment_status}</span>
+        </div>
       </div>
       
       <div class="receipt-section">
@@ -1147,6 +1155,7 @@ export const generateXprinterPrintContent = (data, title, type, t) => {
     <body>
       <div class="receipt-header">
         <div class="company-name">${t('company.name', '______ANTATSIMO______')}</div>
+        <div class="company-name">________________________</div>
         <div class="document-title">${title.toUpperCase()}</div>
         <div class="receipt-date">${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}</div>
       </div>
@@ -1158,6 +1167,10 @@ export const generateXprinterPrintContent = (data, title, type, t) => {
           <span>${data.sale_number || 'N/A'}</span>
         </div>
         <div class="receipt-row">
+          <span>Status:</span>
+          <span>${data.status || 'N/A'}</span>
+        </div>
+        <div class="receipt-row">
           <span>Customer:</span>
           <span>${(data.customer_name || t('customer.walk_in', 'Walk-in')).substring(0, 22)}</span>
         </div>
@@ -1167,8 +1180,12 @@ export const generateXprinterPrintContent = (data, title, type, t) => {
             <span>${data.customer_phone}</span>
           </div>
         ` : ''}
+        <div class="receipt-row">
+          <span>Peyment Status:</span>
+          <span>${data.payment_status}</span>
+        </div>
       </div>
-      
+        <div class="no-data">==================================================</</div>
       <div class="receipt-section">
         <div class="section-title">ITEMS</div>
         ${data.items && Array.isArray(data.items) ? data.items.slice(0, 15).map(item => `
@@ -1179,7 +1196,8 @@ export const generateXprinterPrintContent = (data, title, type, t) => {
           </div>
         `).join('') : '<div class="no-data">No items found</div>'}
       </div>
-      
+        <div class="no-data">__________________________________________________</div>
+        <div class="no-data">==================================================</</div>
       <div class="receipt-totals">
         <div class="total-row">
           <span>Total:</span>
@@ -1196,7 +1214,8 @@ export const generateXprinterPrintContent = (data, title, type, t) => {
           </div>
         ` : ''}
       </div>
-      
+        <div class="no-data">__________________________________________________</div>
+        <div class="no-data">==================================================</</div>
       <div class="receipt-footer">
         <div>${t('receipt.thank_you', 'Thank you!')}</div>
         <div>Print ID: ${data.print_id || 'N/A'}</div>
@@ -1351,6 +1370,7 @@ export const generateMobilePrintContent = (data, title, type, t) => {
     <body>
       <div class="receipt-header">
         <div class="company-name">${t('company.name', '______ANTATSIMO______')}</div>
+        <div class="company-name">________________________</div>
         <div class="document-title">${title.toUpperCase()}</div>
         <div class="receipt-date">${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}</div>
       </div>
@@ -1362,6 +1382,10 @@ export const generateMobilePrintContent = (data, title, type, t) => {
           <span>${data.sale_number || 'N/A'}</span>
         </div>
         <div class="receipt-row">
+          <span>Sale Status:</span>
+          <span>${data.status || 'N/A'}</span>
+        </div>
+        <div class="receipt-row">
           <span>Customer:</span>
           <span>${(data.customer_name || t('customer.walk_in', 'Walk-in')).substring(0, maxChars - 10)}</span>
         </div>
@@ -1370,9 +1394,13 @@ export const generateMobilePrintContent = (data, title, type, t) => {
             <span>Phone:</span>
             <span>${data.customer_phone}</span>
           </div>
-        ` : ''}
+        ` : ''}        
+        <div class="receipt-row">
+          <span>Peyment Status:</span>
+          <span>${data.payment_status}</span>
+        </div>
       </div>
-      
+        <div class="no-data">==================================================</</div>
       <div class="receipt-section">
         <div class="section-title">ITEMS</div>
         ${data.items && Array.isArray(data.items) ? data.items.slice(0, isMobile ? 10 : 20).map(item => `
@@ -1383,24 +1411,26 @@ export const generateMobilePrintContent = (data, title, type, t) => {
           </div>
         `).join('') : '<div class="no-data">No items found</div>'}
       </div>
-      
+        <div class="no-data">__________________________________________________</div>
+        <div class="no-data">==================================================</</div>
       <div class="receipt-totals">
-        <div class="total-row">
+        <div class="receipt-row">
           <span>Total:</span>
           <span>${parseFloat(data.total_amount || 0).toFixed(2)} MGA</span>
         </div>
-        <div class="total-row">
+        <div class="receipt-row">
           <span>Paid:</span>
           <span>${parseFloat(data.paid_amount || 0).toFixed(2)} MGA</span>
         </div>
         ${data.payment_status === 'partial' ? `
-          <div class="total-row">
+        <div class="receipt-row">
             <span>Due:</span>
             <span>${parseFloat(data.remaining_amount || 0).toFixed(2)} MGA</span>
           </div>
         ` : ''}
       </div>
-      
+        <div class="no-data">__________________________________________________</div>
+        <div class="no-data">==================================================</</div>
       <div class="receipt-footer">
         <div>${t('receipt.thank_you', 'Thank you!')}</div>
         <div>Print ID: ${data.print_id || 'N/A'}</div>
