@@ -282,7 +282,7 @@ const generateSaleContent = (data, t) => {
       <div class="receipt-footer">
         <div class="thank-you">Thank you!</div>
         <div class="footer-text" style="text-align: center;">${data.sale_number || ''}</div>
-        <div class="footer-text" style="text-align: center;">Created by : 'N/A'}</div>
+        <div class="footer-text" style="text-align: center;">Created by: ${(data.created_by_name || data.sold_by_name || 'N/A')}</div>
         <div class="footer-text" style="text-align: center;">Print id : ${data.print_id || 'N/A'}</div>
       </div>
   `;
