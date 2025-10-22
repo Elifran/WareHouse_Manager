@@ -1,3 +1,9 @@
+.products-pagination {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+  margin-top: 12px;
+}
 .pos {
   padding: 2rem;
   /* max-width: 1400px; */

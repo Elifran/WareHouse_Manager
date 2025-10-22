@@ -89,6 +89,8 @@ const PointOfSale = () => {
   const [priceMode, setPriceMode] = useState('standard'); // 'standard' or 'wholesale'
   const [saleMode, setSaleMode] = useState('complete'); // 'complete' or 'pending'
   const [printReceipt, setPrintReceipt] = useState(true); // true or false
+  const [currentPage, setCurrentPage] = useState(1);
+  const PAGE_SIZE = 24;
   
   // Packaging state
   const [packagingCart, setPackagingCart] = useState([]);
@@ -826,9 +828,21 @@ const PointOfSale = () => {
       if (filterParams.category) params.append('category', filterParams.category);
       if (filterParams.search) params.append('search', filterParams.search);
       
-      const url = `/api/products/${params.toString() ? '?' + params.toString() : ''}`;
-      const response = await api.get(url);
-      const allProducts = response.data.results || response.data;
+      const baseUrl = `/api/products/${params.toString() ? '?' + params.toString() : ''}`;
+      let response = await api.get(baseUrl);
+      let aggregatedProducts = Array.isArray(response.data.results) ? response.data.results : (Array.isArray(response.data) ? response.data : []);
+      
+      // Follow pagination to get all products (DRF-style "next" links)
+      let nextUrl = response.data.next;
+      while (nextUrl) {
+        // Support absolute or relative next URLs
+        response = await api.get(nextUrl);
+        const pageItems = Array.isArray(response.data.results) ? response.data.results : (Array.isArray(response.data) ? response.data : []);
+        aggregatedProducts = aggregatedProducts.concat(pageItems);
+        nextUrl = response.data.next;
+      }
+      
+      const allProducts = aggregatedProducts;
       
       // If categories are not loaded yet, show all products but log a warning
       if (categoriesRef.current.length === 0 || !categoriesLoadedRef.current) {
@@ -874,6 +888,7 @@ const PointOfSale = () => {
       }
       
       setProducts(sellableProducts);
+      setCurrentPage(1);
     } catch (err) {
       setError('Failed to load products');
     } finally {
@@ -1901,7 +1916,9 @@ const PointOfSale = () => {
           </div>
 
           <div className="products-grid">
-            {products.map(product => (
+            {products
+              .slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE)
+              .map(product => (
               <div
                 key={product.id}
                 className={`product-card ${product.stock_quantity <= 0 && saleMode === 'complete' ? 'out-of-stock' : ''} clickable`}
@@ -2049,6 +2066,31 @@ const PointOfSale = () => {
               </div>
             ))}
           </div>
+
+          {/* Pagination Controls */}
+          {products.length > PAGE_SIZE && (
+            <div className="products-pagination" style={{ display: 'flex', justifyContent: 'center', gap: '12px', marginTop: '12px' }}>
+              <Button
+                variant="outline"
+                size="small"
+                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                disabled={currentPage === 1}
+              >
+                Prev
+              </Button>
+              <span style={{ alignSelf: 'center' }}>
+                Page {currentPage} of {Math.ceil(products.length / PAGE_SIZE)}
+              </span>
+              <Button
+                variant="outline"
+                size="small"
+                onClick={() => setCurrentPage(p => Math.min(Math.ceil(products.length / PAGE_SIZE), p + 1))}
+                disabled={currentPage >= Math.ceil(products.length / PAGE_SIZE)}
+              >
+                Next
+              </Button>
+            </div>
+          )}
         </div>
 
         {/* Cart and Checkout */}
