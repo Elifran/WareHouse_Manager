@@ -234,23 +234,24 @@ const generateSaleContent = (data, t) => {
 
       </div>
       <div class="receipt-section">
-        <div class="section-title">ITEMS SOLD</div>             
+        <div class="section-title">ITEMS SOLD</div>    
         <div class="no-data">__________________________________________________</div>
         <div class="item-details">
           <span>Info</span>
           <span>
-            Qte${'\u00A0'.repeat(16)}Total${'\u00A0'.repeat(2)}
+            Qte${'\u00A0'.repeat(10)}Total${'\u00A0'.repeat(2)}
           </span>
         </div>
-        <div class="no-data">¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯</div>          
+        <div class="no-data">¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯</div>         
+      
         ${items && Array.isArray(items) ? items.slice(0, 20).map(item => `
           <div class="sale-item">
             <div class="item-name">${(item.product_name || 'N/A').substring(0, 25)} </div>
             <div class="item-details">
               <span>
-                ${`(${item.unit_name})${parseFloat(item.unit_price || 0).toFixed(2)}`.padEnd(22, '\u00A0')}
-                ${(item.quantity_display || item.quantity || 0).toString().padEnd(5, '\u00A0')}
-                ${parseFloat(item.total_price || 0).toFixed(2).padStart(14, '\u00A0')} MGA
+                ${`(${item.unit_name})${parseFloat(item.unit_price || 0).toFixed(2)}`.padEnd(26, '\u00A0')}
+                ${(item.quantity_display || item.quantity || 0).toString().padStart(3, '\u00A0')}
+                ${parseFloat(item.total_price || 0).toFixed(2).padStart(12, '\u00A0')} MGA
               </span>
             </div>
           </div>
@@ -259,7 +260,7 @@ const generateSaleContent = (data, t) => {
         <div class="no-data">__________________________________________________</div>
         <div class="no-data">==================================================</</div>
 
-      </div>        
+      </div>       
       <div class="receipt-totals">
         <div class="receipt-row">
           <span>Subtotal:</span>
@@ -281,7 +282,6 @@ const generateSaleContent = (data, t) => {
       </div>
       <div class="receipt-footer">
         <div class="thank-you">Thank you!</div>
-        <div class="footer-text" style="text-align: center;">${data.sale_number || ''}</div>
         <div class="footer-text" style="text-align: center;">Created by: ${(data.created_by_name || data.sold_by_name || 'N/A')}</div>
         <div class="footer-text" style="text-align: center;">Print id : ${data.print_id || 'N/A'}</div>
       </div>
