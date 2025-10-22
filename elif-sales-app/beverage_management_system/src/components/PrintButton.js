@@ -104,7 +104,7 @@ const generatePurchaseOrderContent = (data, t) => {
     
     <div class="receipt-section">
       <div class="section-title">ITEMS</div>
-      ${data.items ? data.items.slice(0, 15).map(item => `
+      ${data.items ? data.items.map(item => `
         <div class="order-item">
           <div class="item-name">${(item.product?.name || 'N/A').substring(0, 25)}</div>
           <div class="item-details">
@@ -158,7 +158,7 @@ const generateDeliveryContent = (data, t) => {
     
     <div class="receipt-section">
       <div class="section-title">ITEMS RECEIVED</div>
-      ${data.items ? data.items.slice(0, 15).map(item => `
+      ${data.items ? data.items.map(item => `
         <div class="delivery-item">
           <div class="item-name">${(item.product_name || item.product?.name || 'N/A').substring(0, 25)}</div>
           <div class="item-details">
@@ -277,79 +277,91 @@ const generateSaleContent = (data, t) => {
 
   return `
     <div class="receipt-header">
-      <div class="company-name">________ANTATSIMO_______</div>
-      <div class="company-name">________________________</div>
-      <div class="document-title">SALE RECEIPT</div>
-      <div class="receipt-date">${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}</div>
-    </div>
-    <div class="receipt-section">
-      <div class="section-title">SALE INFO</div>
-      <div class="receipt-row">
-        <span>Sale No:</span>
-        <span>${data.sale_number || 'N/A'}</span>
+        <div class="company-name" style="text-align: center;">________ANTATSIMO_______</div>
+        <div class="company-name" style="text-align: center;">${'\u00A0'}</div>
+        <div class="document-title" style="text-align: center;">SALE RECEIPT</div>
+        <div class="receipt-date" style="text-align: center;">${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}</div>
       </div>
-      <div class="receipt-row">
-        <span>Status:</span>
-        <span>${data.status || 'N/A'}</span>
-      </div>
-      <div class="receipt-row">
-        <span>Customer:</span>
-        <span>${(data.customer_name || 'Walk-in Customer').substring(0, 25)}</span>
-      </div>
-      ${data.customer_phone ? `
+      <div class="receipt-section">
+        <div class="no-data">${'\u00A0'}</div>
+        <div class="section-title">SALE INFO</div>
         <div class="receipt-row">
-          <span>Phone:</span>
-          <span>${data.customer_phone}</span>
+          <span>Sale No:</span>
+          <span>${data.sale_number || 'N/A'}</span>
         </div>
-      ` : ''}
-      <div class="receipt-row">
-        <span>Status:</span>
-        <span>${paymentStatusText}</span>
-      </div>
-
-      <div class="no-data">==================================================</div>
-
-    </div>
-    <div class="receipt-section">
-      <div class="section-title">ITEMS SOLD</div>
-      <div class="no-data">.</div>
-      ${items && Array.isArray(items) ? items.slice(0, 20).map(item => `
-        <div class="sale-item">
-          <div class="item-name">${(item.product_name || 'N/A').substring(0, 25)}</div>
-          <div class="item-details">
-            <span>${item.quantity_display || item.quantity || 0} x ${parseFloat(item.unit_price || 0).toFixed(2)}</span>
-            <span>${parseFloat(item.total_price || 0).toFixed(2)} MGA</span>
+        <div class="receipt-row">
+          <span>Sale Status:</span>
+          <span>${data.status || 'N/A'}</span>
+        </div>
+        <div class="receipt-row">
+          <span>Customer:</span>
+          <span>${(data.customer_name || 'Walk-in Customer').substring(0, 25)}</span>
+        </div>
+        ${data.customer_phone ? `
+          <div class="receipt-row">
+            <span>Phone:</span>
+            <span>${data.customer_phone}</span>
           </div>
+        ` : ''}
+        <div class="receipt-row">
+          <span>Peyment Status:</span>
+          <span>${paymentStatusText}</span>
         </div>
-      `).join('') : '<div class="no-data">No items found</div>'}
 
-      <div class="no-data">__________________________________________________</div>
-      <div class="no-data">==================================================</</div>
+        <div class="no-data">${'\u00A0'}</div>
+        <div class="no-data">==================================================</div>
 
-    </div>        
-    <div class="receipt-totals">
-      <div class="receipt-row">
-        <span>Subtotal:</span>
-        <span>${parseFloat(data.total_amount || 0).toFixed(2)} MGA</span>
       </div>
-      <div class="receipt-row">
-        <span>Paid:</span>
-        <span>${parseFloat(data.paid_amount || 0).toFixed(2)} MGA</span>
-      </div>
-      ${data.payment_status === 'partial' ? `
+      <div class="receipt-section">
+        <div class="section-title">ITEMS SOLD</div>             
+        <div class="item-details">
+          <span>Info</span>
+          <span>
+            Qte${'\u00A0'.repeat(16)}Total${'\u00A0'.repeat(2)}
+          </span>
+        </div>
+        ${items && Array.isArray(items) ? items.slice(0, 20).map(item => `
+          <div class="sale-item">
+            <div class="item-name">${(item.product_name || 'N/A').substring(0, 25)} </div>
+            <div class="item-details">
+              <span>
+                ${`(${item.unit_name})${parseFloat(item.unit_price || 0).toFixed(2)}`.padEnd(22, '\u00A0')}
+                ${(item.quantity_display || item.quantity || 0).toString().padEnd(5, '\u00A0')}
+                ${parseFloat(item.total_price || 0).toFixed(2).padStart(14, '\u00A0')} MGA
+              </span>
+            </div>
+          </div>
+        `).join('') : '<div class="no-data">No items found</div>'}
+
+        <div class="no-data">__________________________________________________</div>
+        <div class="no-data">==================================================</</div>
+
+      </div>        
+      <div class="receipt-totals">
+        <div class="receipt-row">
+          <span>Subtotal:</span>
+          <span>${parseFloat(data.total_amount || 0).toFixed(2)} MGA</span>
+        </div>
         <div class="receipt-row">
           <span>Paid:</span>
           <span>${parseFloat(data.paid_amount || 0).toFixed(2)} MGA</span>
         </div>
-      ` : ''}
-      <div class="no-data">__________________________________________________</div>
-      <div class="no-data">==================================================</</div>
-    </div>
-    <div class="receipt-footer">
-      <div class="thank-you">Thank you!</div>
-      <div class="footer-text">${data.sale_number || ''}</div>
-      <div class="footer-text">Print id : ${data.print_id || 'N/A'}</div>
-    </div>
+        ${data.payment_status === 'partial' ? `
+          <div class="receipt-row">
+            <span>Due:</span>
+            <span>${parseFloat(data.remaining_amount || 0).toFixed(2)} MGA</span>
+          </div>
+        ` : ''}
+        <div class="no-data">__________________________________________________</div>
+        <div class="no-data">==================================================</</div>
+        <div class="no-data">${'\u00A0'}</div>
+      </div>
+      <div class="receipt-footer">
+        <div class="thank-you">Thank you!</div>
+        <div class="footer-text" style="text-align: center;">${data.sale_number || ''}</div>
+        <div class="footer-text" style="text-align: center;">Created by : 'N/A'}</div>
+        <div class="footer-text" style="text-align: center;">Print id : ${data.print_id || 'N/A'}</div>
+      </div>
   `;
 };
 

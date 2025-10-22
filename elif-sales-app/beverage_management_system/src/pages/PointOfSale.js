@@ -94,299 +94,6 @@ const PointOfSale = () => {
   const [packagingCart, setPackagingCart] = useState([]);
   const [showPackagingManager, setShowPackagingManager] = useState(false);
 
-  // Copy the generatePrintContent function from PrintButton.js
-  const generatePrintContent = (data, title, type) => {
-    const currentDate = new Date().toLocaleDateString();
-    const currentTime = new Date().toLocaleTimeString();
-    
-    let content = `
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <title>${title}</title>
-        <meta charset="UTF-8">
-        <style>
-          /* 80mm Thermal Printer Receipt Styles */
-          * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-          }
-          
-          body {
-            font-family: 'Courier New', Courier, monospace;
-            font-size: 12px;
-            line-height: 1.2;
-            color: #000;
-            width: 80mm;
-            max-width: 80mm;
-            margin: 0 auto;
-            padding: 3mm;
-            background: white;
-          }
-          
-          .receipt-header {
-            text-align: center;
-            margin-bottom: 8px;
-            padding-bottom: 6px;
-            border-bottom: 1px dashed #000;
-          }
-          
-          .company-name {
-            font-weight: bold;
-            font-size: 14px;
-            margin-bottom: 2px;
-            text-transform: uppercase;
-          }
-          
-          .document-title {
-            font-weight: bold;
-            font-size: 13px;
-            margin-bottom: 3px;
-            text-transform: uppercase;
-          }
-          
-          .receipt-date {
-            font-size: 11px;
-            color: #555;
-          }
-          
-          .receipt-section {
-            margin-bottom: 8px;
-            padding-bottom: 6px;
-            border-bottom: 1px dotted #ccc;
-          }
-          
-          .section-title {
-            font-weight: bold;
-            font-size: 11px;
-            margin-bottom: 4px;
-            text-transform: uppercase;
-            background: #f0f0f0;
-            padding: 2px 4px;
-          }
-          
-          .receipt-row {
-            display: flex;
-            justify-content: space-between;
-            margin-bottom: 3px;
-            font-size: 11px;
-          }
-          
-          .product-item,
-          .order-item,
-          .delivery-item,
-          .sale-item,
-          .packaging-item,
-          .sale-summary {
-            margin-bottom: 4px;
-            padding: 2px 0;
-          }
-          
-          .product-name,
-          .item-name {
-            font-weight: bold;
-            margin-bottom: 1px;
-            word-wrap: break-word;
-          }
-          
-          .product-details,
-          .item-details,
-          .sale-info {
-            display: flex;
-            justify-content: space-between;
-            font-size: 10px;
-            color: #555;
-          }
-          
-          .receipt-totals,
-          .receipt-total {
-            margin: 8px 0;
-            padding-top: 6px;
-            border-top: 2px solid #000;
-          }
-          
-          .total-row {
-            display: flex;
-            justify-content: space-between;
-            margin-bottom: 3px;
-            font-weight: bold;
-          }
-          
-          .due-amount {
-            color: #d00;
-          }
-          
-          .no-data {
-            text-align: center;
-            color: #888;
-            font-style: italic;
-            padding: 8px 0;
-          }
-          
-          .truncated-warning {
-            text-align: center;
-            color: #888;
-            font-size: 10px;
-            font-style: italic;
-            margin-top: 4px;
-          }
-          
-          .thank-you {
-            text-align: center;
-            font-weight: bold;
-            margin: 6px 0;
-          }
-          
-          .receipt-footer {
-            text-align: center;
-            margin-top: 10px;
-            padding-top: 6px;
-            border-top: 1px dashed #000;
-            font-size: 10px;
-            color: #666;
-          }
-          
-          .footer-text {
-            margin-bottom: 2px;
-          }
-          
-          .status-consignation { color: #090; }
-          .status-exchange { color: #009; }
-          .status-due { color: #d00; font-weight: bold; }
-          
-          /* Print-specific styles */
-          @media print {
-            body {
-              margin: 0;
-              padding: 2mm;
-              width: 80mm;
-            }
-            
-            .no-print {
-              display: none;
-            }
-            
-            /* Ensure proper sizing for thermal paper */
-            @page {
-              size: 80mm auto;
-              margin: 0;
-            }
-          }
-          
-          /* Force monospace and proper breaking */
-          * {
-            font-family: 'Courier New', Courier, monospace !important;
-          }
-          
-          .default-content {
-            text-align: center;
-            padding: 10px 0;
-            color: #666;
-          }
-        </style>
-      </head>
-      <body>
-    `;
-
-    // Add type-specific content using PrintButton's logic
-    switch (type) {
-      case 'sale':
-        content += generateSaleContent(data, t);
-        break;
-      default:
-        content += generateDefaultContent(data, t);
-    }
-
-    content += `
-      </body>
-      </html>
-    `;
-
-    return content;
-  };
-
-  // // Copy the exact helper functions from PrintButton
-  // const generateSaleContent = (data, t) => {
-  //   let items = data.items;
-  //   if (!items) {
-  //     const numberedKeys = Object.keys(data).filter(key => /^\d+$/.test(key));
-  //     if (numberedKeys.length > 0) {
-  //       items = numberedKeys.map(key => data[key]).filter(item => item && typeof item === 'object');
-  //     }
-  //   }
-
-  //   const paymentStatusText = data.payment_status === 'paid' ? 'PAID' : 
-  //                           data.payment_status === 'partial' ? 'PARTIAL' : 
-  //                           data.payment_status === 'pending' ? 'PENDING' : 
-  //                           'UNKNOWN';
-
-  //   return `
-  //     <div class="receipt-header">
-  //       <div class="company-name">______ANTATSIMO______</div>
-  //       <div class="document-title">SALE RECEIPT</div>
-  //       <div class="receipt-date">${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}</div>
-  //     </div>
-      
-  //     <div class="receipt-section">
-  //       <div class="section-title">SALE INFO</div>
-  //       <div class="receipt-row">
-  //         <span>Sale No:</span>
-  //         <span>${data.sale_number || 'N/A'}</span>
-  //       </div>
-  //       <div class="receipt-row">
-  //         <span>Customer:</span>
-  //         <span>${(data.customer_name || 'Walk-in Customer').substring(0, 25)}</span>
-  //       </div>
-  //       ${data.customer_phone ? `
-  //         <div class="receipt-row">
-  //           <span>Phone:</span>
-  //           <span>${data.customer_phone}</span>
-  //         </div>
-  //       ` : ''}
-  //       <div class="receipt-row">
-  //         <span>Status:</span>
-  //         <span>${paymentStatusText}</span>
-  //       </div>
-  //     </div>
-      
-  //     <div class="receipt-section">
-  //       <div class="section-title">ITEMS SOLD</div>
-  //       ${items && Array.isArray(items) ? items.slice(0, 20).map(item => `
-  //         <div class="sale-item">
-  //           <div class="item-name">${(item.product_name || 'N/A').substring(0, 25)}</div>
-  //           <div class="item-details">
-  //             <span>${item.quantity_display || item.quantity || 0} x ${parseFloat(item.unit_price || 0).toFixed(2)}</span>
-  //             <span>${parseFloat(item.total_price || 0).toFixed(2)} MGA</span>
-  //           </div>
-  //         </div>
-  //       `).join('') : '<div class="no-data">No items found</div>'}
-  //     </div>
-      
-  //     <div class="receipt-totals">
-  //       <div class="total-row">
-  //         <span>Subtotal:</span>
-  //         <span>${parseFloat(data.total_amount || 0).toFixed(2)} MGA</span>
-  //       </div>
-  //       <div class="total-row">
-  //         <span>Paid:</span>
-  //         <span>${parseFloat(data.paid_amount || 0).toFixed(2)} MGA</span>
-  //       </div>
-  //       ${data.payment_status === 'partial' ? `
-  //         <div class="total-row due-amount">
-  //           <span>Due:</span>
-  //           <span>${parseFloat(data.remaining_amount || 0).toFixed(2)} MGA</span>
-  //         </div>
-  //       ` : ''}
-  //     </div>
-      
-  //     <div class="receipt-footer">
-  //       <div class="thank-you">Thank you for your business!</div>
-  //       <div class="footer-text">${data.sale_number || ''}</div>
-  //     </div>
-  //   `;
-  // };
-  // REPLACE THE EXISTING generateSaleContent FUNCTION WITH THIS:
 
   const generateSaleContent = (data, t) => {
     let items = data.items;
@@ -404,12 +111,13 @@ const PointOfSale = () => {
 
     return `
       <div class="receipt-header">
-        <div class="company-name">________ANTATSIMO_______</div>
-        <div class="company-name">________________________</div>
-        <div class="document-title">SALE RECEIPT</div>
-        <div class="receipt-date">${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}</div>
+        <div class="company-name" style="text-align: center;">________ANTATSIMO_______</div>
+        <div class="company-name" style="text-align: center;">${'\u00A0'}</div>
+        <div class="document-title" style="text-align: center;">SALE RECEIPT</div>
+        <div class="receipt-date" style="text-align: center;">${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}</div>
       </div>
       <div class="receipt-section">
+        <div class="no-data">${'\u00A0'}</div>
         <div class="section-title">SALE INFO</div>
         <div class="receipt-row">
           <span>Sale No:</span>
@@ -434,18 +142,27 @@ const PointOfSale = () => {
           <span>${paymentStatusText}</span>
         </div>
 
+        <div class="no-data">${'\u00A0'}</div>
         <div class="no-data">==================================================</div>
 
       </div>
       <div class="receipt-section">
-        <div class="section-title">ITEMS SOLD</div>
-        <div class="no-data">.</div>
+        <div class="section-title">ITEMS SOLD</div>             
+        <div class="item-details">
+          <span>Info</span>
+          <span>
+            Qte${'\u00A0'.repeat(16)}Total${'\u00A0'.repeat(2)}
+          </span>
+        </div>
         ${items && Array.isArray(items) ? items.slice(0, 20).map(item => `
           <div class="sale-item">
-            <div class="item-name">${(item.product_name || 'N/A').substring(0, 25)}</div>
+            <div class="item-name">${(item.product_name || 'N/A').substring(0, 25)} </div>
             <div class="item-details">
-              <span>${item.quantity_display || item.quantity || 0} x ${parseFloat(item.unit_price || 0).toFixed(2)}</span>
-              <span>${parseFloat(item.total_price || 0).toFixed(2)} MGA</span>
+              <span>
+                ${`(${item.unit_name})${parseFloat(item.unit_price || 0).toFixed(2)}`.padEnd(22, '\u00A0')}
+                ${(item.quantity_display || item.quantity || 0).toString().padEnd(5, '\u00A0')}
+                ${parseFloat(item.total_price || 0).toFixed(2).padStart(14, '\u00A0')} MGA
+              </span>
             </div>
           </div>
         `).join('') : '<div class="no-data">No items found</div>'}
@@ -471,12 +188,13 @@ const PointOfSale = () => {
         ` : ''}
         <div class="no-data">__________________________________________________</div>
         <div class="no-data">==================================================</</div>
+        <div class="no-data">${'\u00A0'}</div>
       </div>
       <div class="receipt-footer">
         <div class="thank-you">Thank you!</div>
-        <div class="footer-text">${data.sale_number || ''}</div>
-        <div class="footer-text">Print by : ${user?.username || 'N/A'}</div>
-        <div class="footer-text">Print id : ${data.print_id || 'N/A'}</div>
+        <div class="footer-text" style="text-align: center;">${data.sale_number || ''}</div>
+        <div class="footer-text" style="text-align: center;">Created by : ${user?.username || 'N/A'}</div>
+        <div class="footer-text" style="text-align: center;">Print id : ${data.print_id || 'N/A'}</div>
       </div>
     `;
   };
@@ -500,94 +218,6 @@ const PointOfSale = () => {
       </div>
     `;
   };
-
-  // // Replace the handlePrintReceipt function with PrintButton's robust logic
-  // const handlePrintReceipt = async (printData, title = 'Sale Receipt', usePreview = false) => {
-  //   try {
-  //     // Validate data structure
-  //     if (!printData) {
-  //       console.error('No data provided for printing');
-  //       window.alert('No data available to print.');
-  //       return false;
-  //     }
-
-  //     const isMobile = isMobileDevice();
-  //     let printContent;
-      
-  //     // Use the same content generation logic as PrintButton
-  //     if (isMobile) {
-  //       // Use mobile-optimized content
-  //       printContent = generateMobilePrintContent(printData, title, 'sale', t);
-  //     } else {
-  //       // Use Xprinter-optimized content for better compatibility
-  //       printContent = generateXprinterPrintContent(printData, title, 'sale', t);
-  //     }
-
-  //     // Handle print preview
-  //     if (usePreview) {
-  //       const previewSuccess = openPrintPreview(printContent, title);
-  //       if (previewSuccess) {
-  //         return true;
-  //       } else {
-  //         throw new Error('Failed to open print preview window.');
-  //       }
-  //     }
-
-  //     // Use mobile-friendly printing for mobile devices
-  //     if (isMobile) {
-  //       // Try direct print window for mobile
-  //       const success = await openPrintWindow(printContent, title);
-  //       if (!success) {
-  //         // If mobile printing fails, offer receipt app option
-  //         const useReceiptApp = window.confirm('Mobile printing failed. Would you like to download a file for receipt printer apps instead?');
-  //         if (useReceiptApp) {
-  //           const downloadSuccess = downloadReceiptFile(printData, title);
-  //           if (downloadSuccess) {
-  //             window.alert('Receipt file downloaded! You can now open it with any receipt printer app to print directly to your Xprinter.');
-  //             return true;
-  //           }
-  //         }
-  //         throw new Error('Mobile printing failed. Please try again or check your printer connection.');
-  //       }
-  //       return true;
-  //     } else {
-  //       // Desktop printing with enhanced error handling
-  //       // Try print preview first for better visibility
-  //       const previewSuccess = openPrintPreview(printContent, title);
-  //       if (previewSuccess) {
-  //         // Preview opened successfully, user can print from there
-  //         return true;
-  //       } else {
-  //         // Fallback to direct print window
-  //         const success = await openPrintWindow(printContent, title);
-  //         if (!success) {
-  //           throw new Error('Failed to open print window. Please check popup blockers and try again.');
-  //         }
-  //         return true;
-  //       }
-  //     }
-      
-  //   } catch (error) {
-  //     console.error('Print error:', error);
-      
-  //     // Provide more specific error messages
-  //     let errorMessage = 'Failed to print. Please try again.';
-      
-  //     if (error.message.includes('popup')) {
-  //       errorMessage = 'Popup blocked. Please allow popups for this site and try again.';
-  //     } else if (error.message.includes('Mobile printing failed')) {
-  //       errorMessage = 'Mobile printing failed. Please check your printer connection and try again.';
-  //     } else if (error.message.includes('window.open')) {
-  //       errorMessage = 'Could not open print window. Please check your browser settings.';
-  //     } else if (error.message.includes('Failed to download')) {
-  //       errorMessage = 'Failed to download receipt file. Please try again.';
-  //     }
-      
-  //     window.alert(errorMessage);
-  //     return false;
-  //   }
-  // };
-  // REPLACE THE EXISTING handlePrintReceipt FUNCTION WITH THIS:
 
   const handlePrintReceipt = async (printData, title = 'Sale Receipt', usePreview = false) => {
     try {
