@@ -17,7 +17,7 @@ class PaymentInline(admin.TabularInline):
 
 @admin.register(Sale)
 class SaleAdmin(admin.ModelAdmin):
-    list_display = ['sale_number', 'customer_name', 'status', 'payment_method', 'total_amount', 'packaging_total', 'payment_status', 'created_at']
+    list_display = ['sale_number', 'customer_name', 'status', 'payment_method', 'total_amount', 'packaging_total', 'payment_status', 'sold_by', 'created_by', 'created_at']
     list_filter = ['status', 'payment_method', 'payment_status', 'sale_type', 'created_at']
     search_fields = ['sale_number', 'customer_name', 'customer_phone']
     readonly_fields = ['sale_number', 'subtotal', 'cost_amount', 'tax_amount', 'packaging_total', 'total_amount', 'created_at', 'updated_at']
@@ -37,7 +37,7 @@ class SaleAdmin(admin.ModelAdmin):
             'fields': ('subtotal', 'cost_amount', 'tax_amount', 'discount_amount', 'packaging_total', 'total_amount')
         }),
         ('Additional Information', {
-            'fields': ('notes', 'sold_by', 'created_at', 'updated_at')
+            'fields': ('notes', 'sold_by', 'created_by', 'created_at', 'updated_at')
         }),
     )
 

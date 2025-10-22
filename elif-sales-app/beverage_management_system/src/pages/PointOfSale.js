@@ -143,17 +143,19 @@ const PointOfSale = () => {
         </div>
 
         <div class="no-data">${'\u00A0'}</div>
-        <div class="no-data">==================================================</div>
 
       </div>
       <div class="receipt-section">
-        <div class="section-title">ITEMS SOLD</div>             
+        <div class="section-title">ITEMS SOLD</div>    
+        <div class="no-data">__________________________________________________</div>
         <div class="item-details">
           <span>Info</span>
           <span>
             Qte${'\u00A0'.repeat(16)}Total${'\u00A0'.repeat(2)}
           </span>
         </div>
+        <div class="no-data">¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯</div>         
+      
         ${items && Array.isArray(items) ? items.slice(0, 20).map(item => `
           <div class="sale-item">
             <div class="item-name">${(item.product_name || 'N/A').substring(0, 25)} </div>

@@ -42,6 +42,7 @@ class Sale(models.Model):
     due_date = models.DateField(null=True, blank=True, help_text="Due date for partial payments")
     notes = models.TextField(blank=True)
     sold_by = models.ForeignKey('core.User', on_delete=models.SET_NULL, null=True, related_name='sales')
+    created_by = models.ForeignKey('core.User', on_delete=models.SET_NULL, null=True, related_name='created_sales')
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     

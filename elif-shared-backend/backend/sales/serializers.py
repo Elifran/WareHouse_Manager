@@ -197,6 +197,7 @@ class SaleSerializer(serializers.ModelSerializer):
     packaging_items = SalePackagingSerializer(many=True, read_only=True)
     payments = PaymentSerializer(many=True, read_only=True)
     sold_by_name = serializers.CharField(source='sold_by.username', read_only=True)
+    created_by_name = serializers.CharField(source='created_by.username', read_only=True)
     items_count = serializers.SerializerMethodField()
     packaging_count = serializers.SerializerMethodField()
     original_sale_number = serializers.CharField(source='original_sale.sale_number', read_only=True)
@@ -207,7 +208,7 @@ class SaleSerializer(serializers.ModelSerializer):
             'id', 'sale_number', 'sale_type', 'original_sale', 'original_sale_number',
             'customer_name', 'customer_phone', 'customer_email',
             'status', 'payment_method', 'subtotal', 'cost_amount', 'tax_amount', 'discount_amount', 'packaging_total',
-            'total_amount', 'paid_amount', 'remaining_amount', 'payment_status', 'due_date', 'notes', 'sold_by', 'sold_by_name', 
+            'total_amount', 'paid_amount', 'remaining_amount', 'payment_status', 'due_date', 'notes', 'sold_by', 'sold_by_name', 'created_by', 'created_by_name', 
             'items', 'packaging_items', 'payments', 'items_count', 'packaging_count', 'created_at', 'updated_at'
         ]
         read_only_fields = ['id', 'sale_number', 'subtotal', 'cost_amount', 'tax_amount', 'packaging_total', 'total_amount', 'created_at', 'updated_at']
@@ -313,6 +314,7 @@ class SaleCreateSerializer(serializers.ModelSerializer):
         
         items_data = validated_data.pop('items')
         packaging_items_data = validated_data.pop('packaging_items', [])
+        # created_by should be passed via serializer.save in the view
         sale = Sale.objects.create(**validated_data)
         
         # Generate sale number based on sale type
@@ -462,6 +464,7 @@ class SaleCreateSerializer(serializers.ModelSerializer):
 
 class SaleListSerializer(serializers.ModelSerializer):
     sold_by_name = serializers.CharField(source='sold_by.username', read_only=True)
+    created_by_name = serializers.CharField(source='created_by.username', read_only=True)
     items_count = serializers.SerializerMethodField()
     packaging_count = serializers.SerializerMethodField()
     items = SaleItemSerializer(many=True, read_only=True)
@@ -472,7 +475,7 @@ class SaleListSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'sale_number', 'sale_type', 'customer_name', 'status', 'payment_method',
             'subtotal', 'packaging_total', 'total_amount', 'paid_amount', 'remaining_amount', 'payment_status', 'due_date',
-            'sold_by_name', 'items_count', 'packaging_count', 'items', 'packaging_items', 'created_at'
+            'sold_by_name', 'created_by_name', 'items_count', 'packaging_count', 'items', 'packaging_items', 'created_at'
         ]
     
     def get_items_count(self, obj):

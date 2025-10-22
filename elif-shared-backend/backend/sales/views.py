@@ -23,7 +23,7 @@ class SaleFilter(FilterSet):
         fields = ['status', 'payment_method', 'sold_by', 'created_at__date__gte', 'created_at__date__lte']
 
 class SaleListCreateView(generics.ListCreateAPIView):
-    queryset = Sale.objects.select_related('sold_by').prefetch_related('items__product', 'items__unit', 'packaging_items__product', 'packaging_items__unit', 'payments').all()
+    queryset = Sale.objects.select_related('sold_by', 'created_by').prefetch_related('items__product', 'items__unit', 'packaging_items__product', 'packaging_items__unit', 'payments').all()
     permission_classes = [IsAuthenticated]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_class = SaleFilter
@@ -37,19 +37,19 @@ class SaleListCreateView(generics.ListCreateAPIView):
         return SaleCreateSerializer
     
     def perform_create(self, serializer):
-        serializer.save(sold_by=self.request.user)
+        serializer.save(sold_by=self.request.user, created_by=self.request.user)
     
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        sale = serializer.save(sold_by=request.user)
+        sale = serializer.save(sold_by=request.user, created_by=request.user)
         
         # Return the full sale data using SaleSerializer
         full_serializer = SaleSerializer(sale)
         return Response(full_serializer.data, status=status.HTTP_201_CREATED)
 
 class SaleDetailView(generics.RetrieveUpdateDestroyAPIView):
-    queryset = Sale.objects.select_related('sold_by').prefetch_related('items', 'packaging_items', 'payments').all()
+    queryset = Sale.objects.select_related('sold_by', 'created_by').prefetch_related('items', 'packaging_items', 'payments').all()
     serializer_class = SaleSerializer
     permission_classes = [IsAuthenticated]
 
@@ -276,7 +276,8 @@ def cancel_sale(request, sale_id):
             customer_email=sale.customer_email,
             payment_method=sale.payment_method,
             status='pending',  # Mark return as pending so it can be validated later
-            sold_by=request.user
+            sold_by=request.user,
+            created_by=request.user
         )
         
         # Generate return sale number

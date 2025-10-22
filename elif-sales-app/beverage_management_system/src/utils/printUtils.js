@@ -727,6 +727,7 @@ export const generatePDFContent = (data, title) => {
       <div class="receipt-footer">
         <div>Thank you for your business!</div>
         <div>Print ID: ${data.print_id || 'N/A'}</div>
+        <div>Created by: ${(data.created_by_name || data.sold_by_name || 'N/A')}</div>
       </div>
     </body>
     </html>
@@ -1192,12 +1193,14 @@ export const generateXprinterPrintContent = (data, title, type, t) => {
       </div>
       <div class="receipt-section">
         <div class="section-title">ITEMS SOLD</div>             
+        <div class="no-data">__________________________________________________</div>
         <div class="item-details">
           <span>Info</span>
           <span>
             Qte${'\u00A0'.repeat(16)}Total${'\u00A0'.repeat(2)}
           </span>
         </div>
+        <div class="no-data">¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯</div>         
           ${data.items && Array.isArray(data.items) ? data.items.map(item => `
           <div class="sale-item">
             <div class="item-name">${(item.product_name || 'N/A').substring(0, 25)} </div>
@@ -1237,7 +1240,7 @@ export const generateXprinterPrintContent = (data, title, type, t) => {
       <div class="receipt-footer">
         <div class="thank-you">Thank you!</div>
         <div class="footer-text" style="text-align: center;">${data.sale_number || ''}</div>
-        <div class="footer-text" style="text-align: center;">Created by : 'N/A'}</div>
+        <div class="footer-text" style="text-align: center;">Created by: ${(data.created_by_name || data.sold_by_name || 'N/A')}</div>
         <div class="footer-text" style="text-align: center;">Print id : ${data.print_id || 'N/A'}</div>
       </div>
     </body>
@@ -1426,12 +1429,14 @@ export const generateMobilePrintContent = (data, title, type, t) => {
       </div>
       <div class="receipt-section">
         <div class="section-title">ITEMS SOLD</div>             
+        <div class="no-data">__________________________________________________</div>
         <div class="item-details">
           <span>Info</span>
           <span>
             Qte${'\u00A0'.repeat(16)}Total${'\u00A0'.repeat(2)}
           </span>
         </div>
+        <div class="no-data">¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯</div> 
         ${data.items && Array.isArray(data.items) ? data.items.map(item => `
           <div class="sale-item">
             <div class="item-name">${(item.product_name || 'N/A').substring(0, 25)} </div>
@@ -1471,7 +1476,7 @@ export const generateMobilePrintContent = (data, title, type, t) => {
       <div class="receipt-footer">
         <div class="thank-you">Thank you!</div>
         <div class="footer-text" style="text-align: center;">${data.sale_number || ''}</div>
-        <div class="footer-text" style="text-align: center;">Created by : 'N/A'}</div>
+        <div class="footer-text" style="text-align: center;">Created by: ${(data.created_by_name || data.sold_by_name || 'N/A')}</div>
         <div class="footer-text" style="text-align: center;">Print id : ${data.print_id || 'N/A'}</div>
       </div>
     </body>
