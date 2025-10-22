@@ -223,6 +223,7 @@ const PendingSales = () => {
       subtotal: sale.subtotal,
       discount_amount: sale.discount_amount || 0,
       tax_amount: sale.tax_amount || 0,
+      created_by_name: sale.created_by_name,
       items: sale.items?.map(item => ({
         product_name: item.product_name,
         product_sku: item.product_sku,
@@ -391,8 +392,11 @@ const PendingSales = () => {
         paid_amount: paidAmount,
         items: editFormData.items.map(item => ({
           id: item.id,
+          product: item.product,
+          unit: item.unit,
           quantity: item.quantity,
-          unit_price: item.unit_price
+          unit_price: item.unit_price,
+          price_mode: item.price_mode
         }))
       };
       
@@ -402,7 +406,7 @@ const PendingSales = () => {
         editFormData: editFormData
       });
       
-      const response = await api.patch(`/sales/${editingSale.id}/`, updateData);
+      const response = await api.put(`/api/sales/${editingSale.id}/edit/`, updateData);
       
       setShowEditModal(false);
       setEditingSale(null);
