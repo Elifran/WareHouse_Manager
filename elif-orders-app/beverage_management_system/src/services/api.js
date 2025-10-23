@@ -9,16 +9,20 @@ const getApiBaseUrl = () => {
   
   // Try to detect the current host and use appropriate backend URL
   const currentHost = window.location.hostname;
-  if (currentHost === '10.10.1.1') {
-    return 'http://10.10.1.1:8000';
-  } else if (currentHost === '192.168.13.215') {
-    return 'http://192.168.13.215:8000';
-  } else if (currentHost.includes('elif')) {
+  
+  // If using domain names
+  if (currentHost.includes('elif')) {
     return 'http://api.elif';
   }
   
-  // Default fallback
-  return 'http://localhost:8000';
+  // If using localhost
+  if (currentHost === 'localhost' || currentHost === '127.0.0.1') {
+    return 'http://localhost:8000';
+  }
+  
+  // For any other IP address, use the same IP for backend
+  // This automatically adapts to any IP address
+  return `http://${currentHost}:8000`;
 };
 
 const API_BASE_URL = getApiBaseUrl();

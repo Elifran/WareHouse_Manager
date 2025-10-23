@@ -42,21 +42,39 @@ const Inventory = () => {
   const [selectedCategory, setSelectedCategory] = useState('');
   const [stockFilter, setStockFilter] = useState('all');
   const [availableUnits, setAvailableUnits] = useState([]);
+  const [isMobile, setIsMobile] = useState(false);
+
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage] = useState(20);
+  const [totalProducts, setTotalProducts] = useState(0);
+
+  // Check screen size on mount and resize
+  useEffect(() => {
+    const checkScreenSize = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+
+    checkScreenSize();
+    window.addEventListener('resize', checkScreenSize);
+    
+    return () => window.removeEventListener('resize', checkScreenSize);
+  }, []);
 
   // Fetch products
   const fetchProducts = useCallback(async () => {
     try {
       setLoading(true);
-      const response = await api.get('/api/products/');
-      const productsData = response.data.results || response.data;
-      console.log('Fetched products sample:', productsData.slice(0, 2).map(p => ({
-        name: p.name,
-        has_packaging: p.has_packaging,
-        packaging_price: p.packaging_price,
-        storage_type: p.storage_type,
-        storage_section: p.storage_section
-      })));
-      setProducts(productsData);
+      let products = [];
+      let nextUrl = '/api/products/';
+      while (nextUrl) {
+        const response = await api.get(nextUrl);
+        const data = response.data;
+        products = [...products, ...data.results];
+        nextUrl = data.next; // null when no more pages
+      }
+      setProducts(products);
+      setTotalProducts(products.length);
     } catch (err) {
       console.error('Error fetching products:', err);
       setError('Failed to fetch products');
@@ -70,7 +88,6 @@ const Inventory = () => {
     try {
       const response = await api.get('/api/products/categories/');
       const categoriesData = response.data.results || response.data;
-      console.log('Fetched categories:', categoriesData);
       setCategories(categoriesData);
     } catch (err) {
       console.error('Error fetching categories:', err);
@@ -80,7 +97,6 @@ const Inventory = () => {
   // Fetch units
   const fetchUnits = useCallback(async () => {
     try {
-      // First, get all units for general use
       let allUnitsData = [];
       let nextUrl = '/api/products/units/';
       
@@ -97,12 +113,9 @@ const Inventory = () => {
         }
       }
       
-      // Also get base units specifically
       const baseUnitsResponse = await api.get('/api/products/base-units/');
       const baseUnitsData = baseUnitsResponse.data.results || baseUnitsResponse.data;
       
-      console.log('Fetched all units:', allUnitsData);
-      console.log('Fetched base units:', baseUnitsData);
       setAllUnits(allUnitsData);
       setBaseUnits(baseUnitsData);
     } catch (err) {
@@ -115,7 +128,6 @@ const Inventory = () => {
     try {
       const response = await api.get('/api/products/tax-classes/');
       const taxClassesData = response.data.results || response.data;
-      console.log('Fetched tax classes:', taxClassesData);
       setAllTaxClasses(taxClassesData);
     } catch (err) {
       console.error('Error fetching tax classes:', err);
@@ -151,6 +163,80 @@ const Inventory = () => {
     fetchTaxClasses();
   }, [fetchProducts, fetchCategories, fetchUnits, fetchTaxClasses]);
 
+  // Filter products based on search term, category, and stock filter
+  const filteredProducts = products.filter(product => {
+    const matchesSearch = product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         (product.sku && product.sku.toLowerCase().includes(searchTerm.toLowerCase()));
+    const matchesCategory = !selectedCategory || product.category === parseInt(selectedCategory);
+    const matchesStock = stockFilter === 'all' || 
+      (stockFilter === 'low' && product.stock_quantity <= product.min_stock_level) ||
+      (stockFilter === 'out' && product.stock_quantity === 0);
+    
+    return matchesSearch && matchesCategory && matchesStock;
+  });
+
+  // Pagination calculations
+  const totalPages = Math.ceil(filteredProducts.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const currentProducts = filteredProducts.slice(startIndex, endIndex);
+
+  // Pagination handlers
+  const handlePageChange = (pageNumber) => {
+    setCurrentPage(pageNumber);
+    // Scroll to top when page changes
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleNextPage = () => {
+    if (currentPage < totalPages) {
+      handlePageChange(currentPage + 1);
+    }
+  };
+
+  const handlePrevPage = () => {
+    if (currentPage > 1) {
+      handlePageChange(currentPage - 1);
+    }
+  };
+
+  // Reset to page 1 when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, selectedCategory, stockFilter]);
+
+  // Generate page numbers for pagination
+  const getPageNumbers = () => {
+    const pageNumbers = [];
+    const maxVisiblePages = isMobile ? 3 : 5;
+    
+    let startPage = Math.max(1, currentPage - Math.floor(maxVisiblePages / 2));
+    let endPage = Math.min(totalPages, startPage + maxVisiblePages - 1);
+    
+    if (endPage - startPage + 1 < maxVisiblePages) {
+      startPage = Math.max(1, endPage - maxVisiblePages + 1);
+    }
+    
+    for (let i = startPage; i <= endPage; i++) {
+      pageNumbers.push(i);
+    }
+    
+    return pageNumbers;
+  };
+
+  // Handle filter changes
+  const handleSearchChange = (e) => {
+    setSearchTerm(e.target.value);
+  };
+
+  const handleCategoryChange = (e) => {
+    setSelectedCategory(e.target.value);
+  };
+
+  const handleStockFilterChange = (e) => {
+    setStockFilter(e.target.value);
+  };
+
   const handleAddProduct = () => {
     setEditingProduct(null);
     setProductFormData({
@@ -178,13 +264,10 @@ const Inventory = () => {
 
   const handleEditProduct = async (product) => {
     try {
-      // Fetch fresh product data from the API
       const response = await api.get(`/api/products/${product.id}/`);
       const freshProduct = response.data;
       
       setEditingProduct(freshProduct);
-      
-      // Store original product data for conversion calculations
       setOriginalProductData({
         price: freshProduct.price,
         wholesale_price: freshProduct.wholesale_price,
@@ -193,7 +276,6 @@ const Inventory = () => {
         base_unit: freshProduct.base_unit
       });
       
-      // Set initial form data with fresh data
       setProductFormData({
         name: freshProduct.name,
         sku: freshProduct.sku || '',
@@ -214,23 +296,18 @@ const Inventory = () => {
         is_active: freshProduct.is_active !== false
       });
       
-      // Fetch compatible units and available units
       await fetchCompatibleUnits(freshProduct.id);
       await fetchAvailableUnits(freshProduct.id);
       
-      // Find the default unit from the product's compatible units
       const defaultUnit = freshProduct.compatible_units?.find(cu => cu.is_default);
       if (defaultUnit) {
         setCurrentDisplayUnit(defaultUnit.unit);
       } else {
-        // No default unit found, use base unit
         setCurrentDisplayUnit(freshProduct.base_unit);
       }
       
-      // The product data from the API is already in the default unit, so use it directly
       setProductFormData(prev => ({
         ...prev,
-        // All values are already in the correct unit (default unit) from the API
         price: freshProduct.price,
         wholesale_price: freshProduct.wholesale_price,
         cost_price: freshProduct.cost_price,
@@ -249,7 +326,6 @@ const Inventory = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      // The backend now handles conversion automatically, so just send the form data as-is
       const data = {
         ...productFormData,
         price: parseFloat(productFormData.price) || 0,
@@ -270,7 +346,6 @@ const Inventory = () => {
       fetchProducts();
     } catch (err) {
       console.error('Error saving product:', err);
-      console.error('Error details:', err.response?.data);
       setError('Failed to save product');
     }
   };
@@ -321,29 +396,21 @@ const Inventory = () => {
     if (!editingProduct || !originalProductData) return;
     
     try {
-      // First, get the unit details
       const compatibleUnit = compatibleUnits.find(cu => cu.id === productUnitId);
       if (!compatibleUnit) return;
 
-      // Update the default unit via API
       await api.patch(`/api/products/${editingProduct.id}/units/${productUnitId}/`, {
         is_default: true
       });
 
-      // Get the new display unit
       const newDisplayUnitId = compatibleUnit.unit?.id || compatibleUnit.unit_id;
-      
-      // Update current display unit
       setCurrentDisplayUnit(newDisplayUnitId);
 
-      // Fetch fresh product data from API (this will have the correct values in the new default unit)
       const response = await api.get(`/api/products/${editingProduct.id}/`);
       const updatedProduct = response.data;
       
-      // Update form data with fresh values from API
       setProductFormData(prev => ({
         ...prev,
-        // The API now returns values in the default unit, so use them directly
         price: updatedProduct.price,
         wholesale_price: updatedProduct.wholesale_price,
         cost_price: updatedProduct.cost_price,
@@ -352,34 +419,11 @@ const Inventory = () => {
         max_stock_level: updatedProduct.max_stock_level
       }));
 
-      // Refresh compatible units and available units
       fetchCompatibleUnits(editingProduct.id);
       fetchAvailableUnits(editingProduct.id);
       
     } catch (err) {
       console.error('Error setting default unit:', err);
-    }
-  };
-
-  const getPriceConversionFactor = async (fromUnitId, toUnitId) => {
-    try {
-      // Use the price conversion factor API
-      const response = await api.get(`/api/products/price-conversion-factor/?from_unit_id=${fromUnitId}&to_unit_id=${toUnitId}`);
-      return parseFloat(response.data.conversion_factor);
-    } catch (err) {
-      console.error('Error getting price conversion factor:', err);
-      return 1;
-    }
-  };
-
-  const getQuantityConversionFactor = async (fromUnitId, toUnitId) => {
-    try {
-      // Use the quantity conversion factor API
-      const response = await api.get(`/api/products/quantity-conversion-factor/?from_unit_id=${fromUnitId}&to_unit_id=${toUnitId}`);
-      return parseFloat(response.data.conversion_factor);
-    } catch (err) {
-      console.error('Error getting quantity conversion factor:', err);
-      return 1;
     }
   };
 
@@ -395,7 +439,6 @@ const Inventory = () => {
       return "base unit";
     }
     
-    // Find conversion factor from base unit to display unit
     const conversion = editingProduct.available_units?.find(au => au.id === displayUnitId);
     
     if (conversion && conversion.conversion_factor) {
@@ -409,7 +452,6 @@ const Inventory = () => {
       }
     }
     
-    // Fallback: Try to parse from unit name if conversion factor is not directly available
     const unitName = currentDisplayUnit.name;
     const match = unitName.match(/(\d+)-Pack/);
     if (match && match[1]) {
@@ -420,15 +462,106 @@ const Inventory = () => {
     return unitName || '';
   };
 
-  const filteredProducts = products.filter(product => {
-    const matchesSearch = product.name.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesCategory = !selectedCategory || product.category === parseInt(selectedCategory);
-    const matchesStock = stockFilter === 'all' || 
-      (stockFilter === 'low' && product.stock_quantity <= product.min_stock_level) ||
-      (stockFilter === 'out' && product.stock_quantity === 0);
-    
-    return matchesSearch && matchesCategory && matchesStock;
-  });
+  // Clear all filters
+  const handleClearFilters = () => {
+    setSearchTerm('');
+    setSelectedCategory('');
+    setStockFilter('all');
+    setCurrentPage(1);
+  };
+
+  // Mobile card view component
+  const ProductCard = ({ product }) => {
+    const defaultUnit = product.compatible_units?.find(cu => cu.is_default);
+    const defaultUnitName = defaultUnit ? 
+      `${defaultUnit.unit_name || defaultUnit.unit?.name || 'N/A'} (${defaultUnit.unit_symbol || defaultUnit.unit?.symbol || ''})` : 
+      `${product.base_unit_name || product.base_unit?.name || 'N/A'} (${product.base_unit_symbol || product.base_unit?.symbol || ''})`;
+
+    return (
+      <div className="product-card">
+        <div className="product-card-header">
+          <h3 className="product-name">{product.name}</h3>
+          <span className={`status ${product.is_active ? 'active' : 'inactive'}`}>
+            {product.is_active ? 'Active' : 'Inactive'}
+          </span>
+        </div>
+        
+        <div className="product-card-details">
+          <div className="detail-row">
+            <span className="label">SKU:</span>
+            <span className="value">{product.sku || 'N/A'}</span>
+          </div>
+          <div className="detail-row">
+            <span className="label">Category:</span>
+            <span className="value">{product.category_name || product.category?.name || 'N/A'}</span>
+          </div>
+          <div className="detail-row">
+            <span className="label">Unit:</span>
+            <span className="value">{defaultUnitName}</span>
+          </div>
+          <div className="detail-row">
+            <span className="label">Price:</span>
+            <span className="value price">{product.price ? `MGA ${parseFloat(product.price).toFixed(2)}` : 'N/A'}</span>
+          </div>
+          <div className="detail-row">
+            <span className="label">Stock:</span>
+            <span className="value stock">{product.stock_quantity || 0}</span>
+          </div>
+          <div className="detail-row">
+            <span className="label">Packaging:</span>
+            <span className="value">
+              {product.has_packaging ? (
+                <span className="packaging-info">
+                  <span className="packaging-badge">PKG</span>
+                  {product.packaging_price && (
+                    <span className="packaging-price">MGA {parseFloat(product.packaging_price).toFixed(2)}</span>
+                  )}
+                </span>
+              ) : (
+                <span className="no-packaging">No</span>
+              )}
+            </span>
+          </div>
+          <div className="detail-row">
+            <span className="label">Storage:</span>
+            <span className="value">
+              {product.storage_type ? (
+                <span className="storage-info">
+                  <span className={`storage-type ${product.storage_type}`}>
+                    {product.storage_type === 'STR' ? 'Front' : 'Back'}
+                  </span>
+                  {product.storage_section && (
+                    <span className="storage-section">{product.storage_section}</span>
+                  )}
+                </span>
+              ) : (
+                <span className="no-storage">-</span>
+              )}
+            </span>
+          </div>
+        </div>
+        
+        <div className="product-card-actions">
+          <Button 
+            variant="outline" 
+            size="small" 
+            onClick={() => handleEditProduct(product)}
+            fullWidth={isMobile}
+          >
+            Edit
+          </Button>
+          <Button 
+            variant="danger" 
+            size="small" 
+            onClick={() => handleDeleteProduct(product.id)}
+            fullWidth={isMobile}
+          >
+            Delete
+          </Button>
+        </div>
+      </div>
+    );
+  };
 
   if (loading) {
     return (
@@ -442,7 +575,9 @@ const Inventory = () => {
     <div className="inventory">
       <div className="inventory-header">
         <h1>{t('titles.inventory_management')}</h1>
-        <Button onClick={handleAddProduct}>Add Product</Button>
+        <Button onClick={handleAddProduct} size={isMobile ? "small" : "medium"}>
+          Add Product
+        </Button>
       </div>
 
       {error && (
@@ -453,18 +588,21 @@ const Inventory = () => {
       )}
 
       <div className="inventory-filters">
-        <input
-          type="text"
-          placeholder="Search products..."
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          className="search-input"
-        />
+        <div className="filter-group">
+          <input
+            type="text"
+            placeholder="Search products..."
+            value={searchTerm}
+            onChange={handleSearchChange}
+            className="search-input"
+          />
+        </div>
         
+        <div className="filter-group">
           <select 
-          value={selectedCategory}
-          onChange={(e) => setSelectedCategory(e.target.value)}
-          className="filter-select"
+            value={selectedCategory}
+            onChange={handleCategoryChange}
+            className="filter-select"
           >
             <option value="">All Categories</option>
             {categories.map(category => (
@@ -473,113 +611,209 @@ const Inventory = () => {
               </option>
             ))}
           </select>
+        </div>
 
+        <div className="filter-group">
           <select 
-          value={stockFilter}
-          onChange={(e) => setStockFilter(e.target.value)}
-          className="filter-select"
+            value={stockFilter}
+            onChange={handleStockFilterChange}
+            className="filter-select"
           >
-          <option value="all">All Stock</option>
+            <option value="all">All Stock</option>
             <option value="low">Low Stock</option>
             <option value="out">Out of Stock</option>
           </select>
         </div>
 
-      <div className="products-table">
-        <table>
-          <thead>
-            <tr>
-              <th>Name</th>
-              <th>SKU</th>
-              <th>Category</th>
-              <th>Default Unit</th>
-              <th>Price</th>
-              <th>Stock</th>
-              <th>Packaging</th>
-              <th>Storage</th>
-              <th>Status</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {filteredProducts.map(product => {
-              
-              // Find the default unit from compatible units
-              const defaultUnit = product.compatible_units?.find(cu => cu.is_default);
-              const defaultUnitName = defaultUnit ? 
-                `${defaultUnit.unit_name || defaultUnit.unit?.name || 'N/A'} (${defaultUnit.unit_symbol || defaultUnit.unit?.symbol || ''})` : 
-                `${product.base_unit_name || product.base_unit?.name || 'N/A'} (${product.base_unit_symbol || product.base_unit?.symbol || ''})`;
-              
-              return (
-                <tr key={product.id}>
-                  <td>{product.name}</td>
-                  <td>{product.sku || 'N/A'}</td>
-                  <td>{product.category_name || product.category?.name || 'N/A'}</td>
-                  <td>{defaultUnitName}</td>
-                  <td>{product.price ? `MGA ${parseFloat(product.price).toFixed(2)}` : 'N/A'}</td>
-                  <td>{product.stock_quantity || 0}</td>
-                  <td>
-                    {product.has_packaging === true || product.has_packaging === 'true' || product.has_packaging === 1 ? (
-                      <span className="packaging-info">
-                        <span className="packaging-badge">PKG</span>
-                        {product.packaging_price && product.packaging_price > 0 && (
-                          <span className="packaging-price">MGA {parseFloat(product.packaging_price).toFixed(2)}</span>
-                        )}
-                      </span>
-                    ) : (
-                      <span className="no-packaging">No</span>
-                    )}
-                  </td>
-                  <td>
-                    <span className="storage-info">
-                      {product.storage_type && product.storage_type !== '' ? (
-                        <>
-                          <span className={`storage-type ${product.storage_type}`}>
-                            {product.storage_type === 'STR' ? 'Front Storage' : 
-                             product.storage_type === 'SSO' ? 'Back Storage' : 
-                             product.storage_type}
-                          </span>
-                          {product.storage_section && product.storage_section !== '' && (
-                            <span className="storage-section">{product.storage_section}</span>
-                          )}
-                        </>
-                      ) : (
-                        <span className="no-storage">-</span>
-                      )}
-                    </span>
-                  </td>
-                <td>
-                  <span className={`status ${product.is_active ? 'active' : 'inactive'}`}>
-                    {product.is_active ? 'Active' : 'Inactive'}
-                  </span>
-                </td>
-                <td>
-                  <Button 
-                    variant="outline" 
-                    size="small" 
-                    onClick={() => handleEditProduct(product)}
-                  >
-                    Edit
-                  </Button>
-                  <Button 
-                    variant="danger" 
-                    size="small" 
-                    onClick={() => handleDeleteProduct(product.id)}
-                  >
-                    Delete
-                  </Button>
-                </td>
-              </tr>
-              );
-            })}
-          </tbody>
-        </table>
+        {(searchTerm || selectedCategory || stockFilter !== 'all') && (
+          <div className="filter-group">
+            <Button 
+              variant="outline" 
+              size="small"
+              onClick={handleClearFilters}
+              style={{ marginTop: 'auto' }}
+            >
+              Clear Filters
+            </Button>
+          </div>
+        )}
       </div>
 
+      {/* Products Count */}
+      <div className="products-count">
+        Showing {currentProducts.length} of {filteredProducts.length} products
+        {filteredProducts.length !== totalProducts && ` (filtered from ${totalProducts} total)`}
+        {currentPage > 1 && ` - Page ${currentPage} of ${totalPages}`}
+      </div>
+
+      {/* Desktop Table View */}
+      {!isMobile && (
+        <div className="products-table">
+          <table>
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>SKU</th>
+                <th>Category</th>
+                <th>Default Unit</th>
+                <th>Price</th>
+                <th>Stock</th>
+                <th>Packaging</th>
+                <th>Storage</th>
+                <th>Status</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {currentProducts.map(product => {
+                const defaultUnit = product.compatible_units?.find(cu => cu.is_default);
+                const defaultUnitName = defaultUnit ? 
+                  `${defaultUnit.unit_name || defaultUnit.unit?.name || 'N/A'} (${defaultUnit.unit_symbol || defaultUnit.unit?.symbol || ''})` : 
+                  `${product.base_unit_name || product.base_unit?.name || 'N/A'} (${product.base_unit_symbol || product.base_unit?.symbol || ''})`;
+                
+                return (
+                  <tr key={product.id}>
+                    <td>{product.name}</td>
+                    <td>{product.sku || 'N/A'}</td>
+                    <td>{product.category_name || product.category?.name || 'N/A'}</td>
+                    <td>{defaultUnitName}</td>
+                    <td>{product.price ? `MGA ${parseFloat(product.price).toFixed(2)}` : 'N/A'}</td>
+                    <td>{product.stock_quantity || 0}</td>
+                    <td>
+                      {product.has_packaging === true || product.has_packaging === 'true' || product.has_packaging === 1 ? (
+                        <span className="packaging-info">
+                          <span className="packaging-badge">PKG</span>
+                          {product.packaging_price && product.packaging_price > 0 && (
+                            <span className="packaging-price">MGA {parseFloat(product.packaging_price).toFixed(2)}</span>
+                          )}
+                        </span>
+                      ) : (
+                        <span className="no-packaging">No</span>
+                      )}
+                    </td>
+                    <td>
+                      <span className="storage-info">
+                        {product.storage_type && product.storage_type !== '' ? (
+                          <>
+                            <span className={`storage-type ${product.storage_type}`}>
+                              {product.storage_type === 'STR' ? 'Front Storage' : 
+                               product.storage_type === 'SSO' ? 'Back Storage' : 
+                               product.storage_type}
+                            </span>
+                            {product.storage_section && product.storage_section !== '' && (
+                              <span className="storage-section">{product.storage_section}</span>
+                            )}
+                          </>
+                        ) : (
+                          <span className="no-storage">-</span>
+                        )}
+                      </span>
+                    </td>
+                    <td>
+                      <span className={`status ${product.is_active ? 'active' : 'inactive'}`}>
+                        {product.is_active ? 'Active' : 'Inactive'}
+                      </span>
+                    </td>
+                    <td>
+                      <div className="action-buttons">
+                        <Button 
+                          variant="outline" 
+                          size="small" 
+                          onClick={() => handleEditProduct(product)}
+                        >
+                          Edit
+                        </Button>
+                        <Button 
+                          variant="danger" 
+                          size="small" 
+                          onClick={() => handleDeleteProduct(product.id)}
+                        >
+                          Delete
+                        </Button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* Mobile Card View */}
+      {isMobile && (
+        <div className="products-grid">
+          {currentProducts.map(product => (
+            <ProductCard key={product.id} product={product} />
+          ))}
+        </div>
+      )}
+
+      {currentProducts.length === 0 && !loading && (
+        <div className="no-products">
+          <p>No products found{searchTerm || selectedCategory || stockFilter !== 'all' ? ' matching your filters' : ''}.</p>
+          {(searchTerm || selectedCategory || stockFilter !== 'all') && (
+            <Button 
+              variant="outline" 
+              onClick={handleClearFilters}
+            >
+              Clear Filters
+            </Button>
+          )}
+        </div>
+      )}
+
+      {/* Pagination Controls */}
+      {totalPages > 1 && (
+        <div className="pagination">
+          <div className="pagination-info">
+            Page {currentPage} of {totalPages} - {filteredProducts.length} products
+            {filteredProducts.length !== totalProducts && ' (filtered)'}
+          </div>
+          
+          <div className="pagination-controls">
+            <Button
+              variant="outline"
+              size="small"
+              onClick={handlePrevPage}
+              disabled={currentPage === 1}
+            >
+              Previous
+            </Button>
+            
+            <div className="pagination-numbers">
+              {getPageNumbers().map(pageNumber => (
+                <button
+                  key={pageNumber}
+                  className={`pagination-number ${pageNumber === currentPage ? 'active' : ''}`}
+                  onClick={() => handlePageChange(pageNumber)}
+                >
+                  {pageNumber}
+                </button>
+              ))}
+              
+              {totalPages > getPageNumbers()[getPageNumbers().length - 1] && (
+                <span className="pagination-ellipsis">...</span>
+              )}
+            </div>
+            
+            <Button
+              variant="outline"
+              size="small"
+              onClick={handleNextPage}
+              disabled={currentPage === totalPages}
+            >
+              Next
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {/* Product Modal */}
       {showProductModal && (
-    <div className="modal-overlay">
-      <div className="modal inventory-modal">
-        <div className="modal-header">
+        <div className="modal-overlay">
+          <div className={`modal inventory-modal ${isMobile ? 'mobile-modal' : ''}`}>
+            <div className="modal-header">
               <h2>{editingProduct ? 'Edit Product' : 'Add Product'}</h2>
               <button 
                 className="modal-close"
@@ -590,48 +824,46 @@ const Inventory = () => {
             </div>
 
             <form onSubmit={handleSubmit} className="product-form">
-          <div className="form-row">
-            <div className="form-group">
+              <div className={`form-layout ${isMobile ? 'mobile' : 'desktop'}`}>
+                <div className="form-group">
                   <label htmlFor="name">Product Name *</label>
-              <input
-                type="text"
+                  <input
+                    type="text"
                     id="name"
                     value={productFormData.name}
                     onChange={(e) => setProductFormData({ ...productFormData, name: e.target.value })}
-                required
-              />
-            </div>
-                
-            <div className="form-group">
+                    required
+                  />
+                </div>
+                    
+                <div className="form-group">
                   <label htmlFor="sku">SKU *</label>
-              <input
-                type="text"
+                  <input
+                    type="text"
                     id="sku"
                     value={productFormData.sku}
                     onChange={(e) => setProductFormData({ ...productFormData, sku: e.target.value })}
-                required
-              />
-            </div>
-          </div>
+                    required
+                  />
+                </div>
 
-          <div className="form-row">
-            <div className="form-group">
+                <div className="form-group">
                   <label htmlFor="category">Category *</label>
-              <select
+                  <select
                     id="category"
                     value={productFormData.category}
                     onChange={(e) => setProductFormData({ ...productFormData, category: e.target.value })}
-                required
-              >
-                <option value="">Select Category</option>
-                {categories.length > 0 ? categories.map(category => (
-                  <option key={category.id} value={category.id}>
-                    {category.name}
-                  </option>
-                )) : <option value="">Loading categories...</option>}
-              </select>
-            </div>
-                
+                    required
+                  >
+                    <option value="">Select Category</option>
+                    {categories.length > 0 ? categories.map(category => (
+                      <option key={category.id} value={category.id}>
+                        {category.name}
+                      </option>
+                    )) : <option value="">Loading categories...</option>}
+                  </select>
+                </div>
+                    
                 <div className="form-group">
                   <label htmlFor="base_unit">Base Unit *</label>
                   <select
@@ -648,137 +880,131 @@ const Inventory = () => {
                     )) : <option value="">Loading base units...</option>}
                   </select>
                 </div>
-              </div>
 
-              <div className="form-group">
-                <label htmlFor="description">Description</label>
-                <textarea
-                  id="description"
-                  value={productFormData.description}
-                  onChange={(e) => setProductFormData({ ...productFormData, description: e.target.value })}
-                  rows="3"
-                />
-              </div>
+                <div className="form-group full-width">
+                  <label htmlFor="description">Description</label>
+                  <textarea
+                    id="description"
+                    value={productFormData.description}
+                    onChange={(e) => setProductFormData({ ...productFormData, description: e.target.value })}
+                    rows="3"
+                  />
+                </div>
 
-              <div className="form-row">
-            <div className="form-group">
+                <div className="form-group">
                   <label htmlFor="tax_class">Tax Class</label>
-              <select
+                  <select
                     id="tax_class"
                     value={productFormData.tax_class}
                     onChange={(e) => setProductFormData({ ...productFormData, tax_class: e.target.value })}
                   >
                     <option value="">No Tax</option>
                     {allTaxClasses.length > 0 ? allTaxClasses.map(taxClass => (
-                  <option key={taxClass.id} value={taxClass.id}>
-                    {taxClass.name} ({taxClass.tax_rate}%)
-                  </option>
-                )) : <option value="">Loading tax classes...</option>}
-              </select>
-            </div>
-          </div>
+                      <option key={taxClass.id} value={taxClass.id}>
+                        {taxClass.name} ({taxClass.tax_rate}%)
+                      </option>
+                    )) : <option value="">Loading tax classes...</option>}
+                  </select>
+                </div>
 
-          <div className="form-row">
-            <div className="form-group">
+                <div className="form-group">
                   <label htmlFor="price">Price (MGA) *</label>
-              <div className="input-with-unit">
-                <input
-                  type="number"
+                  <div className="input-with-unit">
+                    <input
+                      type="number"
                       id="price"
                       value={productFormData.price}
                       onChange={(e) => setProductFormData({ ...productFormData, price: e.target.value })}
                       required
                       min="0"
-                  step="0.01"
-                />
-                {currentDisplayUnit && (
-                  <span className="unit-indicator">{getUnitIndicator()}</span>
-                )}
-              </div>
-            </div>
+                      step="0.01"
+                    />
+                    {currentDisplayUnit && (
+                      <span className="unit-indicator">{getUnitIndicator()}</span>
+                    )}
+                  </div>
+                </div>
 
-            <div className="form-group">
-              <label htmlFor="wholesale_price">Wholesale Price (MGA)</label>
-              <div className="input-with-unit">
-                <input
-                  type="number"
-                  id="wholesale_price"
-                  value={productFormData.wholesale_price || ''}
-                  onChange={(e) => setProductFormData({ ...productFormData, wholesale_price: e.target.value })}
-                  min="0"
-                  step="0.01"
-                  placeholder="Optional"
-                />
-                {currentDisplayUnit && (
-                  <span className="unit-indicator">{getUnitIndicator()}</span>
-                )}
-              </div>
-            </div>
+                <div className="form-group">
+                  <label htmlFor="wholesale_price">Wholesale Price (MGA)</label>
+                  <div className="input-with-unit">
+                    <input
+                      type="number"
+                      id="wholesale_price"
+                      value={productFormData.wholesale_price || ''}
+                      onChange={(e) => setProductFormData({ ...productFormData, wholesale_price: e.target.value })}
+                      min="0"
+                      step="0.01"
+                      placeholder="Optional"
+                    />
+                    {currentDisplayUnit && (
+                      <span className="unit-indicator">{getUnitIndicator()}</span>
+                    )}
+                  </div>
+                </div>
 
-            <div className="form-group">
+                <div className="form-group">
                   <label htmlFor="cost_price">Cost Price (MGA)</label>
-              <div className="input-with-unit">
-                <input
-                  type="number"
+                  <div className="input-with-unit">
+                    <input
+                      type="number"
                       id="cost_price"
                       value={productFormData.cost_price}
                       onChange={(e) => setProductFormData({ ...productFormData, cost_price: e.target.value })}
                       min="0"
-                  step="0.01"
-                />
-                {currentDisplayUnit && (
-                  <span className="unit-indicator">{getUnitIndicator()}</span>
-                )}
-              </div>
-            </div>
-          </div>
+                      step="0.01"
+                    />
+                    {currentDisplayUnit && (
+                      <span className="unit-indicator">{getUnitIndicator()}</span>
+                    )}
+                  </div>
+                </div>
 
-          <div className="form-row">
-            <div className="form-group">
+                <div className="form-group">
                   <label htmlFor="stock_quantity">Stock Quantity</label>
-              <div className="input-with-unit">
-                <input
-                  type="number"
+                  <div className="input-with-unit">
+                    <input
+                      type="number"
                       id="stock_quantity"
                       value={productFormData.stock_quantity}
                       onChange={(e) => setProductFormData({ ...productFormData, stock_quantity: e.target.value })}
                       min="0"
                       step="0.01"
-                />
-                {currentDisplayUnit && (
-                  <span className="unit-indicator">{getUnitIndicator()}</span>
-                )}
-              </div>
-            </div>
+                    />
+                    {currentDisplayUnit && (
+                      <span className="unit-indicator">{getUnitIndicator()}</span>
+                    )}
+                  </div>
+                </div>
 
-            <div className="form-group">
+                <div className="form-group">
                   <label htmlFor="min_stock_level">Min Stock Level</label>
-              <div className="input-with-unit">
-                <input
-                  type="number"
+                  <div className="input-with-unit">
+                    <input
+                      type="number"
                       id="min_stock_level"
                       value={productFormData.min_stock_level}
                       onChange={(e) => setProductFormData({ ...productFormData, min_stock_level: e.target.value })}
                       min="0"
                       step="0.01"
-                />
-                {currentDisplayUnit && (
-                  <span className="unit-indicator">{getUnitIndicator()}</span>
-                )}
-              </div>
-          </div>
+                    />
+                    {currentDisplayUnit && (
+                      <span className="unit-indicator">{getUnitIndicator()}</span>
+                    )}
+                  </div>
+                </div>
 
-          <div className="form-group">
+                <div className="form-group">
                   <label htmlFor="max_stock_level">Max Stock Level</label>
-              <input
-                type="number"
+                  <input
+                    type="number"
                     id="max_stock_level"
                     value={productFormData.max_stock_level}
                     onChange={(e) => setProductFormData({ ...productFormData, max_stock_level: e.target.value })}
                     min="0"
                     step="0.01"
                   />
-          </div>
+                </div>
               </div>
 
               {/* Packaging Consignation Section */}
@@ -815,7 +1041,7 @@ const Inventory = () => {
               {/* Storage Section */}
               <div className="form-section">
                 <h3>Storage Location</h3>
-                <div className="form-row">
+                <div className={`form-layout ${isMobile ? 'mobile' : 'desktop'}`}>
                   <div className="form-group">
                     <label htmlFor="storage_type">Storage Type</label>
                     <select
@@ -852,9 +1078,9 @@ const Inventory = () => {
                       size="small"
                       onClick={() => setShowAddUnitModal(true)}
                     >
-                      + Add Compatible Unit
+                      + Add Unit
                     </Button>
-          </div>
+                  </div>
 
                   <div className="compatible-units-list">
                     {(compatibleUnits || []).map(compatibleUnit => (
@@ -880,7 +1106,7 @@ const Inventory = () => {
                                 size="small"
                                 onClick={() => setDefaultUnit(compatibleUnit.id)}
                               >
-                                Set as Default
+                                Set Default
                               </Button>
                               {editingProduct && (
                                 (() => {
@@ -909,15 +1135,15 @@ const Inventory = () => {
 
               <div className="form-group checkbox-group">
                 <label className="checkbox-label">
-              <input
-                type="checkbox"
+                  <input
+                    type="checkbox"
                     checked={productFormData.is_active}
                     onChange={(e) => setProductFormData({ ...productFormData, is_active: e.target.checked })}
-              />
+                  />
                   <span className="checkmark"></span>
-              Active
-            </label>
-          </div>
+                  Active
+                </label>
+              </div>
 
               <div className="form-actions">
                 <Button 
@@ -925,14 +1151,14 @@ const Inventory = () => {
                   variant="outline" 
                   onClick={() => setShowProductModal(false)}
                 >
-              Cancel
-            </Button>
+                  Cancel
+                </Button>
                 <Button type="submit">
                   {editingProduct ? 'Update' : 'Create'} Product
-            </Button>
+                </Button>
+              </div>
+            </form>
           </div>
-        </form>
-      </div>
         </div>
       )}
 

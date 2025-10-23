@@ -15,4 +15,13 @@ urlpatterns = [
     path('<int:sale_id>/payment-method/', views.update_payment_method, name='update-payment-method'),
     path('delete/', views.delete_sales, name='delete-sales'),
     path('<int:sale_id>/edit/', views.edit_sale, name='edit-sale'),
+    
+    # Packaging management URLs
+    path('packaging/', views.SalePackagingListCreateView.as_view(), name='sale-packaging-list-create'),
+    path('packaging/<int:pk>/', views.SalePackagingDetailView.as_view(), name='sale-packaging-detail'),
+    path('packaging-returns/', views.PackagingReturnListCreateView.as_view(), name='packaging-return-list-create'),
+    path('<int:sale_id>/packaging-validation/', views.packaging_validation_page, name='packaging-validation-page'),
+    path('<int:sale_id>/add-packaging/', views.add_packaging_to_sale, name='add-packaging-to-sale'),
+    path('packaging/<int:packaging_id>/return/', views.process_packaging_return, name='process-packaging-return'),
+    path('due-packaging/', views.due_packaging_list, name='due-packaging-list'),
 ]

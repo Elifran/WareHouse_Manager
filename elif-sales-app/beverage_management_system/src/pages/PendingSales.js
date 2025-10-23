@@ -2,9 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import api from '../services/api';
 import Button from '../components/Button';
+import PrintButton from '../components/PrintButton';
 import { formatCurrency, formatDate } from '../utils/helpers';
 import { useAuth } from '../contexts/AuthContext';
-import { generatePrintContent } from '../components/PrintButton';
+import PackagingValidation from './PackagingValidation';
 import './PendingSales.css';
 
 const PendingSales = () => {
@@ -22,6 +23,8 @@ const PendingSales = () => {
   const [stockValidationStatus, setStockValidationStatus] = useState({});
   const [paymentType, setPaymentType] = useState('full');
   const [paidAmount, setPaidAmount] = useState(0);
+  const [showPackagingValidation, setShowPackagingValidation] = useState(false);
+  const [packagingValidationSaleId, setPackagingValidationSaleId] = useState(null);
 
   useEffect(() => {
     if (!authLoading && user) {
@@ -99,6 +102,29 @@ const PendingSales = () => {
     try {
       setCompletingSale(saleId);
       
+      // Check if sale has items with packaging that need validation
+      const sale = pendingSales.find(s => s.id === saleId);
+      const hasPackagingItems = sale.items?.some(item => item.product_has_packaging);
+      
+      if (hasPackagingItems) {
+        // Show packaging validation page
+        setPackagingValidationSaleId(saleId);
+        setShowPackagingValidation(true);
+        setCompletingSale(null);
+        return;
+      }
+      
+      // Proceed with normal completion if no packaging items
+      await performSaleCompletion(saleId);
+    } catch (error) {
+      console.error('Error completing sale:', error);
+      alert('Error completing sale: ' + (error.response?.data?.detail || error.message));
+      setCompletingSale(null);
+    }
+  };
+
+  const performSaleCompletion = async (saleId) => {
+    try {
       // Check stock before completing
       const sale = pendingSales.find(s => s.id === saleId);
       const stockValidationErrors = [];
@@ -127,9 +153,8 @@ const PendingSales = () => {
       
       await api.post(`/api/sales/${saleId}/complete/`);
       
-      // Print receipt after successful completion
+      // Print receipt after successful completion using PrintButton logic
       const completedSale = { ...sale, status: 'completed' };
-      printPendingSale(completedSale);
       
       // Remove from pending sales list
       setPendingSales(prev => prev.filter(sale => sale.id !== saleId));
@@ -143,6 +168,22 @@ const PendingSales = () => {
     } finally {
       setCompletingSale(null);
     }
+  };
+
+  const handlePackagingValidationComplete = async () => {
+    try {
+      await performSaleCompletion(packagingValidationSaleId);
+      setShowPackagingValidation(false);
+      setPackagingValidationSaleId(null);
+    } catch (error) {
+      console.error('Error completing sale after packaging validation:', error);
+    }
+  };
+
+  const handlePackagingValidationCancel = () => {
+    setShowPackagingValidation(false);
+    setPackagingValidationSaleId(null);
+    setCompletingSale(null);
   };
 
   const cancelSale = async (saleId) => {
@@ -160,74 +201,39 @@ const PendingSales = () => {
     }
   };
 
-  const printPendingSale = (sale) => {
-    try {
-      // Prepare print data in the same format as regular sales
-      const printData = {
-        sale_number: sale.sale_number,
-        customer_name: sale.customer_name || 'Walk-in Customer',
-        customer_phone: sale.customer_phone || '',
-        customer_email: sale.customer_email || '',
-        user_name: user?.username || t('app.unknown_user'),
-        user_id: user?.id || 'unknown',
-        created_at: sale.created_at,
-        print_timestamp: new Date().toISOString(),
-        print_id: `PRINT-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-        status: sale.status === 'completed' ? 'completed' : 'pending',
-        payment_status: sale.payment_status || 'pending',
-        payment_method: sale.payment_method || 'cash',
-        total_amount: sale.total_amount || sale.subtotal,
-        paid_amount: sale.paid_amount || 0,
-        remaining_amount: sale.remaining_amount || (parseFloat(sale.total_amount || sale.subtotal) - parseFloat(sale.paid_amount || 0)),
-        due_date: sale.due_date || null,
-        subtotal: sale.subtotal,
-        discount_amount: sale.discount_amount || 0,
-        tax_amount: sale.tax_amount || 0,
-        items: sale.items?.map(item => ({
-          product_name: item.product_name,
-          product_sku: item.product_sku,
-          quantity: item.quantity,
-          quantity_display: item.quantity_display,
-          unit_name: item.unit_name,
-          unit_price: item.unit_price,
-          total_price: item.total_price
-        })) || []
-      };
-
-      // Generate print content using the standardized system
-      const printContent = generatePrintContent(printData, t('titles.sale_receipt'), 'sale', t);
-      
-      // Open print window
-      const printWindow = window.open('', '_blank', 'width=800,height=600');
-      
-      if (!printWindow) {
-        throw new Error('Failed to open print window. Please check popup blockers.');
-      }
-      
-      printWindow.document.write(printContent);
-      printWindow.document.close();
-      
-      // Wait for content to load then print
-      const printAfterLoad = () => {
-        printWindow.focus();
-        printWindow.print();
-        // Close the window after a short delay
-        setTimeout(() => {
-          printWindow.close();
-        }, 1000);
-      };
-      
-      // Check if window is already loaded
-      if (printWindow.document.readyState === 'complete') {
-        printAfterLoad();
-      } else {
-        printWindow.onload = printAfterLoad;
-      }
-      
-    } catch (error) {
-      console.error('Print error:', error);
-      alert('Failed to print receipt. Please try again. Error: ' + error.message);
-    }
+  // Prepare print data for PrintButton component (consistent with POS logic)
+  const preparePrintData = (sale) => {
+    return {
+      sale_number: sale.sale_number,
+      customer_name: sale.customer_name || 'Walk-in Customer',
+      customer_phone: sale.customer_phone || '',
+      customer_email: sale.customer_email || '',
+      user_name: user?.username || t('app.unknown_user'),
+      user_id: user?.id || 'unknown',
+      created_at: sale.created_at,
+      print_timestamp: new Date().toISOString(),
+      print_id: `PRINT-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      status: sale.status === 'completed' ? 'completed' : 'pending',
+      payment_status: sale.payment_status || 'pending',
+      payment_method: sale.payment_method || 'cash',
+      total_amount: sale.total_amount || sale.subtotal,
+      paid_amount: sale.paid_amount || 0,
+      remaining_amount: sale.remaining_amount || (parseFloat(sale.total_amount || sale.subtotal) - parseFloat(sale.paid_amount || 0)),
+      due_date: sale.due_date || null,
+      subtotal: sale.subtotal,
+      discount_amount: sale.discount_amount || 0,
+      tax_amount: sale.tax_amount || 0,
+      created_by_name: sale.created_by_name,
+      items: sale.items?.map(item => ({
+        product_name: item.product_name,
+        product_sku: item.product_sku,
+        quantity: item.quantity,
+        quantity_display: item.quantity_display,
+        unit_name: item.unit_name,
+        unit_price: item.unit_price,
+        total_price: item.total_price
+      })) || []
+    };
   };
 
   const editSale = (sale) => {
@@ -386,8 +392,11 @@ const PendingSales = () => {
         paid_amount: paidAmount,
         items: editFormData.items.map(item => ({
           id: item.id,
+          product: item.product,
+          unit: item.unit,
           quantity: item.quantity,
-          unit_price: item.unit_price
+          unit_price: item.unit_price,
+          price_mode: item.price_mode
         }))
       };
       
@@ -397,7 +406,7 @@ const PendingSales = () => {
         editFormData: editFormData
       });
       
-      const response = await api.patch(`/sales/${editingSale.id}/`, updateData);
+      const response = await api.put(`/api/sales/${editingSale.id}/edit/`, updateData);
       
       setShowEditModal(false);
       setEditingSale(null);
@@ -511,13 +520,18 @@ const PendingSales = () => {
                 >
                   View Details
                 </Button>
-                <Button
-                  size="small"
+                
+                {/* Use PrintButton component instead of custom print function */}
+                <PrintButton
+                  data={preparePrintData(sale)}
+                  title={t('titles.sale_receipt')}
+                  type="sale"
+                  printText="🖨️ Print"
+                  className="print-sale-btn"
                   variant="outline"
-                  onClick={() => printPendingSale(sale)}
-                >
-                  🖨️ Print
-                </Button>
+                  size="small"
+                />
+                
                 <Button
                   size="small"
                   variant="outline"
@@ -683,12 +697,17 @@ const PendingSales = () => {
               >
                 Close
               </Button>
-              <Button
+              
+              {/* Use PrintButton component in modal footer */}
+              <PrintButton
+                data={preparePrintData(selectedSale)}
+                title={t('titles.sale_receipt')}
+                type="sale"
+                printText="🖨️ Print Receipt"
+                className="print-sale-btn"
                 variant="secondary"
-                onClick={() => printPendingSale(selectedSale)}
-              >
-                🖨️ Print Receipt
-              </Button>
+              />
+              
               <Button
                 variant="secondary"
                 onClick={() => editSale(selectedSale)}
@@ -925,6 +944,19 @@ const PendingSales = () => {
                 Save Changes
               </Button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Packaging Validation Modal */}
+      {showPackagingValidation && (
+        <div className="modal-overlay">
+          <div className="modal-content packaging-validation-modal">
+            <PackagingValidation
+              saleId={packagingValidationSaleId}
+              onComplete={handlePackagingValidationComplete}
+              onCancel={handlePackagingValidationCancel}
+            />
           </div>
         </div>
       )}

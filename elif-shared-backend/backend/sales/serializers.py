@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from decimal import Decimal
-from .models import Sale, SaleItem, Payment
+from .models import Sale, SaleItem, Payment, SalePackaging, PackagingReturn
 from products.serializers import ProductListSerializer
 
 class SaleItemSerializer(serializers.ModelSerializer):
@@ -139,11 +139,67 @@ class PaymentSerializer(serializers.ModelSerializer):
         fields = ['id', 'amount', 'payment_method', 'reference_number', 'notes', 'created_at']
         read_only_fields = ['id', 'created_at']
 
+class SalePackagingSerializer(serializers.ModelSerializer):
+    product_name = serializers.CharField(source='product.name', read_only=True)
+    product_sku = serializers.CharField(source='product.sku', read_only=True)
+    unit_name = serializers.CharField(source='unit.name', read_only=True)
+    unit_symbol = serializers.CharField(source='unit.symbol', read_only=True)
+    
+    class Meta:
+        model = SalePackaging
+        fields = [
+            'id', 'sale', 'product', 'product_name', 'product_sku', 'quantity', 
+            'unit', 'unit_name', 'unit_symbol', 'unit_price', 'total_price', 
+            'status', 'customer_name', 'customer_phone', 'notes', 'created_at', 'updated_at'
+        ]
+        read_only_fields = ['id', 'total_price', 'created_at', 'updated_at']
+    
+    def validate_quantity(self, value):
+        if value <= 0:
+            raise serializers.ValidationError("Quantity must be greater than 0.")
+        return value
+
+class SalePackagingCreateSerializer(serializers.Serializer):
+    product = serializers.IntegerField()
+    quantity = serializers.FloatField()
+    unit = serializers.IntegerField()
+    unit_price = serializers.DecimalField(max_digits=10, decimal_places=2)
+    status = serializers.ChoiceField(choices=[('exchange', 'Exchange'), ('consignation', 'Consignation (Paid)'), ('due', 'Due (To be returned)')], default='consignation')
+    customer_name = serializers.CharField(required=False, allow_blank=True)
+    customer_phone = serializers.CharField(required=False, allow_blank=True)
+    notes = serializers.CharField(required=False, allow_blank=True)
+    
+    def validate_quantity(self, value):
+        if value <= 0:
+            raise serializers.ValidationError("Quantity must be greater than 0.")
+        return value
+
+class PackagingReturnSerializer(serializers.ModelSerializer):
+    sale_packaging_product = serializers.CharField(source='sale_packaging.product.name', read_only=True)
+    processed_by_name = serializers.CharField(source='processed_by.username', read_only=True)
+    
+    class Meta:
+        model = PackagingReturn
+        fields = [
+            'id', 'sale_packaging', 'sale_packaging_product', 'return_type', 
+            'quantity_returned', 'refund_amount', 'notes', 'processed_by', 
+            'processed_by_name', 'created_at'
+        ]
+        read_only_fields = ['id', 'created_at']
+    
+    def validate_quantity_returned(self, value):
+        if value <= 0:
+            raise serializers.ValidationError("Quantity returned must be greater than 0.")
+        return value
+
 class SaleSerializer(serializers.ModelSerializer):
     items = SaleItemSerializer(many=True, read_only=True)
+    packaging_items = SalePackagingSerializer(many=True, read_only=True)
     payments = PaymentSerializer(many=True, read_only=True)
     sold_by_name = serializers.CharField(source='sold_by.username', read_only=True)
+    created_by_name = serializers.CharField(source='created_by.username', read_only=True)
     items_count = serializers.SerializerMethodField()
+    packaging_count = serializers.SerializerMethodField()
     original_sale_number = serializers.CharField(source='original_sale.sale_number', read_only=True)
     
     class Meta:
@@ -151,14 +207,17 @@ class SaleSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'sale_number', 'sale_type', 'original_sale', 'original_sale_number',
             'customer_name', 'customer_phone', 'customer_email',
-            'status', 'payment_method', 'subtotal', 'cost_amount', 'tax_amount', 'discount_amount',
-            'total_amount', 'paid_amount', 'remaining_amount', 'payment_status', 'due_date', 'notes', 'sold_by', 'sold_by_name', 'items', 'payments',
-            'items_count', 'created_at', 'updated_at'
+            'status', 'payment_method', 'subtotal', 'cost_amount', 'tax_amount', 'discount_amount', 'packaging_total',
+            'total_amount', 'paid_amount', 'remaining_amount', 'payment_status', 'due_date', 'notes', 'sold_by', 'sold_by_name', 'created_by', 'created_by_name', 
+            'items', 'packaging_items', 'payments', 'items_count', 'packaging_count', 'created_at', 'updated_at'
         ]
-        read_only_fields = ['id', 'sale_number', 'subtotal', 'cost_amount', 'tax_amount', 'total_amount', 'created_at', 'updated_at']
+        read_only_fields = ['id', 'sale_number', 'subtotal', 'cost_amount', 'tax_amount', 'packaging_total', 'total_amount', 'created_at', 'updated_at']
     
     def get_items_count(self, obj):
         return obj.items.count()
+    
+    def get_packaging_count(self, obj):
+        return obj.packaging_items.count()
     
     def update(self, instance, validated_data):
         # Get items data from the request data (passed through context)
@@ -213,13 +272,14 @@ class SaleSerializer(serializers.ModelSerializer):
 
 class SaleCreateSerializer(serializers.ModelSerializer):
     items = SaleItemCreateSerializer(many=True)
+    packaging_items = SalePackagingCreateSerializer(many=True, required=False)
     sale_type = serializers.ChoiceField(choices=[('sale', 'Sale'), ('return', 'Return')], default='sale')
     
     class Meta:
         model = Sale
         fields = [
             'sale_type', 'original_sale', 'customer_name', 'customer_phone', 'customer_email', 'payment_method',
-            'discount_amount', 'paid_amount', 'notes', 'items'
+            'discount_amount', 'paid_amount', 'notes', 'items', 'packaging_items'
         ]
     
     def validate_original_sale(self, value):
@@ -250,9 +310,11 @@ class SaleCreateSerializer(serializers.ModelSerializer):
     
     def create(self, validated_data):
         from products.models import Product, Unit
-        from .models import SaleItem
+        from .models import SaleItem, SalePackaging
         
         items_data = validated_data.pop('items')
+        packaging_items_data = validated_data.pop('packaging_items', [])
+        # created_by should be passed via serializer.save in the view
         sale = Sale.objects.create(**validated_data)
         
         # Generate sale number based on sale type
@@ -325,16 +387,46 @@ class SaleCreateSerializer(serializers.ModelSerializer):
                 # No tax or 0% tax rate, use the stored total cost
                 total_cost += item.total_cost
         
+        # Create packaging items
+        packaging_total = Decimal('0.00')
+        for packaging_data in packaging_items_data:
+            # Convert product ID to Product object for the ForeignKey
+            product_id = packaging_data.pop('product')
+            product = Product.objects.get(id=product_id)
+            
+            # Convert unit ID to Unit object for the ForeignKey
+            unit_id = packaging_data.pop('unit')
+            try:
+                unit = Unit.objects.get(id=unit_id)
+            except Unit.DoesNotExist:
+                # Fallback to piece unit if the specified unit doesn't exist
+                unit = Unit.objects.get(symbol='pc', is_base_unit=True)
+            
+            # Ensure unit_price is set from product if not provided
+            if 'unit_price' not in packaging_data or not packaging_data['unit_price']:
+                packaging_data['unit_price'] = product.packaging_price or Decimal('0.00')
+            
+            # Set customer info from sale if not provided
+            if not packaging_data.get('customer_name'):
+                packaging_data['customer_name'] = sale.customer_name
+            if not packaging_data.get('customer_phone'):
+                packaging_data['customer_phone'] = sale.customer_phone
+            
+            packaging = SalePackaging.objects.create(sale=sale, product=product, unit=unit, **packaging_data)
+            packaging_total += packaging.total_price
+        
         # Calculate totals (tax-inclusive pricing)
         sale.subtotal = subtotal  # This is the total amount including tax
         sale.cost_amount = total_cost  # This is the cost excluding tax
         sale.tax_amount = total_tax  # This is the tax portion of the total
-        sale.total_amount = sale.subtotal - sale.discount_amount  # Total after discount
+        sale.packaging_total = packaging_total  # Total packaging amount
+        # Sales total should only include product amounts, not packaging
+        sale.total_amount = sale.subtotal - sale.discount_amount  # Total after discount excluding packaging
         
-        # Calculate payment amounts
+        # Calculate payment amounts (only for product sales, not packaging)
         sale.remaining_amount = sale.total_amount - sale.paid_amount
         
-        # Update payment status
+        # Update payment status based on product sales only
         if sale.paid_amount >= sale.total_amount:
             sale.payment_status = 'paid'
         elif sale.paid_amount > 0:
@@ -372,16 +464,22 @@ class SaleCreateSerializer(serializers.ModelSerializer):
 
 class SaleListSerializer(serializers.ModelSerializer):
     sold_by_name = serializers.CharField(source='sold_by.username', read_only=True)
+    created_by_name = serializers.CharField(source='created_by.username', read_only=True)
     items_count = serializers.SerializerMethodField()
+    packaging_count = serializers.SerializerMethodField()
     items = SaleItemSerializer(many=True, read_only=True)
+    packaging_items = SalePackagingSerializer(many=True, read_only=True)
     
     class Meta:
         model = Sale
         fields = [
             'id', 'sale_number', 'sale_type', 'customer_name', 'status', 'payment_method',
-            'total_amount', 'paid_amount', 'remaining_amount', 'payment_status', 'due_date',
-            'sold_by_name', 'items_count', 'items', 'created_at'
+            'subtotal', 'packaging_total', 'total_amount', 'paid_amount', 'remaining_amount', 'payment_status', 'due_date',
+            'sold_by_name', 'created_by_name', 'items_count', 'packaging_count', 'items', 'packaging_items', 'created_at'
         ]
     
     def get_items_count(self, obj):
         return obj.items.count()
+    
+    def get_packaging_count(self, obj):
+        return obj.packaging_items.count()

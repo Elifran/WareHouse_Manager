@@ -3,7 +3,16 @@ import { useTranslation } from 'react-i18next';
 import { useAuth } from '../contexts/AuthContext';
 import api from '../services/api';
 import Button from '../components/Button';
-import { generatePrintContent } from '../components/PrintButton';
+import PackagingManager from '../components/PackagingManager';
+import { 
+  isMobileDevice,
+  openPrintWindow,
+  openPrintPreview,
+  downloadReceiptFile,
+  generateXprinterPrintContent,
+  generateMobilePrintContent,
+  generatePrintContent
+} from '../utils/printUtils';
 import './PointOfSale.css';
 
 const PointOfSale = () => {
@@ -81,6 +90,161 @@ const PointOfSale = () => {
   const [priceMode, setPriceMode] = useState('standard'); // 'standard' or 'wholesale'
   const [saleMode, setSaleMode] = useState('complete'); // 'complete' or 'pending'
   const [printReceipt, setPrintReceipt] = useState(true); // true or false
+  const [currentPage, setCurrentPage] = useState(1);
+  const PAGE_SIZE = 24;
+  
+  // Packaging state
+  const [packagingCart, setPackagingCart] = useState([]);
+  const [showPackagingManager, setShowPackagingManager] = useState(false);
+
+  const handlePrintReceipt = async (printData, title = 'Sale Receipt', usePreview = false) => {
+    try {
+      // Validate data structure
+      if (!printData) {
+        console.error('No data provided for printing');
+        window.alert('No data available to print.');
+        return false;
+      }
+
+      const isMobile = isMobileDevice();
+      
+      // Generate optimized content for thermal printers
+      // const printContent = generateThermalOptimizedContent(printData, title, 'sale');
+      const printContent = generatePrintContent(printData, title, 'sale');
+
+      // Handle print preview
+      if (usePreview) {
+        const previewSuccess = openPrintPreview(printContent, title);
+        if (previewSuccess) {
+          return true;
+        } else {
+          throw new Error('Failed to open print preview window.');
+        }
+      }
+
+      // Use mobile-friendly printing for mobile devices
+      if (isMobile) {
+        // Try direct print window for mobile
+        const success = await openPrintWindow(printContent, title);
+        if (!success) {
+          // If mobile printing fails, offer receipt app option
+          const useReceiptApp = window.confirm('Mobile printing failed. Would you like to download a file for receipt printer apps instead?');
+          if (useReceiptApp) {
+            const downloadSuccess = downloadReceiptFile(printData, title);
+            if (downloadSuccess) {
+              window.alert('Receipt file downloaded! You can now open it with any receipt printer app to print directly to your Xprinter.');
+              return true;
+            }
+          }
+          throw new Error('Mobile printing failed. Please try again or check your printer connection.');
+        }
+        return true;
+      } else {
+        // Desktop printing - use direct thermal printing method
+        const success = await printThermalReceipt(printContent, title);
+        if (!success) {
+          // Fallback to preview
+          const previewSuccess = openPrintPreview(printContent, title);
+          if (!previewSuccess) {
+            throw new Error('Failed to print receipt. Please try print preview instead.');
+          }
+        }
+        return true;
+      }
+      
+    } catch (error) {
+      console.error('Print error:', error);
+      window.alert('Failed to print receipt. Please try print preview or check your printer settings.');
+      return false;
+    }
+  };
+
+  const printThermalReceipt = (printContent, title) => {
+    return new Promise((resolve) => {
+      try {
+        // Create a hidden iframe for printing
+        const printFrame = document.createElement('iframe');
+        printFrame.style.position = 'fixed';
+        printFrame.style.right = '0';
+        printFrame.style.bottom = '0';
+        printFrame.style.width = '0';
+        printFrame.style.height = '0';
+        printFrame.style.border = 'none';
+        printFrame.style.visibility = 'hidden';
+        
+        document.body.appendChild(printFrame);
+        
+        let printDocument = printFrame.contentWindow || printFrame.contentDocument;
+        if (printDocument.document) {
+          printDocument = printDocument.document;
+        }
+        
+        // Write the content to the iframe
+        printDocument.open();
+        printDocument.write(printContent);
+        printDocument.close();
+        
+        // Wait for content to load then trigger print
+        const printTimeout = setTimeout(() => {
+          try {
+            printFrame.contentWindow.focus();
+            
+            // Use a longer timeout to ensure CSS is applied
+            setTimeout(() => {
+              printFrame.contentWindow.print();
+              
+              // Clean up
+              setTimeout(() => {
+                if (document.body.contains(printFrame)) {
+                  document.body.removeChild(printFrame);
+                }
+                resolve(true);
+              }, 1000);
+            }, 500);
+          } catch (printError) {
+            console.error('Print error:', printError);
+            if (document.body.contains(printFrame)) {
+              document.body.removeChild(printFrame);
+            }
+            resolve(false);
+          }
+        }, 1000);
+        
+        // Fallback if onload doesn't fire
+        printFrame.onload = function() {
+          clearTimeout(printTimeout);
+          try {
+            printFrame.contentWindow.focus();
+            setTimeout(() => {
+              printFrame.contentWindow.print();
+              setTimeout(() => {
+                if (document.body.contains(printFrame)) {
+                  document.body.removeChild(printFrame);
+                }
+                resolve(true);
+              }, 1000);
+            }, 500);
+          } catch (error) {
+            console.error('Print error:', error);
+            if (document.body.contains(printFrame)) {
+              document.body.removeChild(printFrame);
+            }
+            resolve(false);
+          }
+        };
+        
+      } catch (error) {
+        console.error('Print setup error:', error);
+        resolve(false);
+      }
+    });
+  };
+
+  // Update the print preview button in the checkout actions
+  const handlePrintPreview = async () => {
+    const printData = preparePrintData(`PREVIEW-${Date.now()}`, saleMode === 'pending' ? 'pending' : 'completed');
+    await handlePrintReceipt(printData, t('titles.sale_receipt'), true);
+  };
 
   // Function to get the current price based on price mode
   const getCurrentPrice = (product) => {
@@ -90,13 +254,23 @@ const PointOfSale = () => {
     return parseFloat(product.price);
   };
 
-  // Calculate total amount
+  // Calculate total amount (products only, excluding packaging)
   const calculateTotal = () => {
-    const total = cart.reduce((total, item) => {
+    const cartTotal = cart.reduce((total, item) => {
       const unitPrice = item.unit_price || 0;
       return total + (unitPrice * item.quantity);
     }, 0);
-    return total;
+    return cartTotal;
+  };
+
+  // Calculate total amount including packaging (for display purposes)
+  const calculateTotalWithPackaging = () => {
+    const cartTotal = cart.reduce((total, item) => {
+      const unitPrice = item.unit_price || 0;
+      return total + (unitPrice * item.quantity);
+    }, 0);
+    const packagingTotal = calculatePackagingTotal();
+    return cartTotal + packagingTotal;
   };
 
   // Update paid amount when payment type changes
@@ -110,7 +284,7 @@ const PointOfSale = () => {
         setPaidAmount(0);
       }
     }
-  }, [paymentType, cart]);
+  }, [paymentType, cart, packagingCart]);
 
   // Function to get the current price for a specific unit
   const getCurrentUnitPrice = (product, unitStockInfo) => {
@@ -250,8 +424,6 @@ const PointOfSale = () => {
         stockData[productStock.product_id] = productStock.available_units;
       });
       
-      
-      
       setStockAvailability(stockData);
     } catch (err) {
       // Fallback to individual calls if bulk fails
@@ -267,7 +439,6 @@ const PointOfSale = () => {
       fetchBulkStockAvailability();
     }
   };
-
 
   const getUpdatedStockAvailability = (productId) => {
     // Get the base stock availability for this product
@@ -296,7 +467,6 @@ const PointOfSale = () => {
     const baseUnit = baseStockInfo.find(u => u.is_base_unit);
     const totalBaseStock = baseUnit ? baseUnit.available_quantity : 0;
     const remainingPieces = Math.max(0, totalBaseStock - totalPiecesInCart);
-
 
     // Update each unit's available quantity based on remaining pieces
     return baseStockInfo.map(unit => {
@@ -334,9 +504,21 @@ const PointOfSale = () => {
       if (filterParams.category) params.append('category', filterParams.category);
       if (filterParams.search) params.append('search', filterParams.search);
       
-      const url = `/api/products/${params.toString() ? '?' + params.toString() : ''}`;
-      const response = await api.get(url);
-      const allProducts = response.data.results || response.data;
+      const baseUrl = `/api/products/${params.toString() ? '?' + params.toString() : ''}`;
+      let response = await api.get(baseUrl);
+      let aggregatedProducts = Array.isArray(response.data.results) ? response.data.results : (Array.isArray(response.data) ? response.data : []);
+      
+      // Follow pagination to get all products (DRF-style "next" links)
+      let nextUrl = response.data.next;
+      while (nextUrl) {
+        // Support absolute or relative next URLs
+        response = await api.get(nextUrl);
+        const pageItems = Array.isArray(response.data.results) ? response.data.results : (Array.isArray(response.data) ? response.data : []);
+        aggregatedProducts = aggregatedProducts.concat(pageItems);
+        nextUrl = response.data.next;
+      }
+      
+      const allProducts = aggregatedProducts;
       
       // If categories are not loaded yet, show all products but log a warning
       if (categoriesRef.current.length === 0 || !categoriesLoadedRef.current) {
@@ -382,6 +564,7 @@ const PointOfSale = () => {
       }
       
       setProducts(sellableProducts);
+      setCurrentPage(1);
     } catch (err) {
       setError('Failed to load products');
     } finally {
@@ -536,6 +719,8 @@ const PointOfSale = () => {
       item.unit_id === unit.id && 
       item.price_mode === priceMode
     );
+    
+    // Update cart first
     if (existingItem) {
       // Check if adding 1 more would exceed available quantity (only for complete sales)
       if (saleMode === 'complete') {
@@ -546,7 +731,7 @@ const PointOfSale = () => {
           return;
         }
       }
-      setCart(cart.map(item =>
+      setCart(prevCart => prevCart.map(item =>
         item.id === product.id && item.unit_id === unit.id && item.price_mode === priceMode
           ? { ...item, quantity: item.quantity + 1 }
           : item
@@ -574,14 +759,24 @@ const PointOfSale = () => {
         unit_price: getCurrentUnitPrice(product, unitStockInfo) || getCurrentPrice(product),
         price_mode: priceMode
       };
-      setCart([...cart, newCartItem]);
+      setCart(prevCart => [...prevCart, newCartItem]);
     }
+
+    // Automatically add packaging if product has packaging - use setTimeout to ensure cart is updated first
+    if (product.has_packaging && product.packaging_price) {
+      setTimeout(() => {
+        addPackagingAutomatically(product, unit);
+      }, 0);
+    }
+    
     setError('');
   };
 
   const updateQuantity = (productId, unitId, quantity, priceMode = null) => {
     if (quantity <= 0) {
       setCart(cart.filter(item => !(item.id === productId && item.unit_id === unitId && item.price_mode === priceMode)));
+      // Also remove packaging if sales item is removed
+      setPackagingCart(packagingCart.filter(item => item.id !== productId));
     } else {
       // Skip stock validation for pending sales since stock won't be removed until completion
       if (saleMode === 'complete') {
@@ -613,12 +808,198 @@ const PointOfSale = () => {
           ? { ...item, quantity }
           : item
       ));
+
+      // Update packaging quantity automatically if product has packaging
+      const product = products.find(p => p.id === productId);
+      if (product && product.has_packaging && product.packaging_price) {
+        const unit = { id: unitId };
+        updatePackagingQuantityAutomatically(product, unit, quantity);
+      }
+      
       setError('');
     }
   };
 
   const removeFromCart = (productId, unitId, priceMode = null) => {
     setCart(cart.filter(item => !(item.id === productId && item.unit_id === unitId && item.price_mode === priceMode)));
+  };
+
+  // Packaging functions
+  const addPackagingAutomatically = (product, unit) => {
+    if (!product.has_packaging || !product.packaging_price) {
+      return;
+    }
+
+    // Use a callback to get the current cart state
+    setCart(currentCart => {
+      // Calculate packaging quantity based on sales quantity
+      const salesItem = currentCart.find(item => 
+        item.id === product.id && 
+        item.unit_id === unit.id && 
+        item.price_mode === priceMode
+      );
+      
+      if (!salesItem) return currentCart;
+
+      // Get unit information from stock availability
+      const updatedStockInfo = getUpdatedStockAvailability(product.id);
+      const unitStockInfo = updatedStockInfo?.find(u => u.id === unit.id);
+      
+      // For packaging, we use the base unit (pieces) to calculate quantity
+      // If the sales unit is not the base unit, we need to convert to pieces
+      let packagingQuantity = salesItem.quantity;
+      
+      // If the sales unit is not the base unit, convert to pieces
+      if (unitStockInfo && !unitStockInfo.is_base_unit && unitStockInfo.conversion_factor) {
+        packagingQuantity = salesItem.quantity * unitStockInfo.conversion_factor;
+      }
+
+      // Update packaging cart
+      setPackagingCart(currentPackagingCart => {
+        const existingPackaging = currentPackagingCart.find(item => item.id === product.id);
+        if (existingPackaging) {
+          // Update existing packaging quantity to match sales quantity
+          return currentPackagingCart.map(item =>
+            item.id === product.id
+              ? { 
+                  ...item, 
+                  quantity: packagingQuantity,
+                  total_price: parseFloat(product.packaging_price) * packagingQuantity
+                }
+              : item
+          );
+        } else {
+          // Create new packaging item
+          const newPackagingItem = {
+            ...product,
+            quantity: packagingQuantity,
+            unit_price: parseFloat(product.packaging_price),
+            total_price: parseFloat(product.packaging_price) * packagingQuantity,
+            status: 'consignation', // Default status
+            customer_name: customerInfo.name,
+            customer_phone: customerInfo.phone,
+            sales_unit_id: unit.id, // Track which sales unit this packaging is for
+            sales_unit_name: unit.name,
+            sales_unit_symbol: unit.symbol
+          };
+          return [...currentPackagingCart, newPackagingItem];
+        }
+      });
+
+      return currentCart;
+    });
+  };
+
+  const addToPackagingCart = (product) => {
+    if (!product.has_packaging || !product.packaging_price) {
+      setError('This product does not have packaging consignation');
+      return;
+    }
+
+    const existingPackaging = packagingCart.find(item => item.id === product.id);
+    if (existingPackaging) {
+      setPackagingCart(packagingCart.map(item =>
+        item.id === product.id
+          ? { ...item, quantity: item.quantity + 1 }
+          : item
+      ));
+    } else {
+      const newPackagingItem = {
+        ...product,
+        quantity: 1,
+        unit_price: parseFloat(product.packaging_price),
+        total_price: parseFloat(product.packaging_price),
+        status: 'consignation',
+        customer_name: customerInfo.name,
+        customer_phone: customerInfo.phone
+      };
+      setPackagingCart([...packagingCart, newPackagingItem]);
+    }
+    setError('');
+  };
+
+  const updatePackagingQuantityAutomatically = (product, unit, salesQuantity) => {
+    if (!product.has_packaging || !product.packaging_price) {
+      return;
+    }
+
+    // Get unit information from stock availability
+    const updatedStockInfo = getUpdatedStockAvailability(product.id);
+    const unitStockInfo = updatedStockInfo?.find(u => u.id === unit.id);
+    
+    // Calculate packaging quantity based on sales quantity
+    let packagingQuantity = salesQuantity;
+    
+    // If the sales unit is not the base unit, convert to pieces
+    if (unitStockInfo && !unitStockInfo.is_base_unit && unitStockInfo.conversion_factor) {
+      packagingQuantity = salesQuantity * unitStockInfo.conversion_factor;
+    }
+
+    setPackagingCart(currentPackagingCart => {
+      const existingPackaging = currentPackagingCart.find(item => item.id === product.id);
+      if (existingPackaging) {
+        // Update existing packaging quantity to match sales quantity
+        return currentPackagingCart.map(item =>
+          item.id === product.id
+            ? { 
+                ...item, 
+                quantity: packagingQuantity,
+                total_price: parseFloat(product.packaging_price) * packagingQuantity
+              }
+            : item
+        );
+      } else {
+        // Create new packaging item if it doesn't exist
+        const newPackagingItem = {
+          ...product,
+          quantity: packagingQuantity,
+          unit_price: parseFloat(product.packaging_price),
+          total_price: parseFloat(product.packaging_price) * packagingQuantity,
+          status: 'consignation', // Default status
+          customer_name: customerInfo.name,
+          customer_phone: customerInfo.phone,
+          sales_unit_id: unit.id,
+          sales_unit_name: unit.name,
+          sales_unit_symbol: unit.symbol
+        };
+        return [...currentPackagingCart, newPackagingItem];
+      }
+    });
+  };
+
+  const updatePackagingQuantity = (productId, quantity) => {
+    if (quantity <= 0) {
+      setPackagingCart(packagingCart.filter(item => item.id !== productId));
+    } else {
+      setPackagingCart(packagingCart.map(item =>
+        item.id === productId
+          ? { ...item, quantity, total_price: item.unit_price * quantity }
+          : item
+      ));
+    }
+  };
+
+  const updatePackagingStatus = (productId, status) => {
+    setPackagingCart(packagingCart.map(item =>
+      item.id === productId
+        ? { ...item, status }
+        : item
+    ));
+  };
+
+  const removeFromPackagingCart = (productId) => {
+    setPackagingCart(packagingCart.filter(item => item.id !== productId));
+  };
+
+  const calculatePackagingTotal = () => {
+    return packagingCart.reduce((total, item) => {
+      // Only "consignation" (paid) packaging should be included in the total
+      // "exchange" and "due" packaging are not payable
+      if (item.status === 'consignation') {
+        return total + (item.total_price || 0);
+      }
+      return total;
+    }, 0);
   };
 
   const calculateSubtotal = () => {
@@ -652,67 +1033,36 @@ const PointOfSale = () => {
     return totalCost;
   };
 
-
-  const autoPrintReceipt = async (saleNumber, saleData, saleStatus = 'completed') => {
-    try {
-      // Create print content for the sale
-      const total = calculateSubtotal();
-      const remaining = total - paidAmount;
-      
-      const printData = {
-        sale_number: saleNumber,
-        customer_name: customerInfo.name || 'Walk-in Customer',
-        customer_phone: customerInfo.phone || '',
-        customer_email: customerInfo.email || '',
-        user_name: user?.username || 'Unknown User',
-        user_id: user?.id || 'unknown',
-        created_at: new Date().toISOString(),
-        print_timestamp: new Date().toISOString(),
-        print_id: `PRINT-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-        status: saleStatus,
-        total_amount: total,
-        paid_amount: paidAmount,
-        remaining_amount: remaining,
-        payment_status: remaining > 0 ? 'partial' : 'paid',
-        due_date: remaining > 0 ? new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toLocaleDateString() : null, // 30 days from now
-        items: cart.map(item => ({
-          product_name: item.name,
-          product_sku: item.sku,
-          quantity: item.quantity,
-          unit_name: item.unit_name || item.unit?.name || 'piece',
-          unit_price: item.unit_price,
-          total_price: item.unit_price * item.quantity
-        }))
-      };
-
-      // Generate print content using the same logic as PrintButton
-      const printContent = generatePrintContent(printData, 'Sale Receipt', 'sale', t);
-      
-      // Open print window
-      const printWindow = window.open('', '_blank', 'width=800,height=600');
-      printWindow.document.write(printContent);
-      printWindow.document.close();
-      
-      // Wait for content to load then print
-      const printAfterLoad = () => {
-        printWindow.focus();
-        printWindow.print();
-        // Close the window after a short delay
-        setTimeout(() => {
-          printWindow.close();
-        }, 1000);
-      };
-      
-      // Check if window is already loaded
-      if (printWindow.document.readyState === 'complete') {
-        printAfterLoad();
-      } else {
-        printWindow.onload = printAfterLoad;
-      }
-      
-    } catch (error) {
-      // Don't show error to user as it's not critical
-    }
+  // Prepare print data for printing
+  const preparePrintData = (saleNumber, saleStatus = 'completed') => {
+    const total = calculateSubtotal();
+    const remaining = total - paidAmount;
+    
+    return {
+      sale_number: saleNumber,
+      customer_name: customerInfo.name || 'Walk-in Customer',
+      customer_phone: customerInfo.phone || '',
+      customer_email: customerInfo.email || '',
+      user_name: user?.username || 'Unknown User',
+      user_id: user?.id || 'unknown',
+      created_at: new Date().toISOString(),
+      print_timestamp: new Date().toISOString(),
+      print_id: `PRINT-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      status: saleStatus,
+      total_amount: total,
+      paid_amount: paidAmount,
+      remaining_amount: remaining,
+      payment_status: remaining > 0 ? 'partial' : 'paid',
+      due_date: remaining > 0 ? new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toLocaleDateString() : null, // 30 days from now
+      items: cart.map(item => ({
+        product_name: item.name,
+        product_sku: item.sku,
+        quantity: item.quantity,
+        unit_name: item.unit_name || item.unit?.name || 'piece',
+        unit_price: item.unit_price,
+        total_price: item.unit_price * item.quantity
+      }))
+    };
   };
 
   const handleCheckout = async () => {
@@ -725,8 +1075,8 @@ const PointOfSale = () => {
     setError('');
 
     // Validate customer name for partial payments
-    if (paymentType === 'partial' && (!customerInfo.name || !customerInfo.name.trim())) {
-      setError('Customer name is required for partial payments');
+    if ((saleMode !== 'complete' || paymentType === 'partial') && (!customerInfo.name || !customerInfo.name.trim())) {
+      setError('Customer name is required for partial/uncompleted payments');
       setProcessing(false);
       return;
     }
@@ -753,23 +1103,32 @@ const PointOfSale = () => {
         customer_email: customerInfo.email,
         payment_method: paymentMethod,
         paid_amount: paidAmount,
-          items: cart.map(item => {
-            // More robust unit ID extraction
-            let unitId = item.unit_id;
-            if (typeof unitId === 'object' && unitId !== null) {
-              unitId = unitId.id || unitId;
-            }
-            
-            return {
+        items: cart.map(item => {
+          // More robust unit ID extraction
+          let unitId = item.unit_id;
+          if (typeof unitId === 'object' && unitId !== null) {
+            unitId = unitId.id || unitId;
+          }
+          
+          return {
+            product: item.id,
+            quantity: parseFloat(item.quantity),
+            unit: parseInt(unitId),
+            unit_price: parseFloat(item.unit_price),
+            price_mode: item.price_mode || 'standard'
+          };
+        }),
+        packaging_items: packagingCart.map(item => ({
           product: item.id,
-              quantity: parseFloat(item.quantity),
-              unit: parseInt(unitId),
-              unit_price: parseFloat(item.unit_price),
-              price_mode: item.price_mode || 'standard'
-            };
-          })
-        };
-
+          quantity: parseFloat(item.quantity),
+          unit: 7, // Use the correct piece unit ID (7) for packaging
+          unit_price: parseFloat(item.unit_price),
+          status: item.status || 'consignation',
+          customer_name: item.customer_name || customerInfo.name,
+          customer_phone: item.customer_phone || customerInfo.phone,
+          notes: item.notes || ''
+        }))
+      };
 
       // Create the sale
       const response = await api.post('/api/sales/', saleData);
@@ -779,16 +1138,20 @@ const PointOfSale = () => {
       if (saleMode === 'complete') {
         // Complete the sale immediately
         try {
-          await api.post(`/api/sales/${saleId}/complete/`);
+          const completionResponse = await api.post(`/api/sales/${saleId}/complete/`);
           
           // Auto-print the receipt after successful sale completion (only if printReceipt is true)
           if (printReceipt) {
-            await autoPrintReceipt(saleNumber, response.data, 'completed');
+            // Use the improved printing logic for completed sale
+            const printData = preparePrintData(saleNumber, 'completed');
+            await handlePrintReceipt(printData, t('titles.sale_receipt'));
           }
       
-      // Clear cart and customer info
-      setCart([]);
-      setCustomerInfo({ name: '', phone: '', email: '' });
+          // Clear cart and customer info
+          setCart([]);
+          setPackagingCart([]);
+          setCustomerInfo({ name: '', phone: '', email: '' });
+          setPaidAmount(0);
       
           // Reset price mode to standard after sale
           setPriceMode('standard');
@@ -805,14 +1168,22 @@ const PointOfSale = () => {
           // Refresh stock availability for all products
           refreshStockAvailability();
           
-          alert(`Sale completed successfully! Sale Number: ${saleNumber}`);
+          // Show success message with packaging transaction info if created
+          let successMessage = `Sale completed successfully! Sale Number: ${saleNumber}`;
+          if (completionResponse.data.packaging_transaction) {
+            const pkgTransaction = completionResponse.data.packaging_transaction;
+            successMessage += `\n\nPackaging transaction automatically created:\nTransaction: ${pkgTransaction.transaction_number}\nAmount: ${pkgTransaction.total_amount} MGA`;
+          }
+          alert(successMessage);
         } catch (completeError) {
           // Sale was created but completion failed
           setError(`Sale created (${saleNumber}) but completion failed: ${completeError.response?.data?.error || completeError.message}`);
           
           // Still clear the cart since the sale was created
           setCart([]);
+          setPackagingCart([]);
           setCustomerInfo({ name: '', phone: '', email: '' });
+          setPaidAmount(0);
           
           // Wait for backend to process any completed stock movements
           await new Promise(resolve => setTimeout(resolve, 1000));
@@ -827,20 +1198,23 @@ const PointOfSale = () => {
         
         // Print receipt for pending sale if requested
         if (printReceipt) {
-          await autoPrintReceipt(saleNumber, response.data, 'pending');
+          // Use the improved printing logic for pending sale
+          const printData = preparePrintData(saleNumber, 'pending');
+          await handlePrintReceipt(printData, t('titles.sale_receipt'));
         }
         
         // Clear cart and customer info
         setCart([]);
+        setPackagingCart([]);
         setCustomerInfo({ name: '', phone: '', email: '' });
+        setPaidAmount(0);
         
         // Reset price mode to standard after sale
         setPriceMode('standard');
         
-        alert(t('messages.pending_sale_created', { saleNumber }));
+        alert(`Pending sale created successfully! Sale Number: ${saleNumber}`);
       }
     } catch (err) {
-      
       // Handle different types of errors
       if (err.response?.data?.error) {
         setError(err.response.data.error);
@@ -860,6 +1234,7 @@ const PointOfSale = () => {
 
   const clearCart = () => {
     setCart([]);
+    setPackagingCart([]);
     setError('');
   };
 
@@ -885,7 +1260,6 @@ const PointOfSale = () => {
       fetchProducts(clearedFilters);
     }
   }, [categoriesLoaded, categories.length]);
-
 
   const handleQuantityClick = (item) => {
     setEditingQuantity(`${item.id}-${item.unit_id}`);
@@ -1205,7 +1579,7 @@ const PointOfSale = () => {
                     >
                       {category.is_sellable ? 'Sellable' : 'Not Sellable'}
                     </button>
-          </div>
+                  </div>
                 ))}
               </div>
             </div>
@@ -1218,7 +1592,9 @@ const PointOfSale = () => {
           </div>
 
           <div className="products-grid">
-            {products.map(product => (
+            {products
+              .slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE)
+              .map(product => (
               <div
                 key={product.id}
                 className={`product-card ${product.stock_quantity <= 0 && saleMode === 'complete' ? 'out-of-stock' : ''} clickable`}
@@ -1347,6 +1723,15 @@ const PointOfSale = () => {
                     </Button>
                   )}
                   
+                  {/* Packaging Info - Show for products with packaging */}
+                  {product.has_packaging && product.packaging_price && (
+                    <div className="packaging-info">
+                      <small className="packaging-price">
+                        Packaging: {product.packaging_price} MGA (Auto-added)
+                      </small>
+                    </div>
+                  )}
+                  
                   {/* For products with multiple units, show instruction */}
                   {product.available_units && product.available_units.length > 1 && (
                     <div className="unit-instruction">
@@ -1357,8 +1742,32 @@ const PointOfSale = () => {
               </div>
             ))}
           </div>
-        </div>
 
+          {/* Pagination Controls */}
+          {products.length > PAGE_SIZE && (
+            <div className="products-pagination" style={{ display: 'flex', justifyContent: 'center', gap: '12px', marginTop: '12px' }}>
+              <Button
+                variant="outline"
+                size="small"
+                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                disabled={currentPage === 1}
+              >
+                Prev
+              </Button>
+              <span style={{ alignSelf: 'center' }}>
+                Page {currentPage} of {Math.ceil(products.length / PAGE_SIZE)}
+              </span>
+              <Button
+                variant="outline"
+                size="small"
+                onClick={() => setCurrentPage(p => Math.min(Math.ceil(products.length / PAGE_SIZE), p + 1))}
+                disabled={currentPage >= Math.ceil(products.length / PAGE_SIZE)}
+              >
+                Next
+              </Button>
+            </div>
+          )}
+        </div>
 
         {/* Cart and Checkout */}
         <div className="pos-cart">
@@ -1390,6 +1799,7 @@ const PointOfSale = () => {
                   <div className="header-unit">Unit</div>
                   <div className="header-price">Price</div>
                   <div className="header-quantity">Qty</div>
+                  <div className="header-status">Status</div>
                   <div className="header-total">Total</div>
                   <div className="header-actions">Actions</div>
                 </div>
@@ -1463,6 +1873,9 @@ const PointOfSale = () => {
                         </Button>
                       </div>
                     </div>
+                    <div className="item-status">
+                      <span className="sales-item-status">-</span>
+                    </div>
                     <div className="item-total">
                       {(item.quantity * item.unit_price).toFixed(2)} MGA
                     </div>
@@ -1478,6 +1891,64 @@ const PointOfSale = () => {
                     </div>
                   </div>
                 ))}
+                
+                {/* Packaging Items */}
+                {packagingCart.length > 0 && (
+                  <>
+                    <div className="packaging-section-header">
+                      <h4>Packaging Items (Auto-calculated)</h4>
+                    </div>
+                    {packagingCart.map(item => (
+                      <div key={`packaging-${item.id}`} className="cart-item packaging-item">
+                        <div className="item-product">
+                          <h4>{item.name} (Packaging)</h4>
+                          <p className="item-sku">SKU: {item.sku}</p>
+                          {item.sales_unit_name && (
+                            <p className="packaging-source">
+                              From: {item.quantity} {item.sales_unit_symbol || 'piece'}
+                            </p>
+                          )}
+                        </div>
+                        <div className="item-unit">
+                          piece
+                        </div>
+                        <div className="item-price">
+                          {parseFloat(item.unit_price).toFixed(2)} MGA
+                        </div>
+                        <div className="item-quantity">
+                          <span className="quantity auto-calculated">
+                            {item.quantity}
+                          </span>
+                          <small className="auto-label">Auto</small>
+                        </div>
+                        <div className="item-status">
+                          <select
+                            value={item.status}
+                            onChange={(e) => updatePackagingStatus(item.id, e.target.value)}
+                            className="packaging-status-select"
+                          >
+                            <option value="consignation">Consigned (Paid)</option>
+                            <option value="exchange">Exchange</option>
+                            <option value="due">Due (Return Required)</option>
+                          </select>
+                        </div>
+                        <div className="item-total">
+                          {(item.quantity * item.unit_price).toFixed(2)} MGA
+                        </div>
+                        <div className="item-actions">
+                          <Button
+                            size="small"
+                            variant="danger"
+                            onClick={() => removeFromPackagingCart(item.id)}
+                            title="Remove packaging item"
+                          >
+                            ×
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </>
+                )}
               </>
             )}
           </div>
@@ -1486,9 +1957,15 @@ const PointOfSale = () => {
             <>
               <div className="cart-summary">
                 <div className="summary-row">
-                  <span>Total Amount:</span>
+                  <span>Items Total:</span>
                   <span>{calculateSubtotal().toFixed(2)} MGA</span>
                 </div>
+                {packagingCart.length > 0 && (
+                  <div className="summary-row packaging-breakdown">
+                    <span>Packaging Total:</span>
+                    <span>{calculatePackagingTotal().toFixed(2)} MGA</span>
+                  </div>
+                )}
                 <div className="summary-row cost-breakdown">
                   <span>Cost (excl. tax):</span>
                   <span>{calculateCost().toFixed(2)} MGA</span>
@@ -1497,9 +1974,19 @@ const PointOfSale = () => {
                   <span>Tax included:</span>
                   <span>{calculateTax().toFixed(2)} MGA</span>
                 </div>
+                <div className="summary-row">
+                  <span>Products Total:</span>
+                  <span>{calculateTotal().toFixed(2)} MGA</span>
+                </div>
+                {packagingCart.length > 0 && (
+                  <div className="summary-row">
+                    <span>Packaging Total:</span>
+                    <span>{calculatePackagingTotal().toFixed(2)} MGA</span>
+                  </div>
+                )}
                 <div className="summary-row total">
-                  <span>Total:</span>
-                  <span>{calculateSubtotal().toFixed(2)} MGA</span>
+                  <span>Total (Products Only):</span>
+                  <span>{calculateTotal().toFixed(2)} MGA</span>
                 </div>
               </div>
 
@@ -1509,10 +1996,10 @@ const PointOfSale = () => {
                 <div className="form-group">
                   <input
                     type="text"
-                    placeholder={paymentType === 'partial' ? "Customer Name (Required for Partial Payment)" : "Customer Name (Optional)"}
+                    placeholder={(saleMode !== 'complete' || paymentType === 'partial' )? "Customer Name (Required for Partial Payment)" : "Customer Name (Optional)"}
                     value={customerInfo.name}
                     onChange={(e) => setCustomerInfo({...customerInfo, name: e.target.value})}
-                    className={paymentType === 'partial' && !customerInfo.name ? 'required-field' : ''}
+                    className={(saleMode !== 'complete' || paymentType === 'partial') && !customerInfo.name ? 'required-field' : ''}
                   />
                 </div>
                 <div className="form-group">
@@ -1589,13 +2076,23 @@ const PointOfSale = () => {
                       }}
                       placeholder={t('forms.enter_amount_to_pay')}
                     />
-                    <small>Total: ${calculateTotal().toFixed(2)} | Remaining: ${(calculateTotal() - (paidAmount || 0)).toFixed(2)}</small>
+                    <small>Products Total: ${calculateTotal().toFixed(2)} | Remaining: ${(calculateTotal() - (paidAmount || 0)).toFixed(2)}</small>
                   </div>
                 )}
               </div>
               </form>
 
               <div className="checkout-actions">
+                {/* Print Preview Button - Using the improved printing logic */}
+                <Button
+                  variant="outline"
+                  size="large"
+                  onClick={handlePrintPreview}
+                  className="print-preview-btn"
+                >
+                  🖨️ Print Preview
+                </Button>
+                
                 <Button
                   onClick={handleCheckout}
                   loading={processing}

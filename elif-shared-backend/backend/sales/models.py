@@ -34,6 +34,7 @@ class Sale(models.Model):
     cost_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0)  # Cost excluding tax
     tax_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     discount_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    packaging_total = models.DecimalField(max_digits=10, decimal_places=2, default=0, help_text="Total packaging consignation amount")
     total_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     paid_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0, help_text="Amount paid by customer")
     remaining_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0, help_text="Remaining amount to be paid")
@@ -41,6 +42,7 @@ class Sale(models.Model):
     due_date = models.DateField(null=True, blank=True, help_text="Due date for partial payments")
     notes = models.TextField(blank=True)
     sold_by = models.ForeignKey('core.User', on_delete=models.SET_NULL, null=True, related_name='sales')
+    created_by = models.ForeignKey('core.User', on_delete=models.SET_NULL, null=True, related_name='created_sales')
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     
@@ -48,22 +50,29 @@ class Sale(models.Model):
         return f"Sale {self.sale_number} - {self.total_amount}"
     
     def calculate_totals(self):
-        """Calculate and update sale totals based on items"""
+        """Calculate and update sale totals based on items and packaging"""
         subtotal = Decimal('0')
         cost_amount = Decimal('0')
+        packaging_total = Decimal('0')
         
         for item in self.items.all():
             subtotal += item.total_price
             cost_amount += item.total_cost
         
+        # Calculate packaging total
+        for packaging in self.packaging_items.all():
+            packaging_total += packaging.total_price
+        
         self.subtotal = subtotal
         self.cost_amount = cost_amount
+        self.packaging_total = packaging_total
+        # Sales total should only include product amounts, not packaging
         self.total_amount = subtotal + self.tax_amount - self.discount_amount
         
-        # Calculate remaining amount
+        # Calculate remaining amount (only for product sales, not packaging)
         self.remaining_amount = self.total_amount - self.paid_amount
         
-        # Update payment status
+        # Update payment status based on product sales only
         if self.paid_amount >= self.total_amount:
             self.payment_status = 'paid'
             self.due_date = None  # No due date for fully paid sales
@@ -77,7 +86,7 @@ class Sale(models.Model):
             self.payment_status = 'pending'
             self.due_date = None  # No due date for pending sales
         
-        self.save(update_fields=['subtotal', 'cost_amount', 'total_amount', 'remaining_amount', 'payment_status', 'due_date'])
+        self.save(update_fields=['subtotal', 'cost_amount', 'packaging_total', 'total_amount', 'remaining_amount', 'payment_status', 'due_date'])
     
     class Meta:
         ordering = ['-created_at']
@@ -183,3 +192,62 @@ class Payment(models.Model):
     
     def __str__(self):
         return f"Payment {self.amount} - {self.payment_method}"
+
+class SalePackaging(models.Model):
+    """Packaging consignation items for sales"""
+    PACKAGING_STATUS_CHOICES = [
+        ('exchange', 'Exchange'),
+        ('consignation', 'Consignation (Paid)'),
+        ('due', 'Due (To be returned)'),
+    ]
+    
+    sale = models.ForeignKey(Sale, on_delete=models.CASCADE, related_name='packaging_items')
+    product = models.ForeignKey('products.Product', on_delete=models.CASCADE, help_text="Product that has packaging")
+    quantity = models.FloatField(validators=[MinValueValidator(0.001)], help_text="Quantity of packaging items")
+    unit = models.ForeignKey('products.Unit', on_delete=models.PROTECT, null=True, blank=True, help_text="Unit used for this packaging item")
+    unit_price = models.DecimalField(max_digits=10, decimal_places=2, validators=[MinValueValidator(Decimal('0.01'))], help_text="Packaging price per unit")
+    total_price = models.DecimalField(max_digits=15, decimal_places=2, validators=[MinValueValidator(Decimal('0.01'))], help_text="Total packaging price")
+    status = models.CharField(max_length=20, choices=PACKAGING_STATUS_CHOICES, default='consignation', help_text="Packaging status")
+    customer_name = models.CharField(max_length=200, blank=True, help_text="Customer name for due packaging tracking")
+    customer_phone = models.CharField(max_length=20, blank=True, help_text="Customer phone for due packaging tracking")
+    notes = models.TextField(blank=True, help_text="Additional notes about this packaging item")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    def __str__(self):
+        return f"{self.product.name} packaging x {self.quantity} = {self.total_price} ({self.status})"
+    
+    def save(self, *args, **kwargs):
+        from decimal import Decimal, ROUND_HALF_UP
+        # Calculate total price
+        if self.unit_price:
+            unit_price_decimal = Decimal(str(self.unit_price))
+            quantity_decimal = Decimal(str(self.quantity))
+            calculated_total = quantity_decimal * unit_price_decimal
+            self.total_price = calculated_total.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+        super().save(*args, **kwargs)
+    
+    class Meta:
+        unique_together = ['sale', 'product', 'unit']
+        ordering = ['created_at']
+
+class PackagingReturn(models.Model):
+    """Track packaging returns and exchanges"""
+    RETURN_TYPE_CHOICES = [
+        ('return', 'Return for refund'),
+        ('exchange', 'Exchange for new packaging'),
+    ]
+    
+    sale_packaging = models.ForeignKey(SalePackaging, on_delete=models.CASCADE, related_name='returns')
+    return_type = models.CharField(max_length=20, choices=RETURN_TYPE_CHOICES, default='return')
+    quantity_returned = models.FloatField(validators=[MinValueValidator(0.001)], help_text="Quantity of packaging returned")
+    refund_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0, help_text="Amount refunded for returned packaging")
+    notes = models.TextField(blank=True)
+    processed_by = models.ForeignKey('core.User', on_delete=models.SET_NULL, null=True, related_name='packaging_returns')
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    def __str__(self):
+        return f"Return {self.quantity_returned} {self.sale_packaging.product.name} packaging - {self.return_type}"
+    
+    class Meta:
+        ordering = ['-created_at']

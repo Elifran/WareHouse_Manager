@@ -24,7 +24,7 @@ i18n
   .use(initReactI18next)
   .init({
     resources,
-    fallbackLng: 'en',
+    fallbackLng: 'fr',
     debug: false,
     
     detection: {
@@ -48,7 +48,7 @@ i18n
     supportedLngs: ['en', 'fr', 'mg'],
     
     // Language names for display
-    lng: 'en', // Default language
+    lng: 'fr', // Default language
     
     // Namespaces
     ns: ['translation'],

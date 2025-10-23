@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import Button from './Button';
 import PrintButton from './PrintButton';
@@ -6,12 +6,13 @@ import './DeliveryModal.css';
 
 const DeliveryModal = ({ purchaseOrder, action = 'create', onClose, onSubmit }) => {
   const { t } = useTranslation();
+  const [isMobile, setIsMobile] = useState(false);
   const [formData, setFormData] = useState({
     notes: '',
     items: (purchaseOrder?.items || []).map(item => ({
       purchase_order_item_id: item.id,
       product_id: item.product.id,
-      quantity_received: item.quantity_display || item.quantity_ordered, // Use display quantity if available
+      quantity_received: item.quantity_display || item.quantity_ordered,
       unit_id: item.unit?.id || item.unit || '',
       unit_cost: item.unit_cost,
       tax_class_id: item.tax_class?.id || '',
@@ -20,6 +21,19 @@ const DeliveryModal = ({ purchaseOrder, action = 'create', onClose, onSubmit }) 
   });
   const [loading, setLoading] = useState(false);
 
+  // Responsive detection
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth <= 768);
+    };
+
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    
+    return () => {
+      window.removeEventListener('resize', checkMobile);
+    };
+  }, []);
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -43,7 +57,6 @@ const DeliveryModal = ({ purchaseOrder, action = 'create', onClose, onSubmit }) 
       e.preventDefault();
     }
     
-    // Validate that at least one item has quantity > 0
     const hasItems = formData.items.some(item => item.quantity_received > 0);
     if (!hasItems) {
       alert(t('modals.please_specify_quantities'));
@@ -52,7 +65,6 @@ const DeliveryModal = ({ purchaseOrder, action = 'create', onClose, onSubmit }) 
 
     setLoading(true);
     try {
-      // Convert data types to ensure proper API format
       const deliveryData = {
         purchase_order_id: parseInt(purchaseOrder.id),
         notes: formData.notes,
@@ -99,10 +111,9 @@ const DeliveryModal = ({ purchaseOrder, action = 'create', onClose, onSubmit }) 
 
   const totals = calculateTotals();
 
-
   return (
     <div className="modal-overlay">
-      <div className="modal-content delivery-modal">
+      <div className={`modal-content delivery-modal ${isMobile ? 'mobile-modal' : ''}`}>
         <div className="modal-header">
           <h2>
             {action === 'create_and_archive' ? t('modals.create_delivery_archive') : t('modals.create_delivery')}
@@ -131,9 +142,10 @@ const DeliveryModal = ({ purchaseOrder, action = 'create', onClose, onSubmit }) 
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="modal-body">
+        {/* Main scrollable content area */}
+        <form onSubmit={handleSubmit} className="modal-main-content">
           <div className="form-section">
-            <div className="form-group">
+            <div className="form-group full-width">
               <label htmlFor="notes">{t('modals.delivery_notes')}</label>
               <textarea
                 id="notes"
@@ -152,94 +164,197 @@ const DeliveryModal = ({ purchaseOrder, action = 'create', onClose, onSubmit }) 
               {t('modals.quantities_prefilled_description')}
             </p>
 
-            <div className="items-list">
-              {formData.items.map((item, index) => {
-                const originalItem = purchaseOrder.items.find(poItem => poItem.id === item.purchase_order_item_id);
-                return (
-                  <div key={index} className="item-row">
-                    <div className="item-product">
-                      <label>{t('common.name')}</label>
-                      <div className="product-info">
-                        <div className="product-name">{originalItem.product.name}</div>
-                        <div className="product-sku">SKU: {originalItem.product.sku}</div>
-                        <div className="ordered-quantity">
-                          {t('modals.ordered')}: {originalItem.quantity_display || originalItem.quantity_ordered} {originalItem.unit?.name || t('modals.units')}
+            {/* Scrollable items container */}
+            <div className="items-container">
+              {formData.items.length === 0 ? (
+                <div className="empty-items">
+                  <p>{t('modals.no_items_added_yet')}</p>
+                </div>
+              ) : isMobile ? (
+                // Mobile Items List
+                <div className="mobile-items-list">
+                  {formData.items.map((item, index) => {
+                    const originalItem = purchaseOrder.items.find(poItem => poItem.id === item.purchase_order_item_id);
+                    return (
+                      <div key={index} className="mobile-item-card">
+                        <div className="mobile-item-header">
+                          <div className="mobile-product-info">
+                            <div className="mobile-product-name">{originalItem.product.name}</div>
+                            <div className="mobile-product-details">
+                              <div className="mobile-product-sku">SKU: {originalItem.product.sku}</div>
+                              <div className="mobile-ordered-quantity">
+                                {t('modals.ordered')}: {originalItem.quantity_display || originalItem.quantity_ordered} {originalItem.unit?.name || t('modals.units')}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                        
+                        <div className="mobile-item-details">
+                          <div className="mobile-detail-row">
+                            <div className="mobile-field-group">
+                              <label>{t('modals.quantity_received')} *</label>
+                              <input
+                                type="number"
+                                min="0"
+                                max={originalItem.quantity_display || originalItem.quantity_ordered}
+                                value={item.quantity_received}
+                                onChange={(e) => handleItemChange(index, 'quantity_received', e.target.value)}
+                                placeholder={`Max: ${originalItem.quantity_display || originalItem.quantity_ordered}`}
+                                required
+                              />
+                            </div>
+                          </div>
+                          
+                          <div className="mobile-detail-row">
+                            <div className="mobile-field-group">
+                              <label>{t('common.unit')}</label>
+                              <div className="readonly-field">
+                                {(() => {
+                                  const unitName = originalItem.unit?.name || t('modals.unknown_unit');
+                                  const unitSymbol = originalItem.unit?.symbol || '';
+                                  return `${unitName} (${unitSymbol})`;
+                                })()}
+                              </div>
+                            </div>
+                            <div className="mobile-field-group">
+                              <label>{t('modals.unit_cost')} *</label>
+                              <input
+                                type="number"
+                                min="0"
+                                step="0.01"
+                                value={item.unit_cost}
+                                onChange={(e) => handleItemChange(index, 'unit_cost', e.target.value)}
+                                required
+                              />
+                            </div>
+                          </div>
+                          
+                          <div className="mobile-field-group">
+                            <label>{t('modals.condition_notes')}</label>
+                            <textarea
+                              value={item.condition_notes}
+                              onChange={(e) => handleItemChange(index, 'condition_notes', e.target.value)}
+                              rows="2"
+                              placeholder={t('modals.condition_notes_placeholder')}
+                            />
+                          </div>
+                        </div>
+                        
+                        <div className="mobile-item-totals">
+                          <div className="mobile-total-line">
+                            <span>{t('modals.line_total')}:</span>
+                            <span>{calculateItemTotal(item).toFixed(2)} MGA</span>
+                          </div>
+                          {originalItem.tax_class && (
+                            <div className="mobile-total-line tax-line">
+                              <span>{t('modals.tax')}:</span>
+                              <span>+ {calculateTaxAmount(item).toFixed(2)} MGA</span>
+                            </div>
+                          )}
+                          <div className="mobile-total-line grand-total">
+                            <span>{t('modals.total')}:</span>
+                            <span>{(calculateItemTotal(item) + calculateTaxAmount(item)).toFixed(2)} MGA</span>
+                          </div>
                         </div>
                       </div>
-                    </div>
-                    <div className="item-quantity">
-                      <label>{t('modals.quantity_received')} *</label>
-                      <input
-                        type="number"
-                        min="0"
-                        max={originalItem.quantity_display || originalItem.quantity_ordered}
-                        value={item.quantity_received}
-                        onChange={(e) => handleItemChange(index, 'quantity_received', e.target.value)}
-                        placeholder={`Max: ${originalItem.quantity_display || originalItem.quantity_ordered}`}
-                        required
-                      />
-                    </div>
-                    <div className="item-unit">
-                      <label>{t('common.unit')}</label>
-                      <div className="readonly-field">
-                        {(() => {
-                          // Find the unit name from the original purchase order item
-                          const unitName = originalItem.unit?.name || t('modals.unknown_unit');
-                          const unitSymbol = originalItem.unit?.symbol || '';
-                          return `${unitName} (${unitSymbol})`;
-                        })()}
-                      </div>
-                    </div>
-                    <div className="item-cost">
-                      <label>{t('modals.unit_cost')} *</label>
-                      <input
-                        type="number"
-                        min="0"
-                        step="0.01"
-                        value={item.unit_cost}
-                        onChange={(e) => handleItemChange(index, 'unit_cost', e.target.value)}
-                        required
-                      />
-                    </div>
-                    <div className="item-total">
-                      <label>{t('modals.line_total')}</label>
-                      <div className="total-display">
-                        {calculateItemTotal(item).toFixed(2)} MGA
-                        {originalItem.tax_class && (
-                          <span className="tax-amount">
-                            + {calculateTaxAmount(item).toFixed(2)} MGA {t('modals.tax')}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                    <div className="item-condition">
-                      <label>{t('modals.condition_notes')}</label>
-                      <textarea
-                        value={item.condition_notes}
-                        onChange={(e) => handleItemChange(index, 'condition_notes', e.target.value)}
-                        rows="2"
-                        placeholder={t('modals.condition_notes_placeholder')}
-                      />
-                    </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                // Desktop Items Table
+                <div className="desktop-items-grid">
+                  <div className="items-header">
+                    <span>{t('common.name')}</span>
+                    <span>{t('modals.quantity_received')}</span>
+                    <span>{t('common.unit')}</span>
+                    <span>{t('modals.unit_cost')}</span>
+                    <span>{t('modals.line_total')}</span>
+                    <span>{t('modals.condition_notes')}</span>
                   </div>
-                );
-              })}
+                  {formData.items.map((item, index) => {
+                    const originalItem = purchaseOrder.items.find(poItem => poItem.id === item.purchase_order_item_id);
+                    return (
+                      <div key={index} className="item-row">
+                        <div className="item-product">
+                          <div className="product-info">
+                            <div className="product-name">{originalItem.product.name}</div>
+                            <div className="product-sku">SKU: {originalItem.product.sku}</div>
+                            <div className="ordered-quantity">
+                              {t('modals.ordered')}: {originalItem.quantity_display || originalItem.quantity_ordered} {originalItem.unit?.name || t('modals.units')}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="item-quantity">
+                          <input
+                            type="number"
+                            min="0"
+                            max={originalItem.quantity_display || originalItem.quantity_ordered}
+                            value={item.quantity_received}
+                            onChange={(e) => handleItemChange(index, 'quantity_received', e.target.value)}
+                            placeholder={`Max: ${originalItem.quantity_display || originalItem.quantity_ordered}`}
+                            required
+                          />
+                        </div>
+                        <div className="item-unit">
+                          <div className="readonly-field">
+                            {(() => {
+                              const unitName = originalItem.unit?.name || t('modals.unknown_unit');
+                              const unitSymbol = originalItem.unit?.symbol || '';
+                              return `${unitName} (${unitSymbol})`;
+                            })()}
+                          </div>
+                        </div>
+                        <div className="item-cost">
+                          <input
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            value={item.unit_cost}
+                            onChange={(e) => handleItemChange(index, 'unit_cost', e.target.value)}
+                            required
+                          />
+                        </div>
+                        <div className="item-total">
+                          <div className="total-display">
+                            {calculateItemTotal(item).toFixed(2)} MGA
+                            {originalItem.tax_class && (
+                              <span className="tax-amount">
+                                + {calculateTaxAmount(item).toFixed(2)} MGA {t('modals.tax')}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        <div className="item-condition">
+                          <textarea
+                            value={item.condition_notes}
+                            onChange={(e) => handleItemChange(index, 'condition_notes', e.target.value)}
+                            rows="2"
+                            placeholder={t('modals.condition_notes_placeholder')}
+                          />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           </div>
 
           {formData.items.some(item => item.quantity_received > 0) && (
             <div className="totals-section">
-              <div className="totals-row">
-                <span>{t('modals.subtotal')}:</span>
-                <span>{totals.subtotal.toFixed(2)} MGA</span>
-              </div>
-              <div className="totals-row">
-                <span>{t('modals.tax_amount')}:</span>
-                <span>{totals.taxAmount.toFixed(2)} MGA</span>
-              </div>
-              <div className="totals-row total-row">
-                <span>{t('modals.total_amount')}:</span>
-                <span>{totals.total.toFixed(2)} MGA</span>
+              <div className="totals-grid">
+                <div className="totals-row">
+                  <span>{t('modals.subtotal')}:</span>
+                  <span>{totals.subtotal.toFixed(2)} MGA</span>
+                </div>
+                <div className="totals-row">
+                  <span>{t('modals.tax_amount')}:</span>
+                  <span>{totals.taxAmount.toFixed(2)} MGA</span>
+                </div>
+                <div className="totals-row total-row">
+                  <span>{t('modals.total_amount')}:</span>
+                  <span>{totals.total.toFixed(2)} MGA</span>
+                </div>
               </div>
             </div>
           )}
@@ -278,6 +393,7 @@ const DeliveryModal = ({ purchaseOrder, action = 'create', onClose, onSubmit }) 
               variant={action === 'create_and_archive' ? 'primary' : 'primary'}
               onClick={handleSubmit}
               disabled={loading || !formData.items.some(item => item.quantity_received > 0)}
+              className={loading ? 'loading' : ''}
             >
               {loading 
                 ? (action === 'create_and_archive' ? t('modals.creating_archiving') : t('modals.creating')) 

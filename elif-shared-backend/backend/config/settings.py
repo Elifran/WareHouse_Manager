@@ -5,9 +5,25 @@ Django settings for beverage_management_system project.
 from pathlib import Path
 from datetime import timedelta
 import os
+import socket
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
+
+# Function to get current IP address
+def get_current_ip():
+    """Get the current IP address of the machine"""
+    try:
+        # Connect to a remote server to get the local IP
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+            s.connect(("8.8.8.8", 80))
+            return s.getsockname()[0]
+    except Exception:
+        # Fallback to localhost
+        return "127.0.0.1"
+
+# Get current IP - use environment variable if available, otherwise detect
+CURRENT_IP = os.environ.get('HOST_IP', get_current_ip())
 
 # SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = 'django-insecure-your-secret-key-here-change-in-production'
@@ -17,14 +33,16 @@ DEBUG = True
 
 ALLOWED_HOSTS = [
     '10.10.1.1',
-    '600',  # Dynamic IP (updated by deploy script)
+    CURRENT_IP,  # Current dynamic IP
     '127.0.0.1',  # For health checks and internal routing
+    'localhost',
     'orders.elif',
     'sales.elif',
     'admin.elif',
     'api.elif',
     'backend',
-    'testserver'
+    'testserver',
+    '*'  # Allow any host for development
 ]
 
 # Application definition
@@ -41,6 +59,7 @@ INSTALLED_APPS = [
     'core',
     'products',
     'sales',
+    'packaging_management',
     'reports',
     'purchases',
 ]
@@ -157,9 +176,9 @@ CORS_ALLOWED_ORIGINS = [
     "http://10.10.1.1:3000",
     "http://10.10.1.1:3001",
     "http://10.10.1.1:3002",
-    "http://600:3000",  # Dynamic IP (will be updated by scripts)
-    "http://600:3001",  # Dynamic IP (will be updated by scripts)
-    "http://600:3002",  # Dynamic IP (will be updated by scripts)
+    f"http://{CURRENT_IP}:3000",  # Current dynamic IP
+    f"http://{CURRENT_IP}:3001",  # Current dynamic IP
+    f"http://{CURRENT_IP}:3002",  # Current dynamic IP
     "http://orders.elif",
     "http://sales.elif", 
     "http://admin.elif",
@@ -168,8 +187,10 @@ CORS_ALLOWED_ORIGINS = [
     "https://admin.elif",
 ]
 
+# Allow any origin for development
+CORS_ALLOW_ALL_ORIGINS = True
+
 CORS_ALLOW_CREDENTIALS = True
-CORS_ALLOW_ALL_ORIGINS = False
 CORS_ALLOWED_HEADERS = [
     'accept',
     'accept-encoding',

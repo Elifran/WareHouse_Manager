@@ -9,8 +9,7 @@ services:
       - "0.0.0.0:8000:8000"
     environment:
       - DEBUG=False
-      - ALLOWED_HOSTS=10.10.1.1,600,127.0.0.1,orders.elif,sales.elif,admin.elif,api.elif
-      - CORS_ALLOWED_ORIGINS=http://10.10.1.1:3000,http://10.10.1.1:3001,http://10.10.1.1:3002,http://600:3000,http://600:3001,http://600:3002,http://orders.elif,http://sales.elif,http://admin.elif,https://orders.elif,https://sales.elif,https://admin.elif
+      - HOST_IP=${HOST_IP:-10.10.1.1}
     volumes:
       - ./backend/db.sqlite3:/app/db.sqlite3
       - ./backend/media:/app/media
