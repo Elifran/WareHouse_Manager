@@ -491,56 +491,6 @@ const PointOfSale = () => {
     });
   };
 
-  // const fetchProducts = useCallback(async (filterParams = {}) => {
-  //   try {
-  //     setLoading(true);
-  //     const params = new URLSearchParams();
-      
-  //     // Add filters to params
-  //     if (filterParams.category) params.append('category', filterParams.category);
-  //     if (filterParams.search) params.append('search', filterParams.search);
-      
-  //     // Use the regular products API
-  //     const baseUrl = `/api/products/${params.toString() ? '?' + params.toString() : ''}`;
-  //     const response = await api.get(baseUrl);
-      
-  //     // Handle both paginated and non-paginated responses
-  //     let allProducts = [];
-  //     const data = response.data;
-  //     if (data.results) {
-  //       // Paginated response - fetch all pages
-  //       allProducts = data.results;
-  //       let nextUrl = data.next;
-  //       while (nextUrl) {
-  //         // Extract the path from the full URL for the API call
-  //         const url = new URL(nextUrl);
-  //         const path = url.pathname + url.search;
-  //         const nextResponse = await api.get(path);
-  //         const nextData = nextResponse.data;
-  //         allProducts = [...allProducts, ...nextData.results];
-  //         nextUrl = nextData.next;
-  //       }
-  //     } else if (Array.isArray(data)) {
-  //       // Direct array response
-  //       allProducts = data;
-  //     }
-      
-  //     // Filter for sellable products (is_active = true and stock > 0 for complete sales)
-  //     const sellableProducts = allProducts.filter(product => {
-  //       if (!product.is_active) return false;
-  //       // if (saleMode === 'complete' && product.stock_quantity <= 0) return false;
-  //       return true;
-  //     });
-      
-  //     setProducts(sellableProducts);
-  //     setCurrentPage(1);
-  //   } catch (err) {
-  //     setError('Failed to load products');
-  //   } finally {
-  //     setLoading(false);
-  //   }
-  // }, [saleMode]); // Only depend on saleMode
-
   const fetchProducts = useCallback(async (filterParams = {}) => {
     try {
       setLoading(true);
@@ -763,12 +713,51 @@ const PointOfSale = () => {
       }
     }
     
+    // Calculate the price first to use in the existing item check
+    const availableUnit = product.available_units?.find(u => u.id === unit.id);
+    let unitPrice = 0;
+    
+    if (customPrice) {
+      // Use custom price if provided (for standard price selection)
+      unitPrice = parseFloat(customPrice);
+    } else if (availableUnit) {
+      if (priceMode === 'standard') {
+        // For standard mode, only use base unit price (no compatible units in standard mode)
+        unitPrice = parseFloat(product.price || 0);
+      } else {
+        // For wholesale mode, use unit-specific wholesale price or calculated price from base unit
+        if (availableUnit.unit_specific_wholesale_price) {
+          unitPrice = availableUnit.unit_specific_wholesale_price;
+        } else {
+          // Calculate wholesale price based on conversion factor
+          const baseWholesalePrice = parseFloat(product.wholesale_price || 0);
+          if (availableUnit.conversion_factor && availableUnit.conversion_factor > 0) {
+            unitPrice = baseWholesalePrice * availableUnit.conversion_factor;
+          } else {
+            unitPrice = baseWholesalePrice;
+          }
+        }
+      }
+    }
+    
+    const existingItemSTD = cart.find(item => 
+      item.id === product.id && 
+      item.unit_id === unit.id && 
+      item.price_mode === priceMode &&
+      item.unit_price !== unitPrice
+    );
     const existingItem = cart.find(item => 
       item.id === product.id && 
       item.unit_id === unit.id && 
-      item.price_mode === priceMode
+      item.price_mode === priceMode &&
+      item.unit_price === unitPrice
     );
-    
+        
+    if(existingItemSTD && priceMode === 'standard'){
+        setError(`Cant add new ${product.name} for another STD unit prices are already added, only one type is selectable for standard prices`);
+        return;
+    }
+
     // Update cart first
     if (existingItem) {
       // Check if adding 1 more would exceed available quantity (only for complete sales)
@@ -781,7 +770,7 @@ const PointOfSale = () => {
         }
       }
       setCart(prevCart => prevCart.map(item =>
-        item.id === product.id && item.unit_id === unit.id && item.price_mode === priceMode
+        item.id === product.id && item.unit_id === unit.id && item.price_mode === priceMode && item.unit_price === unitPrice
           ? { ...item, quantity: item.quantity + 1 }
           : item
       ));
@@ -793,32 +782,6 @@ const PointOfSale = () => {
         if (unitStockInfo && 1 > unitStockInfo.available_quantity) {
           setError(`Not enough ${unit.name} available. Only ${unitStockInfo.available_quantity} left.`);
           return;
-        }
-      }
-      // Get unit info for price calculation from available_units
-      const availableUnit = product.available_units?.find(u => u.id === unit.id);
-      let unitPrice = 0;
-      
-      if (customPrice) {
-        // Use custom price if provided (for standard price selection)
-        unitPrice = parseFloat(customPrice);
-      } else if (availableUnit) {
-        if (priceMode === 'standard') {
-          // For standard mode, only use base unit price (no compatible units in standard mode)
-          unitPrice = parseFloat(product.price || 0);
-        } else {
-          // For wholesale mode, use unit-specific wholesale price or calculated price from base unit
-          if (availableUnit.unit_specific_wholesale_price) {
-            unitPrice = availableUnit.unit_specific_wholesale_price;
-          } else {
-            // Calculate wholesale price based on conversion factor
-            const baseWholesalePrice = parseFloat(product.wholesale_price || 0);
-            if (availableUnit.conversion_factor && availableUnit.conversion_factor > 0) {
-              unitPrice = baseWholesalePrice * availableUnit.conversion_factor;
-            } else {
-              unitPrice = baseWholesalePrice;
-            }
-          }
         }
       }
       
@@ -1116,7 +1079,6 @@ const PointOfSale = () => {
       customer_phone: customerInfo.phone || '',
       customer_email: customerInfo.email || '',
       user_name: user?.username || 'Unknown User',
-      user_id: user?.id || 'unknown',
       created_at: new Date().toISOString(),
       print_timestamp: new Date().toISOString(),
       print_id: `PRINT-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
@@ -1415,6 +1377,7 @@ const PointOfSale = () => {
   };
 
   const handleProductCardClick = (product) => {
+      // console.log(product);
     // Don't allow clicking on out-of-stock products (only for complete sales)
     if (saleMode === 'complete' && product.available_units && product.available_units.every(u => {
       let availableQuantity = product.stock_quantity;
@@ -1427,37 +1390,45 @@ const PointOfSale = () => {
     }
     
     if ((product.available_units && product.available_units.length > 1 && priceMode === 'wholesale') ||
-        (priceMode === 'standard' && product.standard_prices_list && product.standard_prices_list.length > 1)) {
+        (priceMode === 'standard' && product.standard_prices_list && product.standard_prices_list.length > 0)) {
       // For multi-unit products or multiple standard prices, add with the currently selected option
       const selectedUnitId = selectedUnits[product.id];
       
       if (selectedUnitId) {
-        if (priceMode === 'standard' && selectedUnitId.startsWith('price-')) {
-          // Handle standard price selection
-          const priceIndex = parseInt(selectedUnitId.split('-')[1]);
-          const selectedPrice = product.standard_prices_list[priceIndex];
-          
-          // Add to cart with base unit but specific price
-          const baseUnit = {
-            id: product.base_unit?.id || product.base_unit,
-            name: product.base_unit?.name || 'Piece',
-            symbol: product.base_unit?.symbol || 'piece'
-          };
-          addToCart(product, baseUnit, selectedPrice);
-        } else {
-          // Handle wholesale unit selection
-          const selectedAvailableUnit = product.available_units.find(u => u.id === selectedUnitId);
-          
-          if (selectedAvailableUnit) {
-            // Convert available unit to the format expected by addToCart
-            const selectedUnit = {
-              id: selectedAvailableUnit.id,
-              name: selectedAvailableUnit.name,
-              symbol: selectedAvailableUnit.symbol
+        try{
+          if (priceMode === 'standard' && selectedUnitId.startsWith('price-')) {
+            // Handle standard price selection
+            const priceIndex = parseInt(selectedUnitId.split('-')[1]);
+            const selectedPrice = product.standard_prices_list[priceIndex];
+            
+            // Add to cart with base unit but specific price
+            const baseUnit = {
+              id: product.base_unit?.id || product.base_unit,
+              name: product.base_unit?.name || 'Piece',
+              symbol: product.base_unit?.symbol || 'piece'
             };
-            addToCart(product, selectedUnit);
+            addToCart(product, baseUnit, selectedPrice);
+          } else {
+            // Handle wholesale unit selection
+            const selectedAvailableUnit = product.available_units.find(u => u.id === parseInt(selectedUnitId));
+
+            if (selectedAvailableUnit) {
+              // Convert available unit to the format expected by addToCart
+              const selectedUnit = {
+                id: selectedAvailableUnit.id,
+                name: selectedAvailableUnit.name,
+                symbol: selectedAvailableUnit.symbol
+              };
+              addToCart(product, selectedUnit);
+            } 
           }
         }
+        catch(error){
+          setError(`Please select unit from the drop-down or see : `, error);
+        }
+        
+      }else{
+        setError(`Please select unit from the drop-down`);
       }
     } else {
       // For single-unit products or single price, add directly with base unit
@@ -1692,7 +1663,7 @@ const PointOfSale = () => {
                   <h3>{product.name}</h3>
                   <p className="product-sku">{product.sku}</p>
                   <p className="product-price">
-                    {(() => {
+                    {/* {(() => {
                       if (priceMode === 'standard') {
                         // For standard mode, show the legacy price (which is the actual standard price)
                         return parseFloat(product.price || 0).toFixed(2);
@@ -1700,9 +1671,10 @@ const PointOfSale = () => {
                         // For wholesale mode, show the wholesale price
                         return parseFloat(product.wholesale_price || 0).toFixed(2);
                       }
-                    })()} MGA
+                    })()} MGA */}
                     {product.available_units && product.available_units.length > 1 && 
-                      ` (base unit: ${product.base_unit?.symbol || 'piece'})`
+                      `Base unit: ${product.base_unit_symbol}`
+                      // `Base unit: ${product.base_unit?.symbol}`
                     }
                   </p>
                   <p className="product-stock">
@@ -1745,7 +1717,7 @@ const PointOfSale = () => {
                   
                   {/* Unit Selection - Show for products with multiple available units or multiple standard prices */}
                   {((product.available_units && product.available_units.length > 1 && priceMode === 'wholesale') || 
-                    (priceMode === 'standard' && product.standard_prices_list && product.standard_prices_list.length > 1)) && (
+                    (priceMode === 'standard' && product.standard_prices_list && product.standard_prices_list.length > 0)) && (
                     <div className="unit-selection">
                       <label>Unit:</label>
                       <select 
@@ -1758,7 +1730,7 @@ const PointOfSale = () => {
                         onClick={(e) => e.stopPropagation()}
                       >
                         <option value="">Select Unit</option>
-                        {priceMode === 'standard' && product.standard_prices_list && product.standard_prices_list.length > 1 ? (
+                        {priceMode === 'standard' && product.standard_prices_list && product.standard_prices_list.length > 0 ? (
                           // For standard mode with multiple prices, show price options
                           product.standard_prices_list.map((price, index) => (
                             <option key={`price-${index}`} value={`price-${index}`}>
@@ -1809,7 +1781,7 @@ const PointOfSale = () => {
                   
                   {/* Add to Cart Button - Show when no unit selection is needed */}
                   {!((product.available_units && product.available_units.length > 1 && priceMode === 'wholesale') || 
-                     (priceMode === 'standard' && product.standard_prices_list && product.standard_prices_list.length > 1)) && (
+                     (priceMode === 'standard' && product.standard_prices_list && product.standard_prices_list.length > 0)) && (
                     <Button
                       variant="primary"
                       size="small"

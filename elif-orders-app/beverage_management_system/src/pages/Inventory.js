@@ -1328,7 +1328,7 @@ const Inventory = () => {
                             </span>
                           </div>
                           
-                          <div className="pricing-inputs">
+                          {/* <div className="pricing-inputs">
                             <div className="price-input-group">
                               <label>Unit Price (MGA)</label>
                               <input
@@ -1341,6 +1341,18 @@ const Inventory = () => {
                               />
                               <small className="form-help">This price is used for wholesale sales only</small>
                             </div>
+                          </div> */}
+
+                          <div className="form-group">
+                            {/* <label htmlFor="specific_pricings_unit">Unit Price (MGA)</label> */}
+                              <input
+                                type="number"
+                                min="0"
+                                step="0.01"
+                                placeholder="Set specific price for this unit"
+                                value={compatibleUnit.wholesale_price || ''}
+                                onChange={(e) => updateUnitSpecificPrice(compatibleUnit.id, 'wholesale_price', e.target.value)}
+                              />
                           </div>
                         </div>
                       );

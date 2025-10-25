@@ -111,6 +111,39 @@
   gap: var(--spacing-sm);
 }
 
+/* Items Controls with Search Bar */
+.items-controls {
+  display: flex;
+  gap: var(--spacing-md);
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.search-bar {
+  flex: 1;
+  min-width: 250px;
+}
+
+.product-search-input {
+  width: 100%;
+  padding: var(--spacing-sm);
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: var(--font-size-base);
+  transition: all 0.2s ease;
+  background: white;
+}
+
+.product-search-input:focus {
+  outline: none;
+  border-color: #3498db;
+  box-shadow: 0 0 0 2px rgba(52, 152, 219, 0.2);
+}
+
+.product-search-input::placeholder {
+  color: #999;
+}
+
 /* Form Layout */
 .form-layout.desktop-layout {
   display: grid;
@@ -463,6 +496,21 @@
     gap: var(--spacing-sm);
   }
   
+  .items-controls {
+    flex-direction: column;
+    width: 100%;
+    gap: var(--spacing-sm);
+  }
+  
+  .search-bar {
+    min-width: 100%;
+    order: -1;
+  }
+  
+  .product-search-input {
+    font-size: 16px; /* Prevents zoom on iOS */
+  }
+  
   .detail-row {
     flex-direction: column;
     gap: var(--spacing-sm);
@@ -527,6 +575,10 @@
   .modal-footer {
     padding: var(--spacing-md);
   }
+  
+  .items-controls {
+    gap: var(--spacing-xs);
+  }
 }
 
 /* Print styles */
@@ -548,7 +600,8 @@
   .close-button,
   .remove-button,
   .modal-footer,
-  .section-header .btn {
+  .section-header .btn,
+  .search-bar {
     display: none !important;
   }
   
@@ -607,6 +660,10 @@
   .form-layout.mobile-layout {
     display: flex;
   }
+  
+  .items-controls {
+    width: 100%;
+  }
 }
 
 @media (min-width: 769px) {
@@ -651,6 +708,10 @@
   .totals-row {
     font-weight: 700;
   }
+  
+  .product-search-input {
+    border-color: #000;
+  }
 }
 
 /* Reduced motion support */
@@ -660,7 +721,8 @@
   .item-row,
   .form-group input,
   .form-group select,
-  .form-group textarea {
+  .form-group textarea,
+  .product-search-input {
     transition: none;
   }
 }
@@ -677,7 +739,8 @@
   .form-group select,
   .form-group textarea,
   .item-row input,
-  .item-row select {
+  .item-row select,
+  .product-search-input {
     font-size: 16px; /* Prevents zoom on iOS */
   }
   
@@ -719,7 +782,8 @@
   .form-group select,
   .form-group textarea,
   .item-row input,
-  .item-row select {
+  .item-row select,
+  .product-search-input {
     background: #1a1a1a;
     border-color: #404040;
     color: #e0e0e0;
@@ -729,9 +793,14 @@
   .form-group select:focus,
   .form-group textarea:focus,
   .item-row input:focus,
-  .item-row select:focus {
+  .item-row select:focus,
+  .product-search-input:focus {
     border-color: #3498db;
     box-shadow: 0 0 0 2px rgba(52, 152, 219, 0.3);
+  }
+  
+  .product-search-input::placeholder {
+    color: #888;
   }
   
   .empty-items {
@@ -862,7 +931,8 @@
 .form-group select:focus-visible,
 .form-group textarea:focus-visible,
 .item-row input:focus-visible,
-.item-row select:focus-visible {
+.item-row select:focus-visible,
+.product-search-input:focus-visible {
   outline: 2px solid #3498db;
   outline-offset: 2px;
 }

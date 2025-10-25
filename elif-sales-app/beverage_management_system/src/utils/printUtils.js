@@ -1665,13 +1665,11 @@ const generateSaleContent = (data, t) => {
                           data.payment_status === 'partial' ? 'PARTIAL' : 
                           data.payment_status === 'pending' ? 'PENDING' : 
                           'UNKNOWN';
+  console.log(data);
 
   return `
     <div class="receipt-header">
         <div class="company-name" style="text-align: center;">________ANTATSIMO_______</div>
-        <div class="company-name" style="text-align: center;">${'\u00A0'}</div>
-        <div class="document-title" style="text-align: center;">SALE RECEIPT</div>
-        <div class="receipt-date" style="text-align: center;">${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}</div>
       </div>
       <div class="receipt-section">
         <div class="no-data">${'\u00A0'}</div>
@@ -1752,7 +1750,7 @@ const generateSaleContent = (data, t) => {
       </div>
       <div class="receipt-footer">
         <div class="thank-you">Thank you!</div>
-        <div class="footer-text" style="text-align: center;">Created by: ${(data.created_by_name || data.sold_by_name || 'N/A')}</div>
+        <div class="footer-text" style="text-align: center;">Created by: ${(data.created_by_name || data.sold_by_name || data.user_name || 'N/A')} -- ${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}</div>
         <div class="footer-text" style="text-align: center;">Print id : ${data.print_id || 'N/A'}</div>
       </div>
   `;
