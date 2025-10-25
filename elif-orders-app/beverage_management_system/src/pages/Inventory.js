@@ -16,6 +16,7 @@ const Inventory = () => {
   const [currentDisplayUnit, setCurrentDisplayUnit] = useState(null);
   const [productFormData, setProductFormData] = useState({
     name: '',
+    sku: '',
     description: '',
     category: '',
     base_unit: '',
@@ -30,7 +31,13 @@ const Inventory = () => {
     packaging_price: '',
     storage_type: 'STR',
     storage_section: '',
-    is_active: true
+    is_active: true,
+    // New standard pricing structure
+    standard_price_1: '',
+    standard_price_2: '',
+    standard_price_3: '',
+    standard_price_4: '',
+    standard_price_5: ''
   });
   const [allUnits, setAllUnits] = useState([]);
   const [baseUnits, setBaseUnits] = useState([]);
@@ -65,14 +72,30 @@ const Inventory = () => {
   const fetchProducts = useCallback(async () => {
     try {
       setLoading(true);
+      const response = await api.get('/api/products/');
+      const data = response.data;
+      
+      // Handle both paginated and non-paginated responses
       let products = [];
-      let nextUrl = '/api/products/';
-      while (nextUrl) {
-        const response = await api.get(nextUrl);
-        const data = response.data;
-        products = [...products, ...data.results];
-        nextUrl = data.next; // null when no more pages
+      if (data.results) {
+        // Paginated response
+        products = data.results;
+        let nextUrl = data.next;
+        while (nextUrl) {
+          const nextResponse = await api.get(nextUrl);
+          const nextData = nextResponse.data;
+          products = [...products, ...nextData.results];
+          nextUrl = nextData.next;
+        }
+      } else if (Array.isArray(data)) {
+        // Direct array response
+        products = data;
+      } else {
+        console.error('Unexpected API response format:', data);
+        setError('Unexpected API response format');
+        return;
       }
+      
       setProducts(products);
       setTotalProducts(products.length);
     } catch (err) {
@@ -87,7 +110,19 @@ const Inventory = () => {
   const fetchCategories = useCallback(async () => {
     try {
       const response = await api.get('/api/products/categories/');
-      const categoriesData = response.data.results || response.data;
+      const data = response.data;
+      
+      // Handle both paginated and non-paginated responses
+      let categoriesData = [];
+      if (data.results) {
+        categoriesData = data.results;
+      } else if (Array.isArray(data)) {
+        categoriesData = data;
+      } else {
+        console.error('Unexpected categories API response format:', data);
+        return;
+      }
+      
       setCategories(categoriesData);
     } catch (err) {
       console.error('Error fetching categories:', err);
@@ -256,7 +291,13 @@ const Inventory = () => {
       packaging_price: '',
       storage_type: 'STR',
       storage_section: '',
-      is_active: true
+      is_active: true,
+      // New standard pricing structure
+      standard_price_1: '',
+      standard_price_2: '',
+      standard_price_3: '',
+      standard_price_4: '',
+      standard_price_5: ''
     });
     setCompatibleUnits([]);
     setShowProductModal(true);
@@ -308,12 +349,19 @@ const Inventory = () => {
       
       setProductFormData(prev => ({
         ...prev,
+        sku: freshProduct.sku,
         price: freshProduct.price,
         wholesale_price: freshProduct.wholesale_price,
         cost_price: freshProduct.cost_price,
         stock_quantity: freshProduct.stock_quantity,
         min_stock_level: freshProduct.min_stock_level,
-        max_stock_level: freshProduct.max_stock_level
+        max_stock_level: freshProduct.max_stock_level,
+        // New standard pricing fields
+        standard_price_1: freshProduct.standard_price_1 || '',
+        standard_price_2: freshProduct.standard_price_2 || '',
+        standard_price_3: freshProduct.standard_price_3 || '',
+        standard_price_4: freshProduct.standard_price_4 || '',
+        standard_price_5: freshProduct.standard_price_5 || ''
       }));
       
       setShowProductModal(true);
@@ -334,6 +382,12 @@ const Inventory = () => {
         stock_quantity: parseFloat(productFormData.stock_quantity) || 0,
         min_stock_level: parseFloat(productFormData.min_stock_level) || 0,
         max_stock_level: parseFloat(productFormData.max_stock_level) || 0,
+        // New standard pricing fields
+        standard_price_1: parseFloat(productFormData.standard_price_1) || 0,
+        standard_price_2: productFormData.standard_price_2 ? parseFloat(productFormData.standard_price_2) : null,
+        standard_price_3: productFormData.standard_price_3 ? parseFloat(productFormData.standard_price_3) : null,
+        standard_price_4: productFormData.standard_price_4 ? parseFloat(productFormData.standard_price_4) : null,
+        standard_price_5: productFormData.standard_price_5 ? parseFloat(productFormData.standard_price_5) : null,
       };
 
       if (editingProduct) {
@@ -389,6 +443,26 @@ const Inventory = () => {
       } catch (err) {
         console.error('Error removing compatible unit:', err);
       }
+    }
+  };
+
+  const updateUnitSpecificPrice = async (unitId, priceType, value) => {
+    try {
+      const data = {
+        [priceType]: value ? parseFloat(value) : null
+      };
+      
+      await api.patch(`/api/products/${editingProduct.id}/units/${unitId}/`, data);
+      
+      // Update local state
+      setCompatibleUnits(prev => prev.map(unit => 
+        unit.id === unitId 
+          ? { ...unit, [priceType]: value ? parseFloat(value) : null }
+          : unit
+      ));
+    } catch (err) {
+      console.error('Error updating unit-specific price:', err);
+      setError('Failed to update unit-specific price');
     }
   };
 
@@ -501,7 +575,16 @@ const Inventory = () => {
           </div>
           <div className="detail-row">
             <span className="label">Price:</span>
-            <span className="value price">{product.price ? `MGA ${parseFloat(product.price).toFixed(2)}` : 'N/A'}</span>
+            <span className="value price">
+              {(() => {
+                // Show standard prices list for base unit
+                if (product.standard_prices_list && product.standard_prices_list.length > 0) {
+                  return `MGA ${product.standard_prices_list.map(p => parseFloat(p).toFixed(2)).join(', ')}`;
+                }
+                // Fallback to legacy price
+                return product.price ? `MGA ${parseFloat(product.price).toFixed(2)}` : 'N/A';
+              })()}
+            </span>
           </div>
           <div className="detail-row">
             <span className="label">Stock:</span>
@@ -677,7 +760,16 @@ const Inventory = () => {
                     <td>{product.sku || 'N/A'}</td>
                     <td>{product.category_name || product.category?.name || 'N/A'}</td>
                     <td>{defaultUnitName}</td>
-                    <td>{product.price ? `MGA ${parseFloat(product.price).toFixed(2)}` : 'N/A'}</td>
+                    <td>
+                      {(() => {
+                        // Show standard prices list for base unit
+                        if (product.standard_prices_list && product.standard_prices_list.length > 0) {
+                          return `MGA ${product.standard_prices_list.map(p => parseFloat(p).toFixed(2)).join(', ')}`;
+                        }
+                        // Fallback to legacy price
+                        return product.price ? `MGA ${parseFloat(product.price).toFixed(2)}` : 'N/A';
+                      })()}
+                    </td>
                     <td>{product.stock_quantity || 0}</td>
                     <td>
                       {product.has_packaging === true || product.has_packaging === 'true' || product.has_packaging === 1 ? (
@@ -907,17 +999,96 @@ const Inventory = () => {
                   </select>
                 </div>
 
+                {/* Standard Prices Section */}
+                <div className="form-group full-width">
+                  <h3>Standard Prices (MGA)</h3>
+                  <p className="form-help">Set up to 5 different standard prices for this product. The first price is required.</p>
+                </div>
+
                 <div className="form-group">
-                  <label htmlFor="price">Price (MGA) *</label>
+                  <label htmlFor="standard_price_1">Standard Price 1 *</label>
                   <div className="input-with-unit">
                     <input
                       type="number"
-                      id="price"
-                      value={productFormData.price}
-                      onChange={(e) => setProductFormData({ ...productFormData, price: e.target.value })}
+                      id="standard_price_1"
+                      value={productFormData.standard_price_1}
+                      onChange={(e) => setProductFormData({ ...productFormData, standard_price_1: e.target.value })}
                       required
                       min="0"
                       step="0.01"
+                      placeholder="Required"
+                    />
+                    {currentDisplayUnit && (
+                      <span className="unit-indicator">{getUnitIndicator()}</span>
+                    )}
+                  </div>
+                </div>
+
+                <div className="form-group">
+                  <label htmlFor="standard_price_2">Standard Price 2</label>
+                  <div className="input-with-unit">
+                    <input
+                      type="number"
+                      id="standard_price_2"
+                      value={productFormData.standard_price_2 || ''}
+                      onChange={(e) => setProductFormData({ ...productFormData, standard_price_2: e.target.value })}
+                      min="0"
+                      step="0.01"
+                      placeholder="Optional"
+                    />
+                    {currentDisplayUnit && (
+                      <span className="unit-indicator">{getUnitIndicator()}</span>
+                    )}
+                  </div>
+                </div>
+
+                <div className="form-group">
+                  <label htmlFor="standard_price_3">Standard Price 3</label>
+                  <div className="input-with-unit">
+                    <input
+                      type="number"
+                      id="standard_price_3"
+                      value={productFormData.standard_price_3 || ''}
+                      onChange={(e) => setProductFormData({ ...productFormData, standard_price_3: e.target.value })}
+                      min="0"
+                      step="0.01"
+                      placeholder="Optional"
+                    />
+                    {currentDisplayUnit && (
+                      <span className="unit-indicator">{getUnitIndicator()}</span>
+                    )}
+                  </div>
+                </div>
+
+                <div className="form-group">
+                  <label htmlFor="standard_price_4">Standard Price 4</label>
+                  <div className="input-with-unit">
+                    <input
+                      type="number"
+                      id="standard_price_4"
+                      value={productFormData.standard_price_4 || ''}
+                      onChange={(e) => setProductFormData({ ...productFormData, standard_price_4: e.target.value })}
+                      min="0"
+                      step="0.01"
+                      placeholder="Optional"
+                    />
+                    {currentDisplayUnit && (
+                      <span className="unit-indicator">{getUnitIndicator()}</span>
+                    )}
+                  </div>
+                </div>
+
+                <div className="form-group">
+                  <label htmlFor="standard_price_5">Standard Price 5</label>
+                  <div className="input-with-unit">
+                    <input
+                      type="number"
+                      id="standard_price_5"
+                      value={productFormData.standard_price_5 || ''}
+                      onChange={(e) => setProductFormData({ ...productFormData, standard_price_5: e.target.value })}
+                      min="0"
+                      step="0.01"
+                      placeholder="Optional"
                     />
                     {currentDisplayUnit && (
                       <span className="unit-indicator">{getUnitIndicator()}</span>
@@ -1129,6 +1300,63 @@ const Inventory = () => {
                         </div>
                       </div>
                     ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Unit-Specific Pricing Section */}
+              {editingProduct && compatibleUnits.length > 0 && (
+                <div className="unit-pricing-section">
+                  <div className="section-header">
+                    <h3>Unit-Specific Pricing</h3>
+                    <p className="form-help">Set specific prices for each compatible unit. These prices are used for wholesale sales only. For standard sales, compatible units use calculated prices from the base unit.</p>
+                  </div>
+
+                  <div className="unit-pricing-list">
+                    {compatibleUnits.map(compatibleUnit => {
+                      // Skip base unit - it's managed by standard prices list and wholesale price
+                      if (compatibleUnit.is_default) {
+                        return null;
+                      }
+                      
+                      return (
+                        <div key={compatibleUnit.id} className="unit-pricing-item">
+                          <div className="unit-info">
+                            <span className="unit-name">
+                              {compatibleUnit.unit_name || compatibleUnit.unit?.name} 
+                              ({compatibleUnit.unit_symbol || compatibleUnit.unit?.symbol})
+                            </span>
+                          </div>
+                          
+                          {/* <div className="pricing-inputs">
+                            <div className="price-input-group">
+                              <label>Unit Price (MGA)</label>
+                              <input
+                                type="number"
+                                min="0"
+                                step="0.01"
+                                placeholder="Set specific price for this unit"
+                                value={compatibleUnit.wholesale_price || ''}
+                                onChange={(e) => updateUnitSpecificPrice(compatibleUnit.id, 'wholesale_price', e.target.value)}
+                              />
+                              <small className="form-help">This price is used for wholesale sales only</small>
+                            </div>
+                          </div> */}
+
+                          <div className="form-group">
+                            {/* <label htmlFor="specific_pricings_unit">Unit Price (MGA)</label> */}
+                              <input
+                                type="number"
+                                min="0"
+                                step="0.01"
+                                placeholder="Set specific price for this unit"
+                                value={compatibleUnit.wholesale_price || ''}
+                                onChange={(e) => updateUnitSpecificPrice(compatibleUnit.id, 'wholesale_price', e.target.value)}
+                              />
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               )}

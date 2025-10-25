@@ -286,53 +286,52 @@ const PointOfSale = () => {
     }
   }, [paymentType, cart, packagingCart]);
 
-  // Function to get the current price for a specific unit
+  // Function to get the current price for a specific unit using new pricing structure
   const getCurrentUnitPrice = (product, unitStockInfo) => {
-    if (!unitStockInfo?.price) return 0;
+    if (!unitStockInfo) return 0;
     
-    // If we're in standard mode, return the standard unit price
+    // If we're in standard mode, use standard prices
     if (priceMode === 'standard') {
-      return unitStockInfo.price;
+      // Check if this unit has unit-specific standard price
+      if (unitStockInfo.unit_specific_standard_price) {
+        return unitStockInfo.unit_specific_standard_price;
+      }
+      
+      // Use the first available standard price from the product's standard prices list
+      if (product.standard_prices_list && product.standard_prices_list.length > 0) {
+        return product.standard_prices_list[0];
+      }
+      
+      // Fallback to legacy price
+      return unitStockInfo.price || 0;
     }
     
-    // If we're in wholesale mode, we need to calculate the wholesale price for this unit
-    if (priceMode === 'wholesale' && product.wholesale_price) {
-      const standardBasePrice = parseFloat(product.price);
-      const wholesaleBasePrice = parseFloat(product.wholesale_price);
-      
-      // Handle edge cases
-      if (!standardBasePrice || standardBasePrice <= 0) {
-        return unitStockInfo.price;
+    // If we're in wholesale mode, use wholesale prices
+    if (priceMode === 'wholesale') {
+      // Check if this unit has unit-specific wholesale price
+      if (unitStockInfo.unit_specific_wholesale_price) {
+        return unitStockInfo.unit_specific_wholesale_price;
       }
       
-      // Calculate the conversion factor from standard to wholesale
-      const wholesaleConversionFactor = wholesaleBasePrice / standardBasePrice;
-      
-      // For wholesale pricing, we need to apply the wholesale conversion factor
-      // to the base unit price, then convert to the selected unit
-      let wholesaleUnitPrice;
-      
-      if (unitStockInfo.is_base_unit) {
-        // If this is the base unit, apply wholesale factor directly
-        wholesaleUnitPrice = standardBasePrice * wholesaleConversionFactor;
-      } else {
-        // If this is not the base unit, we need to:
-        // 1. Get the wholesale base price
-        // 2. Convert it to the selected unit using the same conversion factor as the standard price
-        const standardUnitPrice = unitStockInfo.price;
-        const unitConversionFactor = standardUnitPrice / standardBasePrice;
-        wholesaleUnitPrice = wholesaleBasePrice * unitConversionFactor;
+      // Use the main wholesale price
+      if (product.wholesale_price) {
+        return parseFloat(product.wholesale_price);
       }
       
-      // Round to 2 decimal places to avoid floating point precision issues
-      const roundedPrice = Math.round(wholesaleUnitPrice * 100) / 100;
-      
-      // Ensure we return a valid number
-      return isNaN(roundedPrice) || roundedPrice < 0 ? unitStockInfo.price : roundedPrice;
+      // Fallback to legacy wholesale calculation
+      if (product.wholesale_price && product.price) {
+        const standardBasePrice = parseFloat(product.price);
+        const wholesaleBasePrice = parseFloat(product.wholesale_price);
+        
+        if (standardBasePrice > 0) {
+          const wholesaleConversionFactor = wholesaleBasePrice / standardBasePrice;
+          return standardBasePrice * wholesaleConversionFactor;
+        }
+      }
     }
     
     // Fallback to standard price
-    return unitStockInfo.price;
+    return unitStockInfo.price || 0;
   };
 
   useEffect(() => {
@@ -668,16 +667,16 @@ const PointOfSale = () => {
     }
   };
 
-  const addToCart = (product, selectedUnit = null) => {
+  const addToCart = (product, selectedUnit = null, customPrice = null) => {
     
-    // Use the first compatible unit if none selected
+    // Use the first available unit if none selected
     let unit = selectedUnit;
-    if (!unit && product.compatible_units && product.compatible_units[0]) {
-      const compatibleUnit = product.compatible_units[0];
+    if (!unit && product.available_units && product.available_units[0]) {
+      const availableUnit = product.available_units[0];
       unit = {
-        id: compatibleUnit.unit?.id || compatibleUnit.unit,
-        name: compatibleUnit.unit_name || compatibleUnit.unit?.name || 'Piece',
-        symbol: compatibleUnit.unit_symbol || compatibleUnit.unit?.symbol || 'piece'
+        id: availableUnit.id,
+        name: availableUnit.name,
+        symbol: availableUnit.symbol
       };
     }
     if (!unit) {
@@ -714,12 +713,51 @@ const PointOfSale = () => {
       }
     }
     
+    // Calculate the price first to use in the existing item check
+    const availableUnit = product.available_units?.find(u => u.id === unit.id);
+    let unitPrice = 0;
+    
+    if (customPrice) {
+      // Use custom price if provided (for standard price selection)
+      unitPrice = parseFloat(customPrice);
+    } else if (availableUnit) {
+      if (priceMode === 'standard') {
+        // For standard mode, only use base unit price (no compatible units in standard mode)
+        unitPrice = parseFloat(product.price || 0);
+      } else {
+        // For wholesale mode, use unit-specific wholesale price or calculated price from base unit
+        if (availableUnit.unit_specific_wholesale_price) {
+          unitPrice = availableUnit.unit_specific_wholesale_price;
+        } else {
+          // Calculate wholesale price based on conversion factor
+          const baseWholesalePrice = parseFloat(product.wholesale_price || 0);
+          if (availableUnit.conversion_factor && availableUnit.conversion_factor > 0) {
+            unitPrice = baseWholesalePrice * availableUnit.conversion_factor;
+          } else {
+            unitPrice = baseWholesalePrice;
+          }
+        }
+      }
+    }
+    
+    const existingItemSTD = cart.find(item => 
+      item.id === product.id && 
+      item.unit_id === unit.id && 
+      item.price_mode === priceMode &&
+      item.unit_price !== unitPrice
+    );
     const existingItem = cart.find(item => 
       item.id === product.id && 
       item.unit_id === unit.id && 
-      item.price_mode === priceMode
+      item.price_mode === priceMode &&
+      item.unit_price === unitPrice
     );
-    
+        
+    if(existingItemSTD && priceMode === 'standard'){
+        setError(`Cant add new ${product.name} for another STD unit prices are already added, only one type is selectable for standard prices`);
+        return;
+    }
+
     // Update cart first
     if (existingItem) {
       // Check if adding 1 more would exceed available quantity (only for complete sales)
@@ -732,7 +770,7 @@ const PointOfSale = () => {
         }
       }
       setCart(prevCart => prevCart.map(item =>
-        item.id === product.id && item.unit_id === unit.id && item.price_mode === priceMode
+        item.id === product.id && item.unit_id === unit.id && item.price_mode === priceMode && item.unit_price === unitPrice
           ? { ...item, quantity: item.quantity + 1 }
           : item
       ));
@@ -746,9 +784,6 @@ const PointOfSale = () => {
           return;
         }
       }
-      // Get unit stock info for price calculation
-      const updatedStockInfo = getUpdatedStockAvailability(product.id);
-      const unitStockInfo = updatedStockInfo?.find(u => u.id === unit.id);
       
       const newCartItem = {
         ...product,
@@ -756,7 +791,7 @@ const PointOfSale = () => {
         unit_id: unit.id,
         unit_name: unit.name,
         unit_symbol: unit.symbol,
-        unit_price: getCurrentUnitPrice(product, unitStockInfo) || getCurrentPrice(product),
+        unit_price: unitPrice,
         price_mode: priceMode
       };
       setCart(prevCart => [...prevCart, newCartItem]);
@@ -1044,7 +1079,6 @@ const PointOfSale = () => {
       customer_phone: customerInfo.phone || '',
       customer_email: customerInfo.email || '',
       user_name: user?.username || 'Unknown User',
-      user_id: user?.id || 'unknown',
       created_at: new Date().toISOString(),
       print_timestamp: new Date().toISOString(),
       print_id: `PRINT-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
@@ -1343,36 +1377,61 @@ const PointOfSale = () => {
   };
 
   const handleProductCardClick = (product) => {
+      // console.log(product);
     // Don't allow clicking on out-of-stock products (only for complete sales)
-    if (saleMode === 'complete' && product.stock_quantity <= 0) {
+    if (saleMode === 'complete' && product.available_units && product.available_units.every(u => {
+      let availableQuantity = product.stock_quantity;
+      if (u.conversion_factor && u.conversion_factor > 0) {
+        availableQuantity = product.stock_quantity / u.conversion_factor;
+      }
+      return availableQuantity <= 0;
+    })) {
       return;
     }
     
-    if (product.compatible_units && product.compatible_units.length > 1) {
-      // For multi-unit products, add with the currently selected unit
+    if ((product.available_units && product.available_units.length > 1 && priceMode === 'wholesale') ||
+        (priceMode === 'standard' && product.standard_prices_list && product.standard_prices_list.length > 0)) {
+      // For multi-unit products or multiple standard prices, add with the currently selected option
       const selectedUnitId = selectedUnits[product.id];
       
       if (selectedUnitId) {
-        const selectedCompatibleUnit = product.compatible_units.find(u => (u.unit?.id || u.unit) === selectedUnitId);
-        
-        if (selectedCompatibleUnit) {
-          // Get the price for this unit from stock availability
-          const updatedStockInfo = getUpdatedStockAvailability(product.id);
-          const unitStockInfo = updatedStockInfo?.find(u => u.id === (selectedCompatibleUnit.unit?.id || selectedCompatibleUnit.unit));
-          const unitPrice = getCurrentUnitPrice(product, unitStockInfo) || getCurrentPrice(product);
-          
-          // Convert compatible unit to the format expected by addToCart
-          const selectedUnit = {
-            id: selectedCompatibleUnit.unit?.id || selectedCompatibleUnit.unit,
-            name: selectedCompatibleUnit.unit_name,
-            symbol: selectedCompatibleUnit.unit_symbol,
-            price: unitPrice
-          };
-          addToCart(product, selectedUnit);
+        try{
+          if (priceMode === 'standard' && selectedUnitId.startsWith('price-')) {
+            // Handle standard price selection
+            const priceIndex = parseInt(selectedUnitId.split('-')[1]);
+            const selectedPrice = product.standard_prices_list[priceIndex];
+            
+            // Add to cart with base unit but specific price
+            const baseUnit = {
+              id: product.base_unit?.id || product.base_unit,
+              name: product.base_unit?.name || 'Piece',
+              symbol: product.base_unit?.symbol || 'piece'
+            };
+            addToCart(product, baseUnit, selectedPrice);
+          } else {
+            // Handle wholesale unit selection
+            const selectedAvailableUnit = product.available_units.find(u => u.id === parseInt(selectedUnitId));
+
+            if (selectedAvailableUnit) {
+              // Convert available unit to the format expected by addToCart
+              const selectedUnit = {
+                id: selectedAvailableUnit.id,
+                name: selectedAvailableUnit.name,
+                symbol: selectedAvailableUnit.symbol
+              };
+              addToCart(product, selectedUnit);
+            } 
+          }
         }
+        catch(error){
+          setError(`Please select unit from the drop-down or see : `, error);
+        }
+        
+      }else{
+        setError(`Please select unit from the drop-down`);
       }
     } else {
-      // For single-unit products, add directly
+      // For single-unit products or single price, add directly with base unit
       addToCart(product);
     }
   };
@@ -1604,90 +1663,125 @@ const PointOfSale = () => {
                   <h3>{product.name}</h3>
                   <p className="product-sku">{product.sku}</p>
                   <p className="product-price">
-                    {(() => {
-                      // Find the actual base unit and get its price
-                      const baseUnit = product.compatible_units?.find(u => u.unit.is_base_unit);
-                      if (baseUnit && stockAvailability[product.id]) {
-                        const updatedStockInfo = getUpdatedStockAvailability(product.id);
-                        const baseUnitStockInfo = updatedStockInfo?.find(u => u.id === (baseUnit.unit?.id || baseUnit.unit));
-                        if (baseUnitStockInfo) {
-                          return getCurrentUnitPrice(product, baseUnitStockInfo).toFixed(2);
-                        }
+                    {/* {(() => {
+                      if (priceMode === 'standard') {
+                        // For standard mode, show the legacy price (which is the actual standard price)
+                        return parseFloat(product.price || 0).toFixed(2);
+                      } else {
+                        // For wholesale mode, show the wholesale price
+                        return parseFloat(product.wholesale_price || 0).toFixed(2);
                       }
-                      // Fallback to the original price
-                      return getCurrentPrice(product).toFixed(2);
-                    })()} MGA
-                    {product.compatible_units && product.compatible_units.length > 1 && 
-                      ` (base unit: ${product.compatible_units.find(u => u.unit.is_base_unit)?.unit.symbol || 'piece'})`
+                    })()} MGA */}
+                    {product.available_units && product.available_units.length > 1 && 
+                      `Base unit: ${product.base_unit_symbol}`
+                      // `Base unit: ${product.base_unit?.symbol}`
                     }
                   </p>
                   <p className="product-stock">
                     Stock: {product.stock_quantity} {product.unit}
-                    {stockAvailability[product.id] && product.compatible_units && product.compatible_units.length > 1 && (
+                    {product.available_units && product.available_units.length > 1 && priceMode === 'wholesale' && (
                       <span className="stock-details">
-                        {(() => {
-                          const updatedStockInfo = getUpdatedStockAvailability(product.id);
-                          return product.compatible_units.map(compatibleUnit => {
-                            const unitStockInfo = updatedStockInfo?.find(u => u.id === (compatibleUnit.unit?.id || compatibleUnit.unit));
-                            if (!unitStockInfo) return null;
-                            
-                            // Use unit info from stock availability if available, otherwise fallback to compatible unit
-                            const unitName = unitStockInfo?.name || compatibleUnit.unit?.name || compatibleUnit.unit_name;
+                        {product.available_units.map(unit => {
+                          let price = 0;
+                          let isAvailable = true;
+                          
+                          // For wholesale mode, use unit-specific wholesale price or calculated price from base unit
+                          if (unit.unit_specific_wholesale_price) {
+                            price = unit.unit_specific_wholesale_price;
+                          } else {
+                            // Calculate wholesale price based on conversion factor
+                            const baseWholesalePrice = parseFloat(product.wholesale_price || 0);
+                            if (unit.conversion_factor && unit.conversion_factor > 0) {
+                              price = baseWholesalePrice * unit.conversion_factor;
+                            } else {
+                              price = baseWholesalePrice;
+                            }
+                          }
+                          
+                          // Calculate available quantity for this unit
+                          let availableQuantity = product.stock_quantity;
+                          if (unit.conversion_factor && unit.conversion_factor > 0) {
+                            availableQuantity = product.stock_quantity / unit.conversion_factor;
+                          }
+                          isAvailable = availableQuantity > 0;
                             
                             return (
-                              <span key={compatibleUnit.unit?.id || compatibleUnit.unit} className={`unit-stock ${unitStockInfo.is_available ? 'available' : 'unavailable'}`}>
-                                {unitName}: {getCurrentUnitPrice(product, unitStockInfo).toFixed(2)} MGA ({unitStockInfo.available_quantity} available)
+                            <span key={unit.id} className={`unit-stock ${isAvailable ? 'available' : 'unavailable'}`}>
+                              {unit.name}: {price.toFixed(2)} MGA ({availableQuantity.toFixed(1)} available)
                               </span>
                             );
-                          }).filter(Boolean);
-                        })()}
+                        })}
                       </span>
                     )}
                   </p>
                   
-                  {/* Unit Selection - Only show for products with multiple compatible units */}
-                  {product.compatible_units && product.compatible_units.length > 1 && (
+                  {/* Unit Selection - Show for products with multiple available units or multiple standard prices */}
+                  {((product.available_units && product.available_units.length > 1 && priceMode === 'wholesale') || 
+                    (priceMode === 'standard' && product.standard_prices_list && product.standard_prices_list.length > 0)) && (
                     <div className="unit-selection">
                       <label>Unit:</label>
                       <select 
                         className="unit-select"
                         value={selectedUnits[product.id] || ''}
                         onChange={(e) => {
-                          const unitId = parseInt(e.target.value);
+                          const unitId = e.target.value;
                           handleUnitSelection(product.id, unitId);
                         }}
                         onClick={(e) => e.stopPropagation()}
                       >
                         <option value="">Select Unit</option>
-                        {product.compatible_units.map((compatibleUnit, index) => {
-                          // Use updated stock availability that considers cart contents
-                          const updatedStockInfo = getUpdatedStockAvailability(product.id);
-                          const unitStockInfo = updatedStockInfo?.find(u => u.id === (compatibleUnit.unit?.id || compatibleUnit.unit));
-                          const isAvailable = unitStockInfo ? unitStockInfo.is_available : false;
-                          const availableQty = unitStockInfo ? unitStockInfo.available_quantity : 0;
-                          
-                          // Use unit info from stock availability if available, otherwise fallback to compatible unit
-                          const unitName = unitStockInfo?.name || compatibleUnit.unit?.name || compatibleUnit.unit_name;
-                          const unitSymbol = unitStockInfo?.symbol || compatibleUnit.unit?.symbol || compatibleUnit.unit_symbol;
-                          
-                          
-                          return (
-                            <option 
-                              key={compatibleUnit.unit?.id || compatibleUnit.unit} 
-                              value={compatibleUnit.unit?.id || compatibleUnit.unit}
-                              disabled={saleMode === 'complete' ? !isAvailable : false}
-                            >
-                              {unitName} ({unitSymbol}) - {getCurrentUnitPrice(product, unitStockInfo).toFixed(2)} MGA
-                              {!isAvailable && saleMode === 'complete' ? ' - OUT OF STOCK' : ''}
+                        {priceMode === 'standard' && product.standard_prices_list && product.standard_prices_list.length > 0 ? (
+                          // For standard mode with multiple prices, show price options
+                          product.standard_prices_list.map((price, index) => (
+                            <option key={`price-${index}`} value={`price-${index}`}>
+                              Standard Price {index + 1} - {parseFloat(price).toFixed(2)} MGA
                             </option>
-                          );
-                        })}
+                          ))
+                        ) : (
+                          // For wholesale mode, show unit options
+                          product.available_units.map((unit) => {
+                            let price = 0;
+                            let isAvailable = true;
+                            
+                            // For wholesale mode, use unit-specific wholesale price or calculated price from base unit
+                            if (unit.unit_specific_wholesale_price) {
+                              price = unit.unit_specific_wholesale_price;
+                            } else {
+                              // Calculate wholesale price based on conversion factor
+                              const baseWholesalePrice = parseFloat(product.wholesale_price || 0);
+                              if (unit.conversion_factor && unit.conversion_factor > 0) {
+                                price = baseWholesalePrice * unit.conversion_factor;
+                              } else {
+                                price = baseWholesalePrice;
+                              }
+                            }
+                            
+                            // Calculate available quantity for this unit
+                            let availableQuantity = product.stock_quantity;
+                            if (unit.conversion_factor && unit.conversion_factor > 0) {
+                              availableQuantity = product.stock_quantity / unit.conversion_factor;
+                            }
+                            isAvailable = availableQuantity > 0;
+                            
+                            return (
+                              <option 
+                                key={unit.id} 
+                                value={unit.id}
+                                disabled={saleMode === 'complete' ? !isAvailable : false}
+                              >
+                                {unit.name} ({unit.symbol}) - {price.toFixed(2)} MGA
+                                {!isAvailable && saleMode === 'complete' ? ' - OUT OF STOCK' : ''}
+                              </option>
+                            );
+                          })
+                        )}
                       </select>
                     </div>
                   )}
                   
-                  {/* Add to Cart Button - Only show for single unit products */}
-                  {(!product.compatible_units || product.compatible_units.length <= 1) && (
+                  {/* Add to Cart Button - Show when no unit selection is needed */}
+                  {!((product.available_units && product.available_units.length > 1 && priceMode === 'wholesale') || 
+                     (priceMode === 'standard' && product.standard_prices_list && product.standard_prices_list.length > 0)) && (
                     <Button
                       variant="primary"
                       size="small"

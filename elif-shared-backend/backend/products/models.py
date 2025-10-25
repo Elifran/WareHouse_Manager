@@ -76,6 +76,11 @@ class ProductUnit(models.Model):
     unit = models.ForeignKey(Unit, on_delete=models.CASCADE)
     is_default = models.BooleanField(default=False, help_text="Default unit for this product")
     is_active = models.BooleanField(default=True)
+    
+    # New pricing fields for unit-specific prices
+    standard_price = models.DecimalField(max_digits=10, decimal_places=2, validators=[MinValueValidator(Decimal('0.01'))], null=True, blank=True, help_text="Standard price for this specific unit")
+    wholesale_price = models.DecimalField(max_digits=10, decimal_places=2, validators=[MinValueValidator(Decimal('0.01'))], null=True, blank=True, help_text="Wholesale price for this specific unit")
+    
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -92,8 +97,18 @@ class Product(models.Model):
     category = models.ForeignKey(Category, on_delete=models.CASCADE, related_name='products')
     tax_class = models.ForeignKey(TaxClass, on_delete=models.SET_NULL, null=True, blank=True, related_name='products')
     sku = models.CharField(max_length=50, unique=True)
-    price = models.DecimalField(max_digits=10, decimal_places=2, validators=[MinValueValidator(Decimal('0.01'))], help_text="Standard retail price")
+    
+    # Legacy pricing fields (kept for backward compatibility)
+    price = models.DecimalField(max_digits=10, decimal_places=2, validators=[MinValueValidator(Decimal('0.01'))], help_text="Standard retail price (legacy - use standard_price_1 instead)")
     wholesale_price = models.DecimalField(max_digits=10, decimal_places=2, validators=[MinValueValidator(Decimal('0.01'))], null=True, blank=True, help_text="Wholesale price (optional)")
+    
+    # New standard pricing structure - multiple price fields
+    standard_price_1 = models.DecimalField(max_digits=10, decimal_places=2, validators=[MinValueValidator(Decimal('0.01'))], default=Decimal('0.01'), help_text="Standard price 1 (required)")
+    standard_price_2 = models.DecimalField(max_digits=10, decimal_places=2, validators=[MinValueValidator(Decimal('0.01'))], null=True, blank=True, help_text="Standard price 2 (optional)")
+    standard_price_3 = models.DecimalField(max_digits=10, decimal_places=2, validators=[MinValueValidator(Decimal('0.01'))], null=True, blank=True, help_text="Standard price 3 (optional)")
+    standard_price_4 = models.DecimalField(max_digits=10, decimal_places=2, validators=[MinValueValidator(Decimal('0.01'))], null=True, blank=True, help_text="Standard price 4 (optional)")
+    standard_price_5 = models.DecimalField(max_digits=10, decimal_places=2, validators=[MinValueValidator(Decimal('0.01'))], null=True, blank=True, help_text="Standard price 5 (optional)")
+    
     cost_price = models.DecimalField(max_digits=10, decimal_places=2, validators=[MinValueValidator(Decimal('0.00'))])
     stock_quantity = models.FloatField(default=0.0, validators=[MinValueValidator(0.0)])
     min_stock_level = models.FloatField(default=10.0, validators=[MinValueValidator(0.0)])
@@ -323,6 +338,73 @@ class Product(models.Model):
             display_unit = self.get_default_unit()
         
         return self.get_cost_price_in_unit(display_unit)
+
+    def get_standard_prices_list(self):
+        """Get list of all non-empty standard prices"""
+        prices = []
+        if self.standard_price_1:
+            prices.append(float(self.standard_price_1))
+        if self.standard_price_2:
+            prices.append(float(self.standard_price_2))
+        if self.standard_price_3:
+            prices.append(float(self.standard_price_3))
+        if self.standard_price_4:
+            prices.append(float(self.standard_price_4))
+        if self.standard_price_5:
+            prices.append(float(self.standard_price_5))
+        return prices
+
+    def get_unit_specific_price(self, unit, price_type='standard'):
+        """Get unit-specific price for a given unit and price type"""
+        try:
+            product_unit = self.compatible_units.get(unit=unit, is_active=True)
+            if price_type == 'standard' and product_unit.standard_price:
+                return float(product_unit.standard_price)
+            elif price_type == 'wholesale' and product_unit.wholesale_price:
+                return float(product_unit.wholesale_price)
+        except ProductUnit.DoesNotExist:
+            pass
+        
+        # Fallback to calculated price if no unit-specific price
+        if price_type == 'standard':
+            return self.get_price_in_unit(unit)
+        else:
+            return self.get_wholesale_price_in_unit(unit)
+
+    def get_available_standard_prices(self):
+        """Get all available standard prices for this product"""
+        return self.get_standard_prices_list()
+
+    def get_available_wholesale_prices(self):
+        """Get all available wholesale prices for this product (including unit-specific)"""
+        wholesale_prices = []
+        
+        # Add main wholesale price if exists
+        if self.wholesale_price and self.base_unit:
+            wholesale_prices.append({
+                'unit': {
+                    'id': self.base_unit.id,
+                    'name': self.base_unit.name,
+                    'symbol': self.base_unit.symbol
+                },
+                'price': float(self.wholesale_price),
+                'is_unit_specific': False
+            })
+        
+        # Add unit-specific wholesale prices
+        for product_unit in self.compatible_units.filter(is_active=True):
+            if product_unit.wholesale_price:
+                wholesale_prices.append({
+                    'unit': {
+                        'id': product_unit.unit.id,
+                        'name': product_unit.unit.name,
+                        'symbol': product_unit.unit.symbol
+                    },
+                    'price': float(product_unit.wholesale_price),
+                    'is_unit_specific': True
+                })
+        
+        return wholesale_prices
 
 class StockMovement(models.Model):
     MOVEMENT_TYPES = [
