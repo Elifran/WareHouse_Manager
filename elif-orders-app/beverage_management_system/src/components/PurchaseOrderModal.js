@@ -46,7 +46,8 @@ const PurchaseOrderModal = ({ suppliers, onClose, onSubmit }) => {
         api.get('/api/products/tax-classes/')
       ]);
       
-      const products = productsResponse.data.results || productsResponse.data;
+      const data = productsResponse.data;
+      const products = data.results || data;
       
       // Fetch unit costs for each product
       const productsWithUnitCosts = await Promise.all(
@@ -68,7 +69,8 @@ const PurchaseOrderModal = ({ suppliers, onClose, onSubmit }) => {
       );
       
       setProducts(productsWithUnitCosts);
-      setTaxClasses(taxResponse.data.results || taxResponse.data);
+      const taxData = taxResponse.data;
+      setTaxClasses(taxData.results || taxData);
     } catch (error) {
       console.error('Error fetching products and tax classes:', error);
     }

@@ -26,4 +26,6 @@ urlpatterns = [
     path('<int:product_id>/unit-costs/', views.get_product_unit_costs, name='product-unit-costs'),
     path('price-conversion-factor/', views.get_price_conversion_factor_api, name='price-conversion-factor'),
     path('quantity-conversion-factor/', views.get_quantity_conversion_factor_api, name='quantity-conversion-factor'),
+    path('<int:product_id>/pricing-structure/', views.get_product_pricing_structure, name='product-pricing-structure'),
+    path('for-sales/', views.get_products_for_sales, name='products-for-sales'),
 ]

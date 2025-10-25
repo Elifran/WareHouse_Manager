@@ -140,7 +140,7 @@ class ProductUnitSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = ProductUnit
-        fields = ['id', 'unit', 'unit_detail', 'unit_name', 'unit_symbol', 'unit_is_base', 'is_default', 'is_active', 'created_at', 'updated_at']
+        fields = ['id', 'unit', 'unit_detail', 'unit_name', 'unit_symbol', 'unit_is_base', 'is_default', 'is_active', 'standard_price', 'wholesale_price', 'created_at', 'updated_at']
         read_only_fields = ['id', 'created_at', 'updated_at']
     
     def get_unit_detail(self, obj):
@@ -234,6 +234,11 @@ class ProductSerializer(serializers.ModelSerializer):
     compatible_units = ProductUnitSerializer(many=True, read_only=True)
     stock_in_units = serializers.SerializerMethodField()
     
+    # New pricing structure fields
+    standard_prices_list = serializers.SerializerMethodField()
+    available_standard_prices = serializers.SerializerMethodField()
+    available_wholesale_prices = serializers.SerializerMethodField()
+    
     # Display fields - these show values in the default unit for reading, but accept input for writing
     price = serializers.FloatField()
     wholesale_price = serializers.FloatField(allow_null=True, required=False)
@@ -250,7 +255,9 @@ class ProductSerializer(serializers.ModelSerializer):
             'max_stock_level', 'unit', 'base_unit', 'base_unit_name', 'base_unit_symbol', 
             'available_units', 'compatible_units', 'stock_in_units', 'is_active', 'profit_margin', 
             'is_low_stock', 'is_out_of_stock', 'has_packaging', 'packaging_price', 'storage_type', 
-            'storage_section', 'created_at', 'updated_at'
+            'storage_section', 'standard_price_1', 'standard_price_2', 'standard_price_3', 
+            'standard_price_4', 'standard_price_5', 'standard_prices_list', 'available_standard_prices',
+            'available_wholesale_prices', 'created_at', 'updated_at'
         ]
         read_only_fields = ['id', 'created_at', 'updated_at']
     
@@ -259,6 +266,18 @@ class ProductSerializer(serializers.ModelSerializer):
     
     def get_is_out_of_stock(self, obj):
         return obj.is_out_of_stock
+    
+    def get_standard_prices_list(self, obj):
+        """Get list of all non-empty standard prices"""
+        return obj.get_standard_prices_list()
+    
+    def get_available_standard_prices(self, obj):
+        """Get all available standard prices for this product"""
+        return obj.get_available_standard_prices()
+    
+    def get_available_wholesale_prices(self, obj):
+        """Get all available wholesale prices for this product (including unit-specific)"""
+        return obj.get_available_wholesale_prices()
     
     def get_available_units(self, obj):
         """Get all available units for this product with pricing information"""
@@ -273,6 +292,10 @@ class ProductSerializer(serializers.ModelSerializer):
             unit_price = obj.get_price_in_unit(unit)
             unit_cost = obj.get_cost_price_in_unit(unit)
             
+            # Get unit-specific prices if available
+            unit_specific_standard_price = compatible_unit.standard_price
+            unit_specific_wholesale_price = compatible_unit.wholesale_price
+            
             units.append({
                 'id': unit.id,
                 'name': unit.name,
@@ -281,7 +304,9 @@ class ProductSerializer(serializers.ModelSerializer):
                 'cost_price': float(unit_cost) if unit_cost else 0,
                 'is_base_unit': unit == obj.base_unit,
                 'is_default': compatible_unit.is_default,
-                'conversion_factor': self._get_conversion_factor(obj, unit)
+                'conversion_factor': self._get_conversion_factor(obj, unit),
+                'unit_specific_standard_price': float(unit_specific_standard_price) if unit_specific_standard_price else None,
+                'unit_specific_wholesale_price': float(unit_specific_wholesale_price) if unit_specific_wholesale_price else None
             })
         
         return units

@@ -50,7 +50,8 @@ const StockMovement = () => {
       if (filters.search) params.append('search', filters.search);
       
       const response = await api.get(`/api/products/stock-movements/?${params.toString()}`);
-      setStockMovements(response.data.results || response.data);
+      const data = response.data;
+      setStockMovements(data.results || data);
     } catch (err) {
       setError('Failed to load stock movements');
       console.error('Stock movements error:', err);
@@ -62,7 +63,8 @@ const StockMovement = () => {
   const fetchProducts = async () => {
     try {
       const response = await api.get('/api/products/');
-      setProducts(response.data.results || response.data);
+      const data = response.data;
+      setProducts(data.results || data);
     } catch (err) {
       console.error('Products error:', err);
     }

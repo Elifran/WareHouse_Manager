@@ -676,3 +676,150 @@ def get_quantity_conversion_factor_api(request):
             'error': str(e)
         }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_product_pricing_structure(request, product_id):
+    """
+    Get the new pricing structure for a product
+    """
+    try:
+        product = Product.objects.get(id=product_id)
+    except Product.DoesNotExist:
+        return Response({'error': 'Product not found'}, status=status.HTTP_404_NOT_FOUND)
+    
+    # Get standard prices list
+    standard_prices = product.get_standard_prices_list()
+    
+    # Get available standard prices (for sales app)
+    available_standard_prices = product.get_available_standard_prices()
+    
+    # Get available wholesale prices (for sales app)
+    available_wholesale_prices = product.get_available_wholesale_prices()
+    
+    # Get compatible units with their specific prices
+    compatible_units_with_prices = []
+    for product_unit in product.compatible_units.filter(is_active=True):
+        compatible_units_with_prices.append({
+            'id': product_unit.unit.id,
+            'name': product_unit.unit.name,
+            'symbol': product_unit.unit.symbol,
+            'is_default': product_unit.is_default,
+            'is_base_unit': product_unit.unit == product.base_unit,
+            'standard_price': float(product_unit.standard_price) if product_unit.standard_price else None,
+            'wholesale_price': float(product_unit.wholesale_price) if product_unit.wholesale_price else None
+        })
+    
+    return Response({
+        'product_id': product.id,
+        'product_name': product.name,
+        'standard_prices_list': standard_prices,
+        'available_standard_prices': available_standard_prices,
+        'available_wholesale_prices': available_wholesale_prices,
+        'compatible_units_with_prices': compatible_units_with_prices,
+        'base_unit': {
+            'id': product.base_unit.id if product.base_unit else None,
+            'name': product.base_unit.name if product.base_unit else None,
+            'symbol': product.base_unit.symbol if product.base_unit else None
+        }
+    })
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_products_for_sales(request):
+    """
+    Get products with new pricing structure for sales app
+    """
+    price_mode = request.GET.get('price_mode', 'standard')  # 'standard' or 'wholesale'
+    
+    try:
+        products = Product.objects.filter(
+            is_active=True
+        ).select_related('base_unit').prefetch_related('compatible_units__unit')
+        
+        result = []
+        for product in products:
+            if not product.base_unit:
+                continue
+            
+            # Get available units based on price mode
+            available_units = []
+            
+            if price_mode == 'standard':
+                # For standard mode, show units with standard prices (from standard_prices_list or unit-specific)
+                standard_prices = product.get_standard_prices_list()
+                
+                # Add base unit with standard prices
+                if standard_prices:
+                    available_units.append({
+                        'id': product.base_unit.id,
+                        'name': product.base_unit.name,
+                        'symbol': product.base_unit.symbol,
+                        'is_base_unit': True,
+                        'prices': standard_prices,
+                        'available_quantity': product.stock_quantity,
+                        'is_available': product.stock_quantity > 0
+                    })
+                
+                # Add compatible units with unit-specific standard prices
+                for product_unit in product.compatible_units.filter(is_active=True):
+                    if product_unit.standard_price:
+                        # Calculate available quantity in this unit
+                        conversion_factor = get_unit_conversion_factor(product_unit.unit.id, product.base_unit.id)
+                        if conversion_factor:
+                            available_quantity = float(product.stock_quantity / float(conversion_factor))
+                            
+                            available_units.append({
+                                'id': product_unit.unit.id,
+                                'name': product_unit.unit.name,
+                                'symbol': product_unit.unit.symbol,
+                                'is_base_unit': False,
+                                'prices': [float(product_unit.standard_price)],
+                                'available_quantity': available_quantity,
+                                'is_available': available_quantity > 0
+                            })
+            
+            elif price_mode == 'wholesale':
+                # For wholesale mode, show units with wholesale prices
+                wholesale_prices = product.get_available_wholesale_prices()
+                
+                for wholesale_price_info in wholesale_prices:
+                    unit = wholesale_price_info['unit']
+                    price = wholesale_price_info['price']
+                    
+                    if unit == product.base_unit:
+                        available_quantity = product.stock_quantity
+                    else:
+                        conversion_factor = get_unit_conversion_factor(unit.id, product.base_unit.id)
+                        if conversion_factor:
+                            available_quantity = float(product.stock_quantity / float(conversion_factor))
+                        else:
+                            continue
+                    
+                    available_units.append({
+                        'id': unit.id,
+                        'name': unit.name,
+                        'symbol': unit.symbol,
+                        'is_base_unit': unit == product.base_unit,
+                        'prices': [price],
+                        'available_quantity': available_quantity,
+                        'is_available': available_quantity > 0
+                    })
+            
+            if available_units:  # Only include products that have available units for the selected price mode
+                result.append({
+                    'product_id': product.id,
+                    'product_name': product.name,
+                    'sku': product.sku,
+                    'base_unit': {
+                        'id': product.base_unit.id,
+                        'name': product.base_unit.name,
+                        'symbol': product.base_unit.symbol
+                    },
+                    'available_units': available_units
+                })
+        
+        return Response(result)
+        
+    except Exception as e:
+        return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
