@@ -1710,9 +1710,9 @@ const generateSaleContent = (data, t) => {
             Qte${'\u00A0'.repeat(10)}Total${'\u00A0'.repeat(2)}
           </span>
         </div>
-        <div class="no-data">¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯</div>         
       
         ${items && Array.isArray(items) ? items.slice(0, 20).map(item => `
+          <div class="no-data">¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯</div>         
           <div class="sale-item">
             <div class="item-name">${(item.product_name || 'N/A').substring(0, 25)} </div>
             <div class="item-details">

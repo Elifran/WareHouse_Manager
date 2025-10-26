@@ -19,6 +19,8 @@ const PointOfSale = () => {
   const { t } = useTranslation();
   const { user } = useAuth();
   const [products, setProducts] = useState([]);
+  const [allProducts, setAllProducts] = useState([]); // Store all products for client-side filtering
+  const [filteredProducts, setFilteredProducts] = useState([]); // Store filtered products for display
   const [categories, setCategories] = useState([]);
   const [cart, setCart] = useState([]);
   const [customerInfo, setCustomerInfo] = useState({
@@ -30,6 +32,7 @@ const PointOfSale = () => {
   const [paymentType, setPaymentType] = useState('full'); // 'full' or 'partial'
   const [paidAmount, setPaidAmount] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [initialLoading, setInitialLoading] = useState(true); // Separate state for initial load
   const [processing, setProcessing] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -62,6 +65,49 @@ const PointOfSale = () => {
   useEffect(() => {
     categoriesLoadedRef.current = categoriesLoaded;
   }, [categoriesLoaded]);
+
+  // Client-side filtering function
+  const applyClientSideFilters = useCallback((productsToFilter, searchTerm = '', categoryId = '') => {
+    let filtered = [...productsToFilter];
+
+    // Apply search filter
+    if (searchTerm && searchTerm.trim() !== '') {
+      const searchLower = searchTerm.toLowerCase().trim();
+      filtered = filtered.filter(product => 
+        product.name?.toLowerCase().includes(searchLower) ||
+        product.sku?.toLowerCase().includes(searchLower) ||
+        product.description?.toLowerCase().includes(searchLower)
+      );
+    }
+
+    // Apply category filter
+    if (categoryId && categoryId !== '') {
+      const categoryIdNum = parseInt(categoryId);
+      filtered = filtered.filter(product => {
+        // Check different ways category might be stored
+        if (product.category_name) {
+          const category = categoriesRef.current.find(cat => cat.name === product.category_name);
+          return category && category.id === categoryIdNum;
+        } else if (product.category && typeof product.category === 'number') {
+          return product.category === categoryIdNum;
+        } else if (product.category && product.category.id) {
+          return product.category.id === categoryIdNum;
+        }
+        return false;
+      });
+    }
+
+    return filtered;
+  }, []);
+
+  // Effect to apply client-side filtering when allProducts, search, or category changes
+  useEffect(() => {
+    if (allProducts.length > 0) {
+      const filtered = applyClientSideFilters(allProducts, searchInput, filters.category);
+      setFilteredProducts(filtered);
+      setProducts(filtered); // Keep products state for backward compatibility
+    }
+  }, [allProducts, searchInput, filters.category, applyClientSideFilters]);
 
   // Function to sync session storage with categories state
   const syncSessionStorage = useCallback(() => {
@@ -336,20 +382,52 @@ const PointOfSale = () => {
 
   useEffect(() => {
     const initializeData = async () => {
+      // Load categories first
       await fetchCategories();
-      // Don't fetch products here - let the categories useEffect handle it
+      // Load all products immediately after categories are loaded
+      await fetchProducts({});
+      // Set initial loading to false after everything is loaded
+      setInitialLoading(false);
     };
     initializeData();
   }, []);
 
-  // Re-filter products when categories are loaded (to apply sellable filtering)
+  // Re-apply sellable filtering when categories are loaded
   useEffect(() => {
-    if (categoriesLoaded && categories.length > 0) {
-      fetchProducts(filters); // Re-fetch with current filters to apply sellable filtering
+    if (categoriesLoaded && allProducts.length > 0) {
+      // Re-apply sellable filtering to all products
+      const sellableProducts = allProducts.filter(product => {
+        let isSellable = false;
+        
+        // If product has category_name, find the category in our categories list
+        if (product.category_name) {
+          const category = categoriesRef.current.find(cat => cat.name === product.category_name);
+          isSellable = category ? category.is_sellable : false;
+        }
+        // If product has category ID, find the category in our categories list
+        else if (product.category && typeof product.category === 'number') {
+          const category = categoriesRef.current.find(cat => cat.id === product.category);
+          isSellable = category ? category.is_sellable : false;
+        }
+        // If product has category object with ID, find the category in our categories list
+        else if (product.category && product.category.id) {
+          const category = categoriesRef.current.find(cat => cat.id === product.category.id);
+          isSellable = category ? category.is_sellable : false;
+        }
+        // If no category information, exclude the product (safer approach)
+        else {
+          isSellable = false;
+        }
+        
+        return isSellable;
+      });
+      
+      // Update allProducts with sellable filtering
+      setAllProducts(sellableProducts);
     }
-  }, [categoriesLoaded]); // Only depend on categoriesLoaded flag
+  }, [categoriesLoaded, allProducts.length]);
 
-  // Debounced search effect - optimized to prevent focus loss
+  // Search effect - now only updates filters state, no database calls
   useEffect(() => {
     // Clear existing timeout
     if (searchTimeoutRef.current) {
@@ -361,13 +439,13 @@ const PointOfSale = () => {
       searchTimeoutRef.current = setTimeout(() => {
         const newFilters = { ...filtersRef.current, search: searchInput };
         setFilters(newFilters);
-        fetchProducts(newFilters);
-      }, 500);
+        // No fetchProducts call - client-side filtering will handle this
+      }, 300); // Reduced debounce time since it's now client-side
     } else if (filtersRef.current.search !== '') {
       // If search input is cleared, immediately update filters
       const newFilters = { ...filtersRef.current, search: '' };
       setFilters(newFilters);
-      fetchProducts(newFilters);
+      // No fetchProducts call - client-side filtering will handle this
     }
 
     // Cleanup function
@@ -380,13 +458,13 @@ const PointOfSale = () => {
 
   useEffect(() => {
     // Fetch stock availability for ALL products in bulk to improve performance
-    if (products.length > 0) {
+    if (allProducts.length > 0) {
       fetchBulkStockAvailability();
     }
     
     // Set default selected units (default unit first, then base unit) for products with multiple compatible units
     const defaultUnits = {};
-    products.forEach(product => {
+    allProducts.forEach(product => {
       if (product.compatible_units && product.compatible_units.length > 1) {
         
         // First try to find the default unit (is_default: true)
@@ -408,11 +486,11 @@ const PointOfSale = () => {
       }
     });
     setSelectedUnits(defaultUnits);
-  }, [products]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [allProducts]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const fetchBulkStockAvailability = async () => {
     try {
-      const productIds = products.map(product => product.id);
+      const productIds = allProducts.map(product => product.id);
       const response = await api.post('/api/products/bulk-stock-availability/', {
         product_ids: productIds
       });
@@ -426,7 +504,7 @@ const PointOfSale = () => {
       setStockAvailability(stockData);
     } catch (err) {
       // Fallback to individual calls if bulk fails
-      products.forEach(product => {
+      allProducts.forEach(product => {
         fetchStockAvailability(product.id);
       });
     }
@@ -434,7 +512,7 @@ const PointOfSale = () => {
 
   const refreshStockAvailability = () => {
     // Use bulk fetch for better performance
-    if (products.length > 0) {
+    if (allProducts.length > 0) {
       fetchBulkStockAvailability();
     }
   };
@@ -491,17 +569,71 @@ const PointOfSale = () => {
     });
   };
 
+  // const fetchProducts = useCallback(async (filterParams = {}) => {
+  //   try {
+  //     setLoading(true);
+  //     const params = new URLSearchParams();
+      
+  //     // Add filters to params
+  //     if (filterParams.category) params.append('category', filterParams.category);
+  //     if (filterParams.search) params.append('search', filterParams.search);
+      
+  //     // Use the regular products API
+  //     const baseUrl = `/api/products/${params.toString() ? '?' + params.toString() : ''}`;
+  //     const response = await api.get(baseUrl);
+      
+  //     // Handle both paginated and non-paginated responses
+  //     let allProducts = [];
+  //     const data = response.data;
+  //     if (data.results) {
+  //       // Paginated response - fetch all pages
+  //       allProducts = data.results;
+  //       let nextUrl = data.next;
+  //       while (nextUrl) {
+  //         // Extract the path from the full URL for the API call
+  //         const url = new URL(nextUrl);
+  //         const path = url.pathname + url.search;
+  //         const nextResponse = await api.get(path);
+  //         const nextData = nextResponse.data;
+  //         allProducts = [...allProducts, ...nextData.results];
+  //         nextUrl = nextData.next;
+  //       }
+  //     } else if (Array.isArray(data)) {
+  //       // Direct array response
+  //       allProducts = data;
+  //     }
+      
+  //     // Filter for sellable products (is_active = true and stock > 0 for complete sales)
+  //     const sellableProducts = allProducts.filter(product => {
+  //       if (!product.is_active) return false;
+  //       // if (saleMode === 'complete' && product.stock_quantity <= 0) return false;
+  //       return true;
+  //     });
+      
+  //     setProducts(sellableProducts);
+  //     setCurrentPage(1);
+  //   } catch (err) {
+  //     setError('Failed to load products');
+  //   } finally {
+  //     setLoading(false);
+  //   }
+  // }, [saleMode]); // Only depend on saleMode
+
   const fetchProducts = useCallback(async (filterParams = {}) => {
     try {
-      setLoading(true);
+      // Only show loading for initial load or category changes, not for search
+      if (allProducts.length === 0) {
+        setInitialLoading(true);
+        setLoading(true);
+      }
+      
       const params = new URLSearchParams();
       
       // Always filter for active products
       params.append('is_active', 'true');
       
-      // Add filters to params
+      // Only add category filter to API call, not search (search is now client-side)
       if (filterParams.category) params.append('category', filterParams.category);
-      if (filterParams.search) params.append('search', filterParams.search);
       
       const baseUrl = `/api/products/${params.toString() ? '?' + params.toString() : ''}`;
       let response = await api.get(baseUrl);
@@ -517,16 +649,20 @@ const PointOfSale = () => {
         nextUrl = response.data.next;
       }
       
-      const allProducts = aggregatedProducts;
+      const fetchedProducts = aggregatedProducts;
       
-      // If categories are not loaded yet, show all products but log a warning
+      // If categories are not loaded yet, store products but don't filter yet
       if (categoriesRef.current.length === 0 || !categoriesLoadedRef.current) {
-        setProducts(allProducts);
+        setAllProducts(fetchedProducts);
+        // Apply client-side filtering immediately even without categories
+        const filtered = applyClientSideFilters(fetchedProducts, searchInput, filters.category);
+        setFilteredProducts(filtered);
+        setProducts(filtered);
         return;
       }
       
       // ALWAYS filter out products from non-sellable categories
-      const sellableProducts = allProducts.filter(product => {
+      const sellableProducts = fetchedProducts.filter(product => {
         let isSellable = false;
         
         // If product has category_name, find the category in our categories list
@@ -557,19 +693,21 @@ const PointOfSale = () => {
         const selectedCategory = categoriesRef.current.find(cat => cat.id === parseInt(filterParams.category));
         if (selectedCategory && !selectedCategory.is_sellable) {
           // If selected category is not sellable, return empty array
-          setProducts([]);
+          setAllProducts([]);
           return;
         }
       }
       
-      setProducts(sellableProducts);
+      // Store all sellable products for client-side filtering
+      setAllProducts(sellableProducts);
       setCurrentPage(1);
     } catch (err) {
       setError('Failed to load products');
     } finally {
       setLoading(false);
+      setInitialLoading(false);
     }
-  }, []); // No dependencies to avoid circular references
+  }, [allProducts.length]); // Add allProducts.length as dependency
 
   const fetchCategories = useCallback(async () => {
     try {
@@ -740,24 +878,13 @@ const PointOfSale = () => {
       }
     }
     
-    const existingItemSTD = cart.find(item => 
-      item.id === product.id && 
-      item.unit_id === unit.id && 
-      item.price_mode === priceMode &&
-      item.unit_price !== unitPrice
-    );
     const existingItem = cart.find(item => 
       item.id === product.id && 
       item.unit_id === unit.id && 
       item.price_mode === priceMode &&
       item.unit_price === unitPrice
     );
-        
-    if(existingItemSTD && priceMode === 'standard'){
-        setError(`Cant add new ${product.name} for another STD unit prices are already added, only one type is selectable for standard prices`);
-        return;
-    }
-
+    
     // Update cart first
     if (existingItem) {
       // Check if adding 1 more would exceed available quantity (only for complete sales)
@@ -1079,6 +1206,7 @@ const PointOfSale = () => {
       customer_phone: customerInfo.phone || '',
       customer_email: customerInfo.email || '',
       user_name: user?.username || 'Unknown User',
+      user_id: user?.id || 'unknown',
       created_at: new Date().toISOString(),
       print_timestamp: new Date().toISOString(),
       print_id: `PRINT-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
@@ -1277,7 +1405,7 @@ const PointOfSale = () => {
       // For search, update the input state immediately (no API call)
       setSearchInput(value);
     } else {
-      // For other filters (like category), update immediately
+      // For other filters (like category), update immediately and fetch from server
       const newFilters = { ...filtersRef.current, [filterType]: value };
       setFilters(newFilters);
       fetchProducts(newFilters);
@@ -1376,6 +1504,57 @@ const PointOfSale = () => {
     }));
   };
 
+  // const handleProductCardClick = (product) => {
+  //   // Don't allow clicking on out-of-stock products (only for complete sales)
+  //   if (saleMode === 'complete' && product.available_units && product.available_units.every(u => {
+  //     let availableQuantity = product.stock_quantity;
+  //     if (u.conversion_factor && u.conversion_factor > 0) {
+  //       availableQuantity = product.stock_quantity / u.conversion_factor;
+  //     }
+  //     return availableQuantity <= 0;
+  //   })) {
+  //     return;
+  //   }
+    
+  //   if ((product.available_units && product.available_units.length > 1 && priceMode === 'wholesale') ||
+  //       (priceMode === 'standard' && product.standard_prices_list && product.standard_prices_list.length > 0)) {
+  //     // For multi-unit products or multiple standard prices, add with the currently selected option
+  //     const selectedUnitId = selectedUnits[product.id];
+      
+  //     if (selectedUnitId) {
+  //       if (priceMode === 'standard' && selectedUnitId.startsWith('price-')) {
+  //         // Handle standard price selection
+  //         const priceIndex = parseInt(selectedUnitId.split('-')[1]);
+  //         const selectedPrice = product.standard_prices_list[priceIndex];
+          
+  //         // Add to cart with base unit but specific price
+  //         const baseUnit = {
+  //           id: product.base_unit?.id || product.base_unit,
+  //           name: product.base_unit?.name || 'Piece',
+  //           symbol: product.base_unit?.symbol || 'piece'
+  //         };
+  //         addToCart(product, baseUnit, selectedPrice);
+  //       } else {
+  //         // Handle wholesale unit selection
+  //         const selectedAvailableUnit = product.available_units.find(u => u.id === selectedUnitId);
+          
+  //         if (selectedAvailableUnit) {
+  //           // Convert available unit to the format expected by addToCart
+  //           const selectedUnit = {
+  //             id: selectedAvailableUnit.id,
+  //             name: selectedAvailableUnit.name,
+  //             symbol: selectedAvailableUnit.symbol
+  //           };
+  //           addToCart(product, selectedUnit);
+  //         }
+  //       }
+  //     }
+  //   } else {
+  //     // For single-unit products or single price, add directly with base unit
+  //     addToCart(product);
+  //   }
+  // };
+
   const handleProductCardClick = (product) => {
       // console.log(product);
     // Don't allow clicking on out-of-stock products (only for complete sales)
@@ -1435,8 +1614,8 @@ const PointOfSale = () => {
       addToCart(product);
     }
   };
-
-  if (loading) {
+  
+  if (initialLoading) {
     return (
       <div className="pos">
         <div className="pos-loading">
@@ -1646,12 +1825,12 @@ const PointOfSale = () => {
 
           <div className="products-info">
             <p className="products-count">
-              {products.length} product{products.length !== 1 ? 's' : ''} found
+              {filteredProducts.length} product{filteredProducts.length !== 1 ? 's' : ''} found
             </p>
           </div>
 
           <div className="products-grid">
-            {products
+            {filteredProducts
               .slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE)
               .map(product => (
               <div
@@ -1663,7 +1842,7 @@ const PointOfSale = () => {
                   <h3>{product.name}</h3>
                   <p className="product-sku">{product.sku}</p>
                   <p className="product-price">
-                    {/* {(() => {
+                    {(() => {
                       if (priceMode === 'standard') {
                         // For standard mode, show the legacy price (which is the actual standard price)
                         return parseFloat(product.price || 0).toFixed(2);
@@ -1671,10 +1850,9 @@ const PointOfSale = () => {
                         // For wholesale mode, show the wholesale price
                         return parseFloat(product.wholesale_price || 0).toFixed(2);
                       }
-                    })()} MGA */}
+                    })()} MGA
                     {product.available_units && product.available_units.length > 1 && 
-                      `Base unit: ${product.base_unit_symbol}`
-                      // `Base unit: ${product.base_unit?.symbol}`
+                      ` (base unit: ${product.base_unit?.symbol || 'piece'})`
                     }
                   </p>
                   <p className="product-stock">
@@ -1838,7 +2016,7 @@ const PointOfSale = () => {
           </div>
 
           {/* Pagination Controls */}
-          {products.length > PAGE_SIZE && (
+          {filteredProducts.length > PAGE_SIZE && (
             <div className="products-pagination" style={{ display: 'flex', justifyContent: 'center', gap: '12px', marginTop: '12px' }}>
               <Button
                 variant="outline"
@@ -1849,13 +2027,13 @@ const PointOfSale = () => {
                 Prev
               </Button>
               <span style={{ alignSelf: 'center' }}>
-                Page {currentPage} of {Math.ceil(products.length / PAGE_SIZE)}
+                Page {currentPage} of {Math.ceil(filteredProducts.length / PAGE_SIZE)}
               </span>
               <Button
                 variant="outline"
                 size="small"
-                onClick={() => setCurrentPage(p => Math.min(Math.ceil(products.length / PAGE_SIZE), p + 1))}
-                disabled={currentPage >= Math.ceil(products.length / PAGE_SIZE)}
+                onClick={() => setCurrentPage(p => Math.min(Math.ceil(filteredProducts.length / PAGE_SIZE), p + 1))}
+                disabled={currentPage >= Math.ceil(filteredProducts.length / PAGE_SIZE)}
               >
                 Next
               </Button>
