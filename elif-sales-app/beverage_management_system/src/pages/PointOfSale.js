@@ -1614,17 +1614,17 @@ const PointOfSale = () => {
       addToCart(product);
     }
   };
-  
-  if (initialLoading) {
-    return (
-      <div className="pos">
-        <div className="pos-loading">
-          <div className="spinner"></div>
-          <span>Loading products...</span>
-        </div>
-      </div>
-    );
-  }
+
+  // if (initialLoading) {
+  //   return (
+  //     <div className="pos">
+  //       <div className="pos-loading">
+  //         <div className="spinner"></div>
+  //         <span>Loading products...</span>
+  //       </div>
+  //     </div>
+  //   );
+  // }
 
   return (
     <div className="pos">
