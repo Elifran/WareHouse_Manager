@@ -1698,8 +1698,6 @@ const generateSaleContent = (data, t) => {
         </div>
 
         <div class="no-data">${'\u00A0'}</div>
-        <div class="no-data">==================================================</div>
-
       </div>
       <div class="receipt-section">
         <div class="section-title">ITEMS SOLD</div>    
@@ -1726,8 +1724,6 @@ const generateSaleContent = (data, t) => {
         `).join('') : '<div class="no-data">No items found</div>'}
 
         <div class="no-data">__________________________________________________</div>
-        <div class="no-data">==================================================</</div>
-
       </div>       
       <div class="receipt-totals">
         <div class="receipt-row">
@@ -1745,7 +1741,6 @@ const generateSaleContent = (data, t) => {
           </div>
         ` : ''}
         <div class="no-data">__________________________________________________</div>
-        <div class="no-data">==================================================</</div>
         <div class="no-data">${'\u00A0'}</div>
       </div>
       <div class="receipt-footer">
