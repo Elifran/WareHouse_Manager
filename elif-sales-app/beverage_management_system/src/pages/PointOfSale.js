@@ -1842,7 +1842,7 @@ const PointOfSale = () => {
                   <h3>{product.name}</h3>
                   <p className="product-sku">{product.sku}</p>
                   <p className="product-price">
-                    {(() => {
+                    {/* {(() => {
                       if (priceMode === 'standard') {
                         // For standard mode, show the legacy price (which is the actual standard price)
                         return parseFloat(product.price || 0).toFixed(2);
@@ -1850,9 +1850,9 @@ const PointOfSale = () => {
                         // For wholesale mode, show the wholesale price
                         return parseFloat(product.wholesale_price || 0).toFixed(2);
                       }
-                    })()} MGA
+                    })()} MGA */}
                     {product.available_units && product.available_units.length > 1 && 
-                      ` (base unit: ${product.base_unit?.symbol || 'piece'})`
+                      ` (Base Unit: ${product.base_unit_symbol})`
                     }
                   </p>
                   <p className="product-stock">
