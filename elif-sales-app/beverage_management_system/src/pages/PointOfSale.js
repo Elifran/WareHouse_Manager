@@ -488,6 +488,13 @@ const PointOfSale = () => {
     setSelectedUnits(defaultUnits);
   }, [allProducts]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Recalculate packaging quantities whenever cart changes
+  useEffect(() => {
+    if (packagingCart.length > 0) {
+      recalculateAllPackagingQuantities();
+    }
+  }, [cart]); // Depend on cart changes
+
   const fetchBulkStockAvailability = async () => {
     try {
       const productIds = allProducts.map(product => product.id);
@@ -568,56 +575,6 @@ const PointOfSale = () => {
       };
     });
   };
-
-  // const fetchProducts = useCallback(async (filterParams = {}) => {
-  //   try {
-  //     setLoading(true);
-  //     const params = new URLSearchParams();
-      
-  //     // Add filters to params
-  //     if (filterParams.category) params.append('category', filterParams.category);
-  //     if (filterParams.search) params.append('search', filterParams.search);
-      
-  //     // Use the regular products API
-  //     const baseUrl = `/api/products/${params.toString() ? '?' + params.toString() : ''}`;
-  //     const response = await api.get(baseUrl);
-      
-  //     // Handle both paginated and non-paginated responses
-  //     let allProducts = [];
-  //     const data = response.data;
-  //     if (data.results) {
-  //       // Paginated response - fetch all pages
-  //       allProducts = data.results;
-  //       let nextUrl = data.next;
-  //       while (nextUrl) {
-  //         // Extract the path from the full URL for the API call
-  //         const url = new URL(nextUrl);
-  //         const path = url.pathname + url.search;
-  //         const nextResponse = await api.get(path);
-  //         const nextData = nextResponse.data;
-  //         allProducts = [...allProducts, ...nextData.results];
-  //         nextUrl = nextData.next;
-  //       }
-  //     } else if (Array.isArray(data)) {
-  //       // Direct array response
-  //       allProducts = data;
-  //     }
-      
-  //     // Filter for sellable products (is_active = true and stock > 0 for complete sales)
-  //     const sellableProducts = allProducts.filter(product => {
-  //       if (!product.is_active) return false;
-  //       // if (saleMode === 'complete' && product.stock_quantity <= 0) return false;
-  //       return true;
-  //     });
-      
-  //     setProducts(sellableProducts);
-  //     setCurrentPage(1);
-  //   } catch (err) {
-  //     setError('Failed to load products');
-  //   } finally {
-  //     setLoading(false);
-  //   }
-  // }, [saleMode]); // Only depend on saleMode
 
   const fetchProducts = useCallback(async (filterParams = {}) => {
     try {
@@ -1018,15 +975,33 @@ const PointOfSale = () => {
 
       // Update packaging cart
       setPackagingCart(currentPackagingCart => {
+        // Look for existing packaging for the same product (regardless of unit)
         const existingPackaging = currentPackagingCart.find(item => item.id === product.id);
+        
         if (existingPackaging) {
-          // Update existing packaging quantity to match sales quantity
+          // Calculate total packaging quantity from all units of this product in cart
+          const totalSalesQuantity = currentCart
+            .filter(item => item.id === product.id)
+            .reduce((sum, item) => {
+              // Get unit information for conversion
+              const updatedStockInfo = getUpdatedStockAvailability(product.id);
+              const unitStockInfo = updatedStockInfo?.find(u => u.id === item.unit_id);
+              
+              let quantity = item.quantity;
+              // Convert to base unit (pieces) if needed
+              if (unitStockInfo && !unitStockInfo.is_base_unit && unitStockInfo.conversion_factor) {
+                quantity = item.quantity * unitStockInfo.conversion_factor;
+              }
+              return sum + quantity;
+            }, 0);
+          
+          // Update existing packaging quantity to match total sales quantity
           return currentPackagingCart.map(item =>
             item.id === product.id
               ? { 
                   ...item, 
-                  quantity: packagingQuantity,
-                  total_price: parseFloat(product.packaging_price) * packagingQuantity
+                  quantity: totalSalesQuantity,
+                  total_price: parseFloat(product.packaging_price) * totalSalesQuantity
                 }
               : item
           );
@@ -1052,34 +1027,6 @@ const PointOfSale = () => {
     });
   };
 
-  const addToPackagingCart = (product) => {
-    if (!product.has_packaging || !product.packaging_price) {
-      setError('This product does not have packaging consignation');
-      return;
-    }
-
-    const existingPackaging = packagingCart.find(item => item.id === product.id);
-    if (existingPackaging) {
-      setPackagingCart(packagingCart.map(item =>
-        item.id === product.id
-          ? { ...item, quantity: item.quantity + 1 }
-          : item
-      ));
-    } else {
-      const newPackagingItem = {
-        ...product,
-        quantity: 1,
-        unit_price: parseFloat(product.packaging_price),
-        total_price: parseFloat(product.packaging_price),
-        status: 'consignation',
-        customer_name: customerInfo.name,
-        customer_phone: customerInfo.phone
-      };
-      setPackagingCart([...packagingCart, newPackagingItem]);
-    }
-    setError('');
-  };
-
   const updatePackagingQuantityAutomatically = (product, unit, salesQuantity) => {
     if (!product.has_packaging || !product.packaging_price) {
       return;
@@ -1098,15 +1045,33 @@ const PointOfSale = () => {
     }
 
     setPackagingCart(currentPackagingCart => {
+      // Look for existing packaging for the same product (regardless of unit)
       const existingPackaging = currentPackagingCart.find(item => item.id === product.id);
+      
       if (existingPackaging) {
-        // Update existing packaging quantity to match sales quantity
+        // Calculate total packaging quantity from all units of this product in cart
+        const totalSalesQuantity = cart
+          .filter(item => item.id === product.id)
+          .reduce((sum, item) => {
+            // Get unit information for conversion
+            const updatedStockInfo = getUpdatedStockAvailability(product.id);
+            const unitStockInfo = updatedStockInfo?.find(u => u.id === item.unit_id);
+            
+            let quantity = item.quantity;
+            // Convert to base unit (pieces) if needed
+            if (unitStockInfo && !unitStockInfo.is_base_unit && unitStockInfo.conversion_factor) {
+              quantity = item.quantity * unitStockInfo.conversion_factor;
+            }
+            return sum + quantity;
+          }, 0);
+        
+        // Update existing packaging quantity to match total sales quantity
         return currentPackagingCart.map(item =>
           item.id === product.id
             ? { 
                 ...item, 
-                quantity: packagingQuantity,
-                total_price: parseFloat(product.packaging_price) * packagingQuantity
+                quantity: totalSalesQuantity,
+                total_price: parseFloat(product.packaging_price) * totalSalesQuantity
               }
             : item
         );
@@ -1129,18 +1094,6 @@ const PointOfSale = () => {
     });
   };
 
-  const updatePackagingQuantity = (productId, quantity) => {
-    if (quantity <= 0) {
-      setPackagingCart(packagingCart.filter(item => item.id !== productId));
-    } else {
-      setPackagingCart(packagingCart.map(item =>
-        item.id === productId
-          ? { ...item, quantity, total_price: item.unit_price * quantity }
-          : item
-      ));
-    }
-  };
-
   const updatePackagingStatus = (productId, status) => {
     setPackagingCart(packagingCart.map(item =>
       item.id === productId
@@ -1151,6 +1104,41 @@ const PointOfSale = () => {
 
   const removeFromPackagingCart = (productId) => {
     setPackagingCart(packagingCart.filter(item => item.id !== productId));
+  };
+
+  // Function to recalculate packaging quantities for all products
+  const recalculateAllPackagingQuantities = () => {
+    setPackagingCart(currentPackagingCart => {
+      return currentPackagingCart.map(packagingItem => {
+        // Find all cart items for this product
+        const productCartItems = cart.filter(item => item.id === packagingItem.id);
+        
+        if (productCartItems.length === 0) {
+          // If product is no longer in cart, remove its packaging
+          return null;
+        }
+        
+        // Calculate total packaging quantity from all units of this product
+        const totalSalesQuantity = productCartItems.reduce((sum, item) => {
+          // Get unit information for conversion
+          const updatedStockInfo = getUpdatedStockAvailability(packagingItem.id);
+          const unitStockInfo = updatedStockInfo?.find(u => u.id === item.unit_id);
+          
+          let quantity = item.quantity;
+          // Convert to base unit (pieces) if needed
+          if (unitStockInfo && !unitStockInfo.is_base_unit && unitStockInfo.conversion_factor) {
+            quantity = item.quantity * unitStockInfo.conversion_factor;
+          }
+          return sum + quantity;
+        }, 0);
+        
+        return {
+          ...packagingItem,
+          quantity: totalSalesQuantity,
+          total_price: parseFloat(packagingItem.unit_price) * totalSalesQuantity
+        };
+      }).filter(item => item !== null); // Remove null items
+    });
   };
 
   const calculatePackagingTotal = () => {
@@ -1198,7 +1186,17 @@ const PointOfSale = () => {
   // Prepare print data for printing
   const preparePrintData = (saleNumber, saleStatus = 'completed') => {
     const total = calculateSubtotal();
-    const remaining = total - paidAmount;
+    
+    // Calculate packaging total only for "consignation" items
+    const packagingTotal = packagingCart.reduce((total, item) => {
+      if (item.status === 'consignation') {
+        return total + (item.total_price || 0);
+      }
+      return total;
+    }, 0);
+    
+    const grandTotal = total + packagingTotal;
+    const remaining = grandTotal - paidAmount;
     
     return {
       sale_number: saleNumber,
@@ -1212,6 +1210,8 @@ const PointOfSale = () => {
       print_id: `PRINT-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
       status: saleStatus,
       total_amount: total,
+      packaging_total: packagingTotal,
+      grand_total: grandTotal,
       paid_amount: paidAmount,
       remaining_amount: remaining,
       payment_status: remaining > 0 ? 'partial' : 'paid',
@@ -1223,6 +1223,13 @@ const PointOfSale = () => {
         unit_name: item.unit_name || item.unit?.name || 'piece',
         unit_price: item.unit_price,
         total_price: item.unit_price * item.quantity
+      })),
+      packaging_items: packagingCart.map(item => ({
+        product_name: item.name,
+        quantity: item.quantity,
+        unit_price: item.unit_price,
+        total_price: item.total_price,
+        status: item.status
       }))
     };
   };

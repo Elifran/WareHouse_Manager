@@ -1724,11 +1724,67 @@ const generateSaleContent = (data, t) => {
         `).join('') : '<div class="no-data">No items found</div>'}
 
         <div class="no-data">__________________________________________________</div>
-      </div>       
+      </div>
+      ${data.packaging_items && data.packaging_items.length > 0 ? `
+        <div class="receipt-section">
+          <div class="section-title">PACKAGINGS</div>    
+          <div class="no-data">__________________________________________________</div>
+          <div class="item-details">
+            <span>Info</span>
+            <span>
+              Qte${'\u00A0'.repeat(10)}Total${'\u00A0'.repeat(2)}
+            </span>
+          </div>
+        
+          ${data.packaging_items.slice(0, 10).map(item => {
+            let unitPriceDisplay, totalPriceDisplay;
+            
+            if (item.status === 'consignation') {
+              unitPriceDisplay = `${parseFloat(item.unit_price || 0).toFixed(2)}`;
+              totalPriceDisplay = `${parseFloat(item.total_price || 0).toFixed(2)} MGA`;
+            } else if (item.status === 'exchange') {
+              unitPriceDisplay = '0.00';
+              totalPriceDisplay = '0.00 MGA';
+            } else if (item.status === 'due') {
+              unitPriceDisplay = 'DUE';
+              totalPriceDisplay = 'DUE';
+            } else {
+              unitPriceDisplay = `${parseFloat(item.unit_price || 0).toFixed(2)}`;
+              totalPriceDisplay = `${parseFloat(item.total_price || 0).toFixed(2)} MGA`;
+            }
+            
+            return `
+            <div class="no-data">¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯</div>         
+            <div class="packaging-item">
+              <div class="item-name">${(item.product_name || 'N/A').substring(0, 25)} </div>
+              <div class="item-details">
+                <span>
+                  ${unitPriceDisplay.padEnd(26, '\u00A0')}
+                  ${(item.quantity || 0).toString().padStart(3, '\u00A0')}
+                  ${totalPriceDisplay.padStart(12, '\u00A0')}
+                </span>
+              </div>
+            </div>
+          `;
+          }).join('')}
+
+          <div class="no-data">__________________________________________________</div>
+        </div>
+      ` : ''}
       <div class="receipt-totals">
         <div class="receipt-row">
           <span>Subtotal:</span>
           <span>${parseFloat(data.total_amount || 0).toFixed(2)} MGA</span>
+        </div>
+        ${data.packaging_total && data.packaging_total > 0 ? `
+          <div class="receipt-row">
+            <span>Packagings:</span>
+            <span>${parseFloat(data.packaging_total || 0).toFixed(2)} MGA</span>
+          </div>
+        ` : ''}
+        <div class="receipt-row">
+          <span>Total:</span>
+          <span>${parseFloat(data.grand_total || data.total_amount || 0).toFixed(2)} MGA</span>
         </div>
         <div class="receipt-row">
           <span>Paid:</span>

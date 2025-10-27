@@ -110,6 +110,36 @@ const PackagingManager = ({ saleId, onPackagingUpdate, onClose }) => {
     );
   };
 
+  const handleSettlePackaging = async (packagingId) => {
+    try {
+      setError('');
+      setSuccess('');
+
+      // Update packaging status to 'consignation' (settled)
+      await api.patch(`/api/sales/packaging/${packagingId}/`, {
+        status: 'consignation'
+      });
+
+      setSuccess('Packaging item settled successfully');
+      
+      // Update local state
+      setPackagingItems(prev => 
+        prev.map(item => 
+          item.id === packagingId 
+            ? { ...item, status: 'consignation' }
+            : item
+        )
+      );
+      
+      if (onPackagingUpdate) {
+        onPackagingUpdate();
+      }
+    } catch (err) {
+      setError(err.response?.data?.error || 'Failed to settle packaging item');
+      console.error('Error settling packaging:', err);
+    }
+  };
+
   const calculatePackagingTotal = () => {
     return packagingItems.reduce((total, item) => {
       return total + (parseFloat(item.total_price) || 0);
@@ -284,6 +314,16 @@ const PackagingManager = ({ saleId, onPackagingUpdate, onClose }) => {
                       <option value="exchange">Exchange</option>
                       <option value="due">Due (To be returned)</option>
                     </select>
+                    {item.status === 'due' && (
+                      <Button 
+                        onClick={() => handleSettlePackaging(item.id)}
+                        variant="success"
+                        size="small"
+                        style={{ marginLeft: '10px' }}
+                      >
+                        Settle
+                      </Button>
+                    )}
                   </div>
                   {item.customer_name && (
                     <div className="customer-info">

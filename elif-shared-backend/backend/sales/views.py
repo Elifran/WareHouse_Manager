@@ -231,6 +231,12 @@ def complete_sale(request, sale_id):
             # Calculate packaging transaction totals
             packaging_transaction.calculate_totals()
             
+            # Set the paid amount to the total amount since packaging was paid as part of the sale
+            packaging_transaction.paid_amount = packaging_transaction.total_amount
+            packaging_transaction.payment_status = 'paid'
+            packaging_transaction.status = 'completed'
+            packaging_transaction.save(update_fields=['paid_amount', 'payment_status', 'status'])
+            
         except Exception as e:
             # Log the error but don't fail the sale completion
             print(f"Error creating packaging transaction for sale {sale.sale_number}: {str(e)}")

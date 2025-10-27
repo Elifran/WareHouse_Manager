@@ -112,6 +112,35 @@ const PackagingValidation = ({ saleId, onComplete, onCancel }) => {
     );
   };
 
+  const handleSettlePackaging = async (packagingId) => {
+    try {
+      setError('');
+      setSuccess('');
+
+      // Update packaging status to 'consignation' (settled)
+      await api.patch(`/api/sales/packaging/${packagingId}/`, {
+        status: 'consignation'
+      });
+
+      setSuccess('Packaging item settled successfully');
+      
+      // Update local state
+      setPackagingItems(prev => 
+        prev.map(item => 
+          item.id === packagingId 
+            ? { ...item, status: 'consignation' }
+            : item
+        )
+      );
+      
+      // Refresh data
+      fetchPackagingData();
+    } catch (err) {
+      setError(err.response?.data?.error || 'Failed to settle packaging item');
+      console.error('Error settling packaging:', err);
+    }
+  };
+
   const handleCompleteValidation = async () => {
     try {
       setError('');
@@ -324,6 +353,16 @@ const PackagingValidation = ({ saleId, onComplete, onCancel }) => {
                       <option value="exchange">Exchange</option>
                       <option value="due">Due (To be returned)</option>
                     </select>
+                    {item.status === 'due' && (
+                      <Button 
+                        onClick={() => handleSettlePackaging(item.id)}
+                        variant="success"
+                        size="small"
+                        style={{ marginLeft: '10px' }}
+                      >
+                        Settle
+                      </Button>
+                    )}
                   </div>
                   {item.customer_name && (
                     <div className="customer-info">

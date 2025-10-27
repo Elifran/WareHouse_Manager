@@ -132,6 +132,13 @@ def create_packaging_from_sale(request, sale_id):
         serializer = PackagingTransactionCreateSerializer(data=transaction_data)
         if serializer.is_valid():
             transaction = serializer.save(created_by=request.user)
+            
+            # Set the paid amount to the total amount since packaging was paid as part of the sale
+            transaction.paid_amount = transaction.total_amount
+            transaction.payment_status = 'paid'
+            transaction.status = 'completed'
+            transaction.save(update_fields=['paid_amount', 'payment_status', 'status'])
+            
             return Response({
                 'message': 'Packaging transaction created successfully',
                 'transaction': PackagingTransactionSerializer(transaction).data
