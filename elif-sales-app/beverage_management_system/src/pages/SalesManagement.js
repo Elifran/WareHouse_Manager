@@ -6,6 +6,8 @@ import Table from '../components/Table';
 import Button from '../components/Button';
 import PrintButton from '../components/PrintButton';
 import './SalesManagement.css';
+import SaleDetailModal from '../components/SaleDetailModal';
+
 
 const SalesManagement = () => {
   const { t } = useTranslation();
@@ -18,6 +20,9 @@ const SalesManagement = () => {
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [selectedSale, setSelectedSale] = useState(null);
   const [loadingSale, setLoadingSale] = useState(false);
+  const [showSaleModal, setShowSaleModal] = useState(false);
+  const [saleDetailLoading, setSaleDetailLoading] = useState(false);
+
   const [deleteFilters, setDeleteFilters] = useState({
     customer_name: '',
     start_date: '',
@@ -420,7 +425,34 @@ const SalesManagement = () => {
   }, [editFormData.payment_type, editFormData.items]);
 
   // Sales app - all authenticated users can access sales management
+  const handleSaleClick = async (sale) => {
+      try {
+        setSaleDetailLoading(true);
+        setShowSaleModal(true);
+        
+        // Check if sale has an ID
+        const saleId = sale.id || sale.sale_id;
+        if (!saleId) {
+          throw new Error(t('errors.not_found'));
+        }
+        
+        // Fetch detailed sale information
+        const response = await api.get(`/api/sales/${saleId}/`);
+        setSelectedSale(response.data);
+      } catch (err) {
+        console.error('Failed to fetch sale details:', err);
+        setError(`Failed to load sale details: ${err.message}`);
+        setShowSaleModal(false);
+      } finally {
+        setSaleDetailLoading(false);
+      }
+    };
 
+    const handleCloseSaleModal = () => {
+      setShowSaleModal(false);
+      setSelectedSale(null);
+    };
+    
   return (
     <div className="sales-management">
       <div className="page-header">
@@ -519,180 +551,191 @@ const SalesManagement = () => {
           <div className="loading">Loading sales...</div>
         ) : (
           <Table
-            data={sales}
-            columns={[
-              {
-                key: 'sale_number',
-                header: t('table_headers.sale_number'),
-                render: (value, row) => (
-                  <span className="sale-number">{value}</span>
-                )
-              },
-              {
-                key: 'customer_name',
-                header: t('table_headers.customer'),
-                render: (value) => value || 'N/A'
-              },
-              {
-                key: 'status',
-                header: t('table_headers.status'),
-                render: (value, row) => (
-                  <div className="status-container">
-                    <div className="sale-status">
-                      {getStatusBadge(value)}
-                    </div>
-                  </div>
-                )
-              },
-              {
-                key: 'payment_status',
-                header: t('table_headers.payment'),
-                render: (value, row) => {
-                  const paymentClasses = {
-                    'pending': 'payment-pending',
-                    'partial': 'payment-partial',
-                    'paid': 'payment-paid'
-                  };
-                  const paymentLabels = {
-                    'pending': t('status_labels.pending'),
-                    'partial': t('status_labels.partial'),
-                    'paid': t('status_labels.paid')
-                  };
-                  return <span className={`payment-badge ${paymentClasses[value] || ''}`}>{paymentLabels[value] || value}</span>;
-                }
-              },
-              {
-                key: 'items',
-                header: t('table_headers.items'),
-                render: (items, row) => {
-                  if (!items || items.length === 0) {
-                    return <span className="no-items">No items</span>;
-                  }
-                  return (
-                    <div className="sale-items">
-                      {items.slice(0, 2).map((item, index) => (
-                        <div key={index} className="sale-item-row">
-                          <span className="item-name">
-                            {item.product_name}
-                            <span className={`price-mode-badge ${item.price_mode || 'standard'}`}>
-                              {item.price_mode === 'wholesale' ? 'WS' : 'STD'}
-                            </span>
+          data={sales}
+          columns={[
+            {
+              key: 'sale_number',
+              header: t('table_headers.sale_number'),
+              render: (value, row) => (
+                <span
+                  className="sale-number clickable"
+                  onClick={() => handleSaleClick(row)} // 👈 pass current row
+                >
+                  {value}
+                </span>
+              )
+            },
+            {
+              key: 'customer_name',
+              header: t('table_headers.customer'),
+              render: (value) => value || 'N/A'
+            },
+            {
+              key: 'status',
+              header: t('table_headers.status'),
+              render: (value) => (
+                <div className="status-container">
+                  <div className="sale-status">{getStatusBadge(value)}</div>
+                </div>
+              )
+            },
+            {
+              key: 'payment_status',
+              header: t('table_headers.payment'),
+              render: (value) => {
+                const paymentClasses = {
+                  pending: 'payment-pending',
+                  partial: 'payment-partial',
+                  paid: 'payment-paid'
+                };
+                const paymentLabels = {
+                  pending: t('status_labels.pending'),
+                  partial: t('status_labels.partial'),
+                  paid: t('status_labels.paid')
+                };
+                return (
+                  <span className={`payment-badge ${paymentClasses[value] || ''}`}>
+                    {paymentLabels[value] || value}
+                  </span>
+                );
+              }
+            },
+            {
+              key: 'items',
+              header: t('table_headers.items'),
+              render: (items) => {
+                if (!items || items.length === 0)
+                  return <span className="no-items">No items</span>;
+                return (
+                  <div className="sale-items">
+                    {items.slice(0, 2).map((item, index) => (
+                      <div key={index} className="sale-item-row">
+                        <span className="item-name">
+                          {item.product_name}
+                          <span
+                            className={`price-mode-badge ${item.price_mode || 'standard'}`}
+                          >
+                            {item.price_mode === 'wholesale' ? 'WS' : 'STD'}
                           </span>
-                          <span className="item-details">
-                            {item.quantity_display || item.quantity} {item.unit_symbol || 'pcs'} × {formatCurrency(item.unit_price)}
-                          </span>
-                        </div>
-                      ))}
-            {items.length > 2 && (
-              <div className="more-items">+{items.length - 2} more items</div>
-            )}
-                    </div>
-                  );
-                }
-              },
-              {
-                key: 'total_amount',
-                header: t('table_headers.total_amount'),
-                render: (value, row) => (
-                  <div className="amount-container">
-                    <div className="total-amount">
-                      {formatCurrency(value)}
-                    </div>
-                  </div>
-                )
-              },
-              {
-                key: 'created_at',
-                header: t('table_headers.date'),
-                render: (value) => formatDate(value)
-              },
-              {
-                key: 'sold_by_name',
-                header: t('table_headers.sold_by'),
-                render: (value) => value || 'N/A'
-              },
-              {
-                key: 'payment_method',
-                header: t('table_headers.payment_method'),
-                render: (value, row) => {
-                  // For pending sales, make payment method editable
-                  if (row.status === 'pending') {
-                    return (
-                      <select
-                        value={value || 'cash'}
-                        onChange={(e) => handlePaymentMethodChange(row.id, e.target.value)}
-                        className="payment-method-select"
-                      >
-                        <option value="cash">Cash</option>
-                        <option value="card">Card</option>
-                        <option value="mobile_money">Mobile Money</option>
-                        <option value="bank_transfer">Bank Transfer</option>
-                      </select>
-                    );
-                  }
-                  // For other sales, just display the payment method
-                  const methodLabels = {
-                    'cash': t('payment_methods.cash'),
-                    'card': t('payment_methods.card'),
-                    'mobile_money': t('payment_methods.mobile_money'),
-                    'bank_transfer': t('payment_methods.bank_transfer')
-                  };
-                  return <span className="payment-method-display">{methodLabels[value] || value || 'Cash'}</span>;
-                }
-              },
-              {
-                key: 'paid_amount',
-                header: t('table_headers.paid_amount'),
-                render: (value, row) => {
-                  const paidAmount = parseFloat(value) || 0;
-                  
-                  return (
-                    <div className="payment-amount-container">
-                      <div className="paid-amount">
-                        {formatCurrency(paidAmount)}
+                        </span>
+                        <span className="item-details">
+                          {item.quantity_display || item.quantity}{' '}
+                          {item.unit_symbol || 'pcs'} × {formatCurrency(item.unit_price)}
+                        </span>
                       </div>
-                    </div>
+                    ))}
+                    {items.length > 2 && (
+                      <div className="more-items">+{items.length - 2} more items</div>
+                    )}
+                  </div>
+                );
+              }
+            },
+            {
+              key: 'total_amount',
+              header: t('table_headers.total_amount'),
+              render: (value) => (
+                <div className="amount-container">
+                  <div className="total-amount">{formatCurrency(value)}</div>
+                </div>
+              )
+            },
+            {
+              key: 'created_at',
+              header: t('table_headers.date'),
+              render: (value) => formatDate(value)
+            },
+            {
+              key: 'sold_by_name',
+              header: t('table_headers.sold_by'),
+              render: (value) => value || 'N/A'
+            },
+            {
+              key: 'payment_method',
+              header: t('table_headers.payment_method'),
+              render: (value, row) => {
+                if (row.status === 'pending') {
+                  return (
+                    <select
+                      value={value || 'cash'}
+                      onChange={(e) => handlePaymentMethodChange(row.id, e.target.value)}
+                      className="payment-method-select"
+                    >
+                      <option value="cash">Cash</option>
+                      <option value="card">Card</option>
+                      <option value="mobile_money">Mobile Money</option>
+                      <option value="bank_transfer">Bank Transfer</option>
+                    </select>
                   );
                 }
-              },
-              {
-                key: 'actions',
-                header: t('table_headers.actions'),
-                render: (_, row) => (
-                  <div className="action-buttons">
-                    <PrintButton
-                      data={{
-                        ...row,
-                        user_name: user?.username || t('app.unknown_user'),
-                        user_id: user?.id || 'unknown',
-                        print_timestamp: new Date().toISOString(),
-                        print_id: `PRINT-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
-                      }}
-                      title={t('titles.sale_receipt')}
-                      type="sale"
-                      printText={t('buttons.print')}
-                      className="print-sale-btn"
-                    />
-                    {!(row.status === 'completed' && row.payment_status === 'paid') && 
-                     row.status !== 'refunded' && (
-                      <Button 
-                        variant="primary" 
+                const methodLabels = {
+                  cash: t('payment_methods.cash'),
+                  card: t('payment_methods.card'),
+                  mobile_money: t('payment_methods.mobile_money'),
+                  bank_transfer: t('payment_methods.bank_transfer')
+                };
+                return (
+                  <span className="payment-method-display">
+                    {methodLabels[value] || value || 'Cash'}
+                  </span>
+                );
+              }
+            },
+            {
+              key: 'paid_amount',
+              header: t('table_headers.paid_amount'),
+              render: (value) => (
+                <div className="payment-amount-container">
+                  <div className="paid-amount">
+                    {formatCurrency(parseFloat(value) || 0)}
+                  </div>
+                </div>
+              )
+            },
+            {
+              key: 'actions',
+              header: t('table_headers.actions'),
+              render: (_, row) => (
+                <div className="action-buttons" onClick={(e) => e.stopPropagation()}>
+                  {/* <PrintButton
+                    data={{
+                      ...row,
+                      user_name: user?.username || t('app.unknown_user'),
+                      user_id: user?.id || 'unknown',
+                      print_timestamp: new Date().toISOString(),
+                      print_id: `PRINT-${Date.now()}-${Math.random()
+                        .toString(36)
+                        .substr(2, 9)}`
+                    }}
+                    title={t('titles.sale_receipt')}
+                    type="sale"
+                    printText={t('buttons.print')}
+                    className="print-sale-btn"
+                  /> */}
+                  {!(row.status === 'completed' && row.payment_status === 'paid') &&
+                    row.status !== 'refunded' && (
+                      <Button
+                        variant="primary"
                         size="small"
-                        onClick={() => openEditModal(row)}
+                        onClick={() => openEditModal(row)} // 👈 pass row
                         loading={loadingSale}
                         disabled={loadingSale}
                       >
                         Edit
                       </Button>
                     )}
-                    {row.status === 'completed' && 
-                     row.status !== 'refunded' && 
-                     row.sale_type !== 'return' && (
-                      <Button 
-                        variant="warning" 
+                  {row.status === 'completed' &&
+                    row.status !== 'refunded' &&
+                    row.sale_type !== 'return' && (
+                      <Button
+                        variant="warning"
                         size="small"
                         onClick={() => {
-                          if (window.confirm(`Are you sure you want to create a return for this sale? This will restore stock and mark the sale as refunded.`)) {
+                          if (
+                            window.confirm(
+                              `Are you sure you want to create a return for this sale? This will restore stock and mark the sale as refunded.`
+                            )
+                          ) {
                             createReturn(row);
                           }
                         }}
@@ -702,14 +745,18 @@ const SalesManagement = () => {
                         Return
                       </Button>
                     )}
-                    {(row.status === 'pending' || row.status === 'completed') && 
-                     row.status !== 'refunded' && 
-                     row.sale_type !== 'return' && (
-                      <Button 
-                        variant="danger" 
+                  {(row.status === 'pending' || row.status === 'completed') &&
+                    row.status !== 'refunded' &&
+                    row.sale_type !== 'return' && (
+                      <Button
+                        variant="danger"
                         size="small"
                         onClick={() => {
-                          if (window.confirm(`Are you sure you want to cancel this ${row.status} sale?`)) {
+                          if (
+                            window.confirm(
+                              `Are you sure you want to cancel this ${row.status} sale?`
+                            )
+                          ) {
                             cancelSale(row.id);
                           }
                         }}
@@ -717,11 +764,13 @@ const SalesManagement = () => {
                         Cancel
                       </Button>
                     )}
-                  </div>
-                )
-              }
-            ]}
-          />
+                </div>
+              )
+            }
+          ]}
+          onRowClick={(row) => handleSaleClick(row)} // 👈 row click passes current item
+        />
+
         )}
       </div>
 
@@ -1067,6 +1116,15 @@ const SalesManagement = () => {
             </div>
           </div>
         </div>
+      )}
+
+      Sale Detail Modal
+      {showSaleModal && (
+        <SaleDetailModal
+          sale={selectedSale}
+          onClose={handleCloseSaleModal}
+          loading={saleDetailLoading}
+        />
       )}
     </div>
   );

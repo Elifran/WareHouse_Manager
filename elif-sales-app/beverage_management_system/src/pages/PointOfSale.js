@@ -3,14 +3,11 @@ import { useTranslation } from 'react-i18next';
 import { useAuth } from '../contexts/AuthContext';
 import api from '../services/api';
 import Button from '../components/Button';
-import PackagingManager from '../components/PackagingManager';
 import { 
   isMobileDevice,
   openPrintWindow,
   openPrintPreview,
   downloadReceiptFile,
-  generateXprinterPrintContent,
-  generateMobilePrintContent,
   generatePrintContent
 } from '../utils/printUtils';
 import './PointOfSale.css';
@@ -53,6 +50,15 @@ const PointOfSale = () => {
   const categoriesRef = useRef(categories); // Ref to store current categories
   const categoriesLoadedRef = useRef(categoriesLoaded); // Ref to store categories loaded state
 
+  const [showSellableToggle, setShowSellableToggle] = useState(false); // Show/hide sellable toggle
+  const [priceMode, setPriceMode] = useState('standard'); // 'standard' or 'wholesale'
+  const [saleMode, setSaleMode] = useState('complete'); // 'complete' or 'pending'
+  const [printReceipt, setPrintReceipt] = useState(true); // true or false
+  const [currentPage, setCurrentPage] = useState(1);
+  const PAGE_SIZE = 24;
+  
+  // Packaging state
+  const [packagingCart, setPackagingCart] = useState([]);
   // Update refs whenever state changes
   useEffect(() => {
     filtersRef.current = filters;
@@ -132,16 +138,7 @@ const PointOfSale = () => {
     }
   }, [categoriesLoaded, categories.length, filters]);
 
-  const [showSellableToggle, setShowSellableToggle] = useState(false); // Show/hide sellable toggle
-  const [priceMode, setPriceMode] = useState('standard'); // 'standard' or 'wholesale'
-  const [saleMode, setSaleMode] = useState('complete'); // 'complete' or 'pending'
-  const [printReceipt, setPrintReceipt] = useState(true); // true or false
-  const [currentPage, setCurrentPage] = useState(1);
-  const PAGE_SIZE = 24;
   
-  // Packaging state
-  const [packagingCart, setPackagingCart] = useState([]);
-  const [showPackagingManager, setShowPackagingManager] = useState(false);
 
   const handlePrintReceipt = async (printData, title = 'Sale Receipt', usePreview = false) => {
     try {
@@ -292,14 +289,6 @@ const PointOfSale = () => {
     await handlePrintReceipt(printData, t('titles.sale_receipt'), true);
   };
 
-  // Function to get the current price based on price mode
-  const getCurrentPrice = (product) => {
-    if (priceMode === 'wholesale' && product.wholesale_price) {
-      return parseFloat(product.wholesale_price);
-    }
-    return parseFloat(product.price);
-  };
-
   // Calculate total amount (products only, excluding packaging)
   const calculateTotal = () => {
     const cartTotal = cart.reduce((total, item) => {
@@ -307,16 +296,6 @@ const PointOfSale = () => {
       return total + (unitPrice * item.quantity);
     }, 0);
     return cartTotal;
-  };
-
-  // Calculate total amount including packaging (for display purposes)
-  const calculateTotalWithPackaging = () => {
-    const cartTotal = cart.reduce((total, item) => {
-      const unitPrice = item.unit_price || 0;
-      return total + (unitPrice * item.quantity);
-    }, 0);
-    const packagingTotal = calculatePackagingTotal();
-    return cartTotal + packagingTotal;
   };
 
   // Update paid amount when payment type changes
@@ -331,54 +310,6 @@ const PointOfSale = () => {
       }
     }
   }, [paymentType, cart, packagingCart]);
-
-  // Function to get the current price for a specific unit using new pricing structure
-  const getCurrentUnitPrice = (product, unitStockInfo) => {
-    if (!unitStockInfo) return 0;
-    
-    // If we're in standard mode, use standard prices
-    if (priceMode === 'standard') {
-      // Check if this unit has unit-specific standard price
-      if (unitStockInfo.unit_specific_standard_price) {
-        return unitStockInfo.unit_specific_standard_price;
-      }
-      
-      // Use the first available standard price from the product's standard prices list
-      if (product.standard_prices_list && product.standard_prices_list.length > 0) {
-        return product.standard_prices_list[0];
-      }
-      
-      // Fallback to legacy price
-      return unitStockInfo.price || 0;
-    }
-    
-    // If we're in wholesale mode, use wholesale prices
-    if (priceMode === 'wholesale') {
-      // Check if this unit has unit-specific wholesale price
-      if (unitStockInfo.unit_specific_wholesale_price) {
-        return unitStockInfo.unit_specific_wholesale_price;
-      }
-      
-      // Use the main wholesale price
-      if (product.wholesale_price) {
-        return parseFloat(product.wholesale_price);
-      }
-      
-      // Fallback to legacy wholesale calculation
-      if (product.wholesale_price && product.price) {
-        const standardBasePrice = parseFloat(product.price);
-        const wholesaleBasePrice = parseFloat(product.wholesale_price);
-        
-        if (standardBasePrice > 0) {
-          const wholesaleConversionFactor = wholesaleBasePrice / standardBasePrice;
-          return standardBasePrice * wholesaleConversionFactor;
-        }
-      }
-    }
-    
-    // Fallback to standard price
-    return unitStockInfo.price || 0;
-  };
 
   useEffect(() => {
     const initializeData = async () => {
@@ -1510,57 +1441,6 @@ const PointOfSale = () => {
       [productId]: unitId
     }));
   };
-
-  // const handleProductCardClick = (product) => {
-  //   // Don't allow clicking on out-of-stock products (only for complete sales)
-  //   if (saleMode === 'complete' && product.available_units && product.available_units.every(u => {
-  //     let availableQuantity = product.stock_quantity;
-  //     if (u.conversion_factor && u.conversion_factor > 0) {
-  //       availableQuantity = product.stock_quantity / u.conversion_factor;
-  //     }
-  //     return availableQuantity <= 0;
-  //   })) {
-  //     return;
-  //   }
-    
-  //   if ((product.available_units && product.available_units.length > 1 && priceMode === 'wholesale') ||
-  //       (priceMode === 'standard' && product.standard_prices_list && product.standard_prices_list.length > 0)) {
-  //     // For multi-unit products or multiple standard prices, add with the currently selected option
-  //     const selectedUnitId = selectedUnits[product.id];
-      
-  //     if (selectedUnitId) {
-  //       if (priceMode === 'standard' && selectedUnitId.startsWith('price-')) {
-  //         // Handle standard price selection
-  //         const priceIndex = parseInt(selectedUnitId.split('-')[1]);
-  //         const selectedPrice = product.standard_prices_list[priceIndex];
-          
-  //         // Add to cart with base unit but specific price
-  //         const baseUnit = {
-  //           id: product.base_unit?.id || product.base_unit,
-  //           name: product.base_unit?.name || 'Piece',
-  //           symbol: product.base_unit?.symbol || 'piece'
-  //         };
-  //         addToCart(product, baseUnit, selectedPrice);
-  //       } else {
-  //         // Handle wholesale unit selection
-  //         const selectedAvailableUnit = product.available_units.find(u => u.id === selectedUnitId);
-          
-  //         if (selectedAvailableUnit) {
-  //           // Convert available unit to the format expected by addToCart
-  //           const selectedUnit = {
-  //             id: selectedAvailableUnit.id,
-  //             name: selectedAvailableUnit.name,
-  //             symbol: selectedAvailableUnit.symbol
-  //           };
-  //           addToCart(product, selectedUnit);
-  //         }
-  //       }
-  //     }
-  //   } else {
-  //     // For single-unit products or single price, add directly with base unit
-  //     addToCart(product);
-  //   }
-  // };
 
   const handleProductCardClick = (product) => {
       // console.log(product);
