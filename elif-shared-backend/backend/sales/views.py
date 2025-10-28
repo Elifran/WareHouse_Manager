@@ -198,10 +198,20 @@ def complete_sale(request, sale_id):
             # Generate transaction number
             transaction_number = f"PKG-{uuid.uuid4().hex[:8].upper()}"
             
+            # Determine transaction type based on sale packaging item statuses
+            item_statuses = list(sale.packaging_items.values_list('status', flat=True))
+            if all(status == 'consignation' for status in item_statuses):
+                transaction_type = 'consignation'
+            elif any(status == 'due' for status in item_statuses):
+                transaction_type = 'due'
+            else:
+                # Fallback to exchange if not consignation and contains exchange
+                transaction_type = 'exchange'
+
             # Create packaging transaction
             packaging_transaction = PackagingTransaction.objects.create(
                 transaction_number=transaction_number,
-                transaction_type='consignation',
+                transaction_type=transaction_type,
                 sale=sale,
                 customer_name=sale.customer_name,
                 customer_phone=sale.customer_phone,
@@ -231,11 +241,17 @@ def complete_sale(request, sale_id):
             # Calculate packaging transaction totals
             packaging_transaction.calculate_totals()
             
-            # Set the paid amount to the total amount since packaging was paid as part of the sale
-            packaging_transaction.paid_amount = packaging_transaction.total_amount
-            packaging_transaction.payment_status = 'paid'
-            packaging_transaction.status = 'completed'
-            packaging_transaction.save(update_fields=['paid_amount', 'payment_status', 'status'])
+            # If consignation (paid), mark as paid/completed.
+            # If exchange, directly mark as completed without payment.
+            # If due, leave active and unpaid.
+            if transaction_type == 'consignation':
+                packaging_transaction.paid_amount = packaging_transaction.total_amount
+                packaging_transaction.payment_status = 'paid'
+                packaging_transaction.status = 'completed'
+                packaging_transaction.save(update_fields=['paid_amount', 'payment_status', 'status'])
+            elif transaction_type == 'exchange':
+                packaging_transaction.status = 'completed'
+                packaging_transaction.save(update_fields=['status'])
             
         except Exception as e:
             # Log the error but don't fail the sale completion

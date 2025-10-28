@@ -157,8 +157,9 @@ def settle_packaging_transaction(request, transaction_id):
     try:
         transaction = get_object_or_404(PackagingTransaction, id=transaction_id)
         
-        if transaction.status != 'active':
-            return Response({'error': 'Only active transactions can be settled'}, status=status.HTTP_400_BAD_REQUEST)
+        # Allow settlement for both active and completed consignations (to record returns)
+        if transaction.status not in ['active', 'completed']:
+            return Response({'error': 'Only active or completed transactions can be settled'}, status=status.HTTP_400_BAD_REQUEST)
         
         # Get settlement data from request
         settlement_type = request.data.get('settlement_type', 'return')  # 'return' or 'refund'
@@ -166,7 +167,10 @@ def settle_packaging_transaction(request, transaction_id):
         
         # Update transaction status
         if settlement_type == 'return':
+            # If returned, mark completed and convert consignation to exchange to reflect returned empties
             transaction.status = 'completed'
+            if transaction.transaction_type == 'consignation':
+                transaction.transaction_type = 'exchange'
             transaction.notes = f"{transaction.notes}\nSettled: Packaging returned by customer. {notes}".strip()
         elif settlement_type == 'refund':
             transaction.status = 'completed'
@@ -175,6 +179,16 @@ def settle_packaging_transaction(request, transaction_id):
             return Response({'error': 'Invalid settlement type. Use "return" or "refund"'}, status=status.HTTP_400_BAD_REQUEST)
         
         transaction.save()
+        
+        # Create a zero-amount settlement line for audit trail
+        PackagingPayment.objects.create(
+            transaction=transaction,
+            action_type='settle',
+            amount=0,
+            payment_method='none',
+            notes=f"Settlement recorded: {settlement_type}. {notes}",
+            created_by=request.user
+        )
         
         serializer = PackagingTransactionSerializer(transaction)
         return Response({

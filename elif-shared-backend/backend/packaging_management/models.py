@@ -110,8 +110,13 @@ class PackagingItem(models.Model):
 class PackagingPayment(models.Model):
     """Payments for packaging transactions"""
     transaction = models.ForeignKey(PackagingTransaction, on_delete=models.CASCADE, related_name='payments')
-    amount = models.DecimalField(max_digits=10, decimal_places=2, validators=[MinValueValidator(Decimal('0.01'))])
+    action_type = models.CharField(max_length=20, choices=[
+        ('payment', 'Payment'),
+        ('settle', 'Settlement'),
+    ], default='payment')
+    amount = models.DecimalField(max_digits=10, decimal_places=2, validators=[MinValueValidator(Decimal('0.00'))], default=Decimal('0.00'))
     payment_method = models.CharField(max_length=20, choices=[
+        ('none', 'None'),
         ('cash', 'Cash'),
         ('card', 'Card'),
         ('mobile_money', 'Mobile Money'),
