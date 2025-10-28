@@ -47,7 +47,7 @@
     "created_by": "Créé par",
     "updated_by": "Mis à jour par",
     "retry": "Réessayer",
-    "wholesale": "GV",
+    "wholesale": "V-G",
     "piece": "Pièce",
     "retail": "STD"
   },
@@ -429,7 +429,7 @@
     "complete_sale": "Terminer la vente",
     "create_pending_sale": "Créer une vente en attente",
     "print_receipt": " & Imprimer le reçu",
-    "wholesale_short": "GV",
+    "wholesale_short": "V-G",
     "standard_short": "STD",
     "unit_not_found": "Unité {unitName} non trouvée dans les informations de stock",
     "no_stock_left": "Aucun stock {unitName} restant",
