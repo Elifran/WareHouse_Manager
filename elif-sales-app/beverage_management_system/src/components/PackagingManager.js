@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import api from '../services/api';
 import Button from './Button';
 import './PackagingManager.css';
+import {formatCurrency} from '../utils/helpers';
 
 const PackagingManager = ({ saleId, onPackagingUpdate, onClose }) => {
   const { t } = useTranslation();
@@ -173,7 +174,7 @@ const PackagingManager = ({ saleId, onPackagingUpdate, onClose }) => {
         </div>
         <div className="summary-row">
           <span>Packaging Total:</span>
-          <span>{calculatePackagingTotal().toFixed(2)} MGA</span>
+          <span>{formatCurrency(calculatePackagingTotal())}</span>
         </div>
       </div>
 
@@ -200,7 +201,7 @@ const PackagingManager = ({ saleId, onPackagingUpdate, onClose }) => {
               <option value="">Select Product</option>
               {availableProducts.map(product => (
                 <option key={product.id} value={product.id}>
-                  {product.name} - {product.packaging_price} MGA
+                  {product.name} - {formatCurrency(product.packaging_price)}
                 </option>
               ))}
             </select>
@@ -302,7 +303,7 @@ const PackagingManager = ({ saleId, onPackagingUpdate, onClose }) => {
                 <div className="item-info">
                   <div className="item-name">{item.product_name}</div>
                   <div className="item-details">
-                    {item.quantity} {item.unit_name} × {item.unit_price} MGA = {item.total_price} MGA
+                    {item.quantity} {item.unit_name} × {formatCurrency(item.unit_price)} = {formatCurrency(item.total_price)}
                   </div>
                   <div className="item-status">
                     Status: 

@@ -10,6 +10,7 @@ import {
   downloadReceiptFile,
   generatePrintContent
 } from '../utils/printUtils';
+import {formatCurrency} from '../utils/helpers';
 import './PointOfSale.css';
 
 const PointOfSale = () => {
@@ -1272,7 +1273,7 @@ const PointOfSale = () => {
           let successMessage = `Sale completed successfully! Sale Number: ${saleNumber}`;
           if (completionResponse.data.packaging_transaction) {
             const pkgTransaction = completionResponse.data.packaging_transaction;
-            successMessage += `\n\nPackaging transaction automatically created:\nTransaction: ${pkgTransaction.transaction_number}\nAmount: ${pkgTransaction.total_amount} MGA`;
+            successMessage += `\n\nPackaging transaction automatically created:\nTransaction: ${pkgTransaction.transaction_number}\nAmount: ${formatCurrency(pkgTransaction.total_amount)}`;
           }
           alert(successMessage);
         } catch (completeError) {
@@ -1772,7 +1773,7 @@ const PointOfSale = () => {
                             
                             return (
                             <span key={unit.id} className={`unit-stock ${isAvailable ? 'available' : 'unavailable'}`}>
-                              {unit.name}: {price.toFixed(2)} MGA ({availableQuantity.toFixed(1)} available)
+                              {unit.name}: {formatCurrency(price)} ({availableQuantity.toFixed(1)} available)
                               </span>
                             );
                         })}
@@ -1799,7 +1800,7 @@ const PointOfSale = () => {
                           // For standard mode with multiple prices, show price options
                           product.standard_prices_list.map((price, index) => (
                             <option key={`price-${index}`} value={`price-${index}`}>
-                              Standard Price {index + 1} - {parseFloat(price).toFixed(2)} MGA
+                              Standard Price {index + 1} - {formatCurrency(price)}
                             </option>
                           ))
                         ) : (
@@ -1834,7 +1835,7 @@ const PointOfSale = () => {
                                 value={unit.id}
                                 disabled={saleMode === 'complete' ? !isAvailable : false}
                               >
-                                {unit.name} ({unit.symbol}) - {price.toFixed(2)} MGA
+                                {unit.name} ({unit.symbol}) - {formatCurrency(price)}
                                 {!isAvailable && saleMode === 'complete' ? ' - OUT OF STOCK' : ''}
                               </option>
                             );
@@ -1886,7 +1887,7 @@ const PointOfSale = () => {
                   {product.has_packaging && product.packaging_price && (
                     <div className="packaging-info">
                       <small className="packaging-price">
-                        Packaging: {product.packaging_price} MGA (Auto-added)
+                        Packaging: {formatCurrency(product.packaging_price)} (Auto-added)
                       </small>
                     </div>
                   )}
@@ -1975,7 +1976,7 @@ const PointOfSale = () => {
                       {item.unit_symbol || 'piece'}
                     </div>
                     <div className="item-price">
-                      {parseFloat(item.unit_price).toFixed(2)} MGA
+                      {formatCurrency(item.unit_price)}
                     </div>
                     <div className="item-quantity">
                       <div className="quantity-controls">
@@ -2036,7 +2037,7 @@ const PointOfSale = () => {
                       <span className="sales-item-status">-</span>
                     </div>
                     <div className="item-total">
-                      {(item.quantity * item.unit_price).toFixed(2)} MGA
+                      {formatCurrency(item.quantity * item.unit_price)}
                     </div>
                     <div className="item-actions">
                       <Button
@@ -2072,7 +2073,7 @@ const PointOfSale = () => {
                           piece
                         </div>
                         <div className="item-price">
-                          {parseFloat(item.unit_price).toFixed(2)} MGA
+                          {formatCurrency(item.unit_price)}
                         </div>
                         <div className="item-quantity">
                           <span className="quantity auto-calculated">
@@ -2092,7 +2093,7 @@ const PointOfSale = () => {
                           </select>
                         </div>
                         <div className="item-total">
-                          {(item.quantity * item.unit_price).toFixed(2)} MGA
+                          {formatCurrency(item.quantity * item.unit_price)}
                         </div>
                         <div className="item-actions">
                           <Button
@@ -2117,35 +2118,35 @@ const PointOfSale = () => {
               <div className="cart-summary">
                 <div className="summary-row">
                   <span>Items Total:</span>
-                  <span>{calculateSubtotal().toFixed(2)} MGA</span>
+                  <span>{formatCurrency(calculateSubtotal())}</span>
                 </div>
                 {packagingCart.length > 0 && (
                   <div className="summary-row packaging-breakdown">
                     <span>Packaging Total:</span>
-                    <span>{calculatePackagingTotal().toFixed(2)} MGA</span>
+                    <span>{formatCurrency(calculatePackagingTotal())} </span>
                   </div>
                 )}
                 <div className="summary-row cost-breakdown">
                   <span>Cost (excl. tax):</span>
-                  <span>{calculateCost().toFixed(2)} MGA</span>
+                  <span>{formatCurrency(calculateCost())}</span>
                 </div>
                 <div className="summary-row tax-breakdown">
                   <span>Tax included:</span>
-                  <span>{calculateTax().toFixed(2)} MGA</span>
+                  <span>{formatCurrency(calculateTax())} </span>
                 </div>
                 <div className="summary-row">
                   <span>Products Total:</span>
-                  <span>{calculateTotal().toFixed(2)} MGA</span>
+                  <span>{formatCurrency(calculateTotal())} </span>
                 </div>
                 {packagingCart.length > 0 && (
                   <div className="summary-row">
                     <span>Packaging Total:</span>
-                    <span>{calculatePackagingTotal().toFixed(2)} MGA</span>
+                    <span>{formatCurrency(calculatePackagingTotal())}</span>
                   </div>
                 )}
                 <div className="summary-row total">
                   <span>Total (Products Only):</span>
-                  <span>{calculateTotal().toFixed(2)} MGA</span>
+                  <span>{formatCurrency(calculateTotal())}</span>
                 </div>
               </div>
 

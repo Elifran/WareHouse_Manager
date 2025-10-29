@@ -4,6 +4,7 @@ import { useAuth } from '../contexts/AuthContext';
 import api from '../services/api';
 import Button from '../components/Button';
 import './PackagingManagement.css';
+import {formatCurrency, formatDate, formatDateTime, getStatusBadge} from '../utils/helpers';
 
 const PackagingManagement = () => {
   const { t } = useTranslation();
@@ -321,27 +322,6 @@ const PackagingManagement = () => {
       setError(err.response?.data?.error || 'Failed to settle transaction');
       console.error('Error settling transaction:', err);
     }
-  };
-
-  const formatCurrency = (amount) => {
-    return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount);
-  };
-
-  const formatDate = (dateString) => {
-    return new Date(dateString).toLocaleDateString();
-  };
-
-  const formatDateTime = (dateString) => {
-    return new Date(dateString).toLocaleString();
-  };
-
-  const getStatusBadge = (status) => {
-    const statusClasses = {
-      active: 'status-active',
-      completed: 'status-completed',
-      cancelled: 'status-cancelled'
-    };
-    return <span className={`status-badge ${statusClasses[status] || ''}`}>{status}</span>;
   };
 
   const getPaymentStatusBadge = (paymentStatus) => {
