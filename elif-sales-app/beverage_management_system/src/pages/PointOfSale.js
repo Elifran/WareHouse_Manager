@@ -394,10 +394,18 @@ const PointOfSale = () => {
       fetchBulkStockAvailability();
     }
     
-    // Set default selected units (default unit first, then base unit) for products with multiple compatible units
+    // Set default selected units/prices based on products
+    // For standard mode: prioritize setting first price for products with standard prices
+    // For wholesale mode: prioritize setting default unit for products with multiple units
     const defaultUnits = {};
     allProducts.forEach(product => {
-      if (product.compatible_units && product.compatible_units.length > 1) {
+      // For standard mode: set default first price for products with multiple standard prices
+      if (product.standard_prices_list && product.standard_prices_list.length > 0) {
+        defaultUnits[product.id] = 'price-0';
+      }
+      // For wholesale mode: set default unit for products with multiple compatible units
+      // Only set if not already set by standard prices (products can have both)
+      else if (product.compatible_units && product.compatible_units.length > 1) {
         
         // First try to find the default unit (is_default: true)
         let selectedUnit = product.compatible_units.find(u => u.is_default);
@@ -426,6 +434,41 @@ const PointOfSale = () => {
       recalculateAllPackagingQuantities();
     }
   }, [cart]); // Depend on cart changes
+
+  // Update selected units/prices when priceMode changes
+  useEffect(() => {
+    if (allProducts.length === 0) return;
+    
+    setSelectedUnits(prev => {
+      const updated = { ...prev };
+      
+      allProducts.forEach(product => {
+        if (priceMode === 'standard' && product.standard_prices_list && product.standard_prices_list.length > 0) {
+          // When switching to standard mode, set first price if not already a price selection
+          if (!updated[product.id] || !updated[product.id].toString().startsWith('price-')) {
+            updated[product.id] = 'price-0';
+          }
+        } else if (priceMode === 'wholesale' && product.compatible_units && product.compatible_units.length > 1) {
+          // When switching to wholesale mode, set default unit if currently a price selection
+          if (updated[product.id] && updated[product.id].toString().startsWith('price-')) {
+            // Find default unit
+            let selectedUnit = product.compatible_units.find(u => u.is_default);
+            if (!selectedUnit) {
+              selectedUnit = product.compatible_units.find(u => u.unit.is_base_unit);
+            }
+            if (!selectedUnit) {
+              selectedUnit = product.compatible_units[0];
+            }
+            if (selectedUnit) {
+              updated[product.id] = selectedUnit.unit?.id || selectedUnit.unit;
+            }
+          }
+        }
+      });
+      
+      return updated;
+    });
+  }, [priceMode, allProducts]);
 
   const fetchBulkStockAvailability = async () => {
     try {
@@ -764,6 +807,23 @@ const PointOfSale = () => {
             unitPrice = baseWholesalePrice;
           }
         }
+      }
+    }
+    
+    // In standard mode, prevent adding the same product with different prices
+    if (priceMode === 'standard') {
+      const existingProductInCart = cart.find(item => 
+        item.id === product.id && 
+        item.price_mode === 'standard'
+      );
+      
+      if (existingProductInCart) {
+        // If product exists with a different price, prevent adding
+        if (existingProductInCart.unit_price !== unitPrice) {
+          setError(`This product is already in cart with a different price. Please update the existing item or remove it first.`);
+          return;
+        }
+        // If same product with same price exists, use existing item logic below
       }
     }
     

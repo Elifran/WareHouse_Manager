@@ -130,157 +130,159 @@ const EditDeliveryModal = ({ delivery, onClose, onSubmit }) => {
         </div>
         
         <form onSubmit={handleSubmit}>
-          <div className="delivery-info">
-            <div className="info-grid">
-              <div className="info-row">
-                <span className="label">Delivery Number:</span>
-                <span className="value">{delivery.delivery_number}</span>
-              </div>
-              <div className="info-row">
-                <span className="label">Purchase Order:</span>
-                <span className="value">{delivery.purchase_order?.order_number}</span>
-              </div>
-              <div className="info-row">
-                <span className="label">Supplier:</span>
-                <span className="value">{delivery.purchase_order?.supplier?.name}</span>
-              </div>
-            </div>
-            <div className="form-group full-width">
-              <label htmlFor="notes">Delivery Notes</label>
-              <textarea
-                id="notes"
-                name="notes"
-                value={formData.notes}
-                onChange={handleInputChange}
-                rows={isMobile ? 2 : 3}
-              ></textarea>
-            </div>
-          </div>
-
-          <div className="form-section">
-            <h3>Items to Receive</h3>
-            <div className={`delivery-items ${isMobile ? 'mobile-view' : 'desktop-view'}`}>
-              {!isMobile ? (
-                <>
-                  <div className="delivery-items-header">
-                    <span>Product</span>
-                    <span>Received</span>
-                    <span>Unit Cost</span>
-                    <span>Tax Rate</span>
-                    <span>Condition Notes</span>
-                    <span>Line Total</span>
-                    <span>Tax Amount</span>
-                  </div>
-                  {formData.items.map((item, index) => {
-                    const originalItem = delivery.items.find(delItem => delItem.id === item.id);
-                    const product = originalItem?.product;
-                    const taxClass = originalItem?.tax_class;
-
-                    return (
-                      <div key={item.id} className="delivery-item-row">
-                        <span className="product-name">{product?.name} ({product?.sku})</span>
-                        <input
-                          type="number"
-                          value={item.quantity_received}
-                          onChange={(e) => handleItemChange(index, 'quantity_received', e.target.value)}
-                          min="0"
-                          required
-                        />
-                        <input
-                          type="number"
-                          value={item.unit_cost}
-                          onChange={(e) => handleItemChange(index, 'unit_cost', e.target.value)}
-                          step="0.01"
-                          min="0"
-                          required
-                        />
-                        <span>{taxClass ? `${taxClass.name} (${taxClass.tax_rate}%)` : 'N/A'}</span>
-                        <input
-                          type="text"
-                          value={item.condition_notes}
-                          onChange={(e) => handleItemChange(index, 'condition_notes', e.target.value)}
-                          placeholder="Condition notes..."
-                        />
-                        <span>{calculateItemTotal(item).toFixed(2)} MGA</span>
-                        <span>{calculateTaxAmount(item).toFixed(2)} MGA</span>
-                      </div>
-                    );
-                  })}
-                </>
-              ) : (
-                // Mobile view for delivery items
-                <div className="mobile-delivery-items">
-                  {formData.items.map((item, index) => {
-                    const originalItem = delivery.items.find(delItem => delItem.id === item.id);
-                    const product = originalItem?.product;
-                    const taxClass = originalItem?.tax_class;
-
-                    return (
-                      <div key={item.id} className="mobile-delivery-item">
-                        <div className="mobile-item-header">
-                          <strong>{product?.name}</strong>
-                          <span className="sku">{product?.sku}</span>
-                        </div>
-                        <div className="mobile-item-fields">
-                          <div className="field-group">
-                            <label>Quantity Received</label>
-                            <input
-                              type="number"
-                              value={item.quantity_received}
-                              onChange={(e) => handleItemChange(index, 'quantity_received', e.target.value)}
-                              min="0"
-                              required
-                            />
-                          </div>
-                          <div className="field-group">
-                            <label>Unit Cost (MGA)</label>
-                            <input
-                              type="number"
-                              value={item.unit_cost}
-                              onChange={(e) => handleItemChange(index, 'unit_cost', e.target.value)}
-                              step="0.01"
-                              min="0"
-                              required
-                            />
-                          </div>
-                          <div className="field-group">
-                            <label>Tax Rate</label>
-                            <span className="tax-info">{taxClass ? `${taxClass.name} (${taxClass.tax_rate}%)` : 'N/A'}</span>
-                          </div>
-                          <div className="field-group full-width">
-                            <label>Condition Notes</label>
-                            <input
-                              type="text"
-                              value={item.condition_notes}
-                              onChange={(e) => handleItemChange(index, 'condition_notes', e.target.value)}
-                              placeholder="Condition notes..."
-                            />
-                          </div>
-                          <div className="mobile-item-totals">
-                            <span>Line Total: {calculateItemTotal(item).toFixed(2)} MGA</span>
-                            <span>Tax: {calculateTaxAmount(item).toFixed(2)} MGA</span>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
+          <div className="modal-body">
+            <div className="delivery-info">
+              <div className="info-grid">
+                <div className="info-row">
+                  <span className="label">Delivery Number:</span>
+                  <span className="value">{delivery.delivery_number}</span>
                 </div>
-              )}
+                <div className="info-row">
+                  <span className="label">Purchase Order:</span>
+                  <span className="value">{delivery.purchase_order?.order_number}</span>
+                </div>
+                <div className="info-row">
+                  <span className="label">Supplier:</span>
+                  <span className="value">{delivery.purchase_order?.supplier?.name}</span>
+                </div>
+              </div>
+              <div className="form-group full-width">
+                <label htmlFor="notes">Delivery Notes</label>
+                <textarea
+                  id="notes"
+                  name="notes"
+                  value={formData.notes}
+                  onChange={handleInputChange}
+                  rows={isMobile ? 2 : 3}
+                ></textarea>
+              </div>
             </div>
-          </div>
 
-          <div className="order-summary">
-            <div className="summary-item">
-              <span>Subtotal:</span>
-              <span>{totals.subtotal.toFixed(2)} MGA</span>
+            <div className="form-section">
+              <h3>Items to Receive</h3>
+              <div className={`delivery-items ${isMobile ? 'mobile-view' : 'desktop-view'}`}>
+                {!isMobile ? (
+                  <>
+                    <div className="delivery-items-header">
+                      <span>Product</span>
+                      <span>Received</span>
+                      <span>Unit Cost</span>
+                      <span>Tax Rate</span>
+                      <span>Condition Notes</span>
+                      <span>Line Total</span>
+                      <span>Tax Amount</span>
+                    </div>
+                    {formData.items.map((item, index) => {
+                      const originalItem = delivery.items.find(delItem => delItem.id === item.id);
+                      const product = originalItem?.product;
+                      const taxClass = originalItem?.tax_class;
+
+                      return (
+                        <div key={item.id} className="delivery-item-row">
+                          <span className="product-name">{product?.name} ({product?.sku})</span>
+                          <input
+                            type="number"
+                            value={item.quantity_received}
+                            onChange={(e) => handleItemChange(index, 'quantity_received', e.target.value)}
+                            min="0"
+                            required
+                          />
+                          <input
+                            type="number"
+                            value={item.unit_cost}
+                            onChange={(e) => handleItemChange(index, 'unit_cost', e.target.value)}
+                            step="0.01"
+                            min="0"
+                            required
+                          />
+                          <span>{taxClass ? `${taxClass.name} (${taxClass.tax_rate}%)` : 'N/A'}</span>
+                          <input
+                            type="text"
+                            value={item.condition_notes}
+                            onChange={(e) => handleItemChange(index, 'condition_notes', e.target.value)}
+                            placeholder="Condition notes..."
+                          />
+                          <span>{calculateItemTotal(item).toFixed(2)} MGA</span>
+                          <span>{calculateTaxAmount(item).toFixed(2)} MGA</span>
+                        </div>
+                      );
+                    })}
+                  </>
+                ) : (
+                  // Mobile view for delivery items
+                  <div className="mobile-delivery-items">
+                    {formData.items.map((item, index) => {
+                      const originalItem = delivery.items.find(delItem => delItem.id === item.id);
+                      const product = originalItem?.product;
+                      const taxClass = originalItem?.tax_class;
+
+                      return (
+                        <div key={item.id} className="mobile-delivery-item">
+                          <div className="mobile-item-header">
+                            <strong>{product?.name}</strong>
+                            <span className="sku">{product?.sku}</span>
+                          </div>
+                          <div className="mobile-item-fields">
+                            <div className="field-group">
+                              <label>Quantity Received</label>
+                              <input
+                                type="number"
+                                value={item.quantity_received}
+                                onChange={(e) => handleItemChange(index, 'quantity_received', e.target.value)}
+                                min="0"
+                                required
+                              />
+                            </div>
+                            <div className="field-group">
+                              <label>Unit Cost (MGA)</label>
+                              <input
+                                type="number"
+                                value={item.unit_cost}
+                                onChange={(e) => handleItemChange(index, 'unit_cost', e.target.value)}
+                                step="0.01"
+                                min="0"
+                                required
+                              />
+                            </div>
+                            <div className="field-group">
+                              <label>Tax Rate</label>
+                              <span className="tax-info">{taxClass ? `${taxClass.name} (${taxClass.tax_rate}%)` : 'N/A'}</span>
+                            </div>
+                            <div className="field-group full-width">
+                              <label>Condition Notes</label>
+                              <input
+                                type="text"
+                                value={item.condition_notes}
+                                onChange={(e) => handleItemChange(index, 'condition_notes', e.target.value)}
+                                placeholder="Condition notes..."
+                              />
+                            </div>
+                            <div className="mobile-item-totals">
+                              <span>Line Total: {calculateItemTotal(item).toFixed(2)} MGA</span>
+                              <span>Tax: {calculateTaxAmount(item).toFixed(2)} MGA</span>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
             </div>
-            <div className="summary-item">
-              <span>Tax:</span>
-              <span>{totals.taxAmount.toFixed(2)} MGA</span>
-            </div>
-            <div className="summary-item total-amount">
-              <span>Total:</span>
-              <span>{totals.total.toFixed(2)} MGA</span>
+
+            <div className="order-summary">
+              <div className="summary-item">
+                <span>Subtotal:</span>
+                <span>{totals.subtotal.toFixed(2)} MGA</span>
+              </div>
+              <div className="summary-item">
+                <span>Tax:</span>
+                <span>{totals.taxAmount.toFixed(2)} MGA</span>
+              </div>
+              <div className="summary-item total-amount">
+                <span>Total:</span>
+                <span>{totals.total.toFixed(2)} MGA</span>
+              </div>
             </div>
           </div>
 

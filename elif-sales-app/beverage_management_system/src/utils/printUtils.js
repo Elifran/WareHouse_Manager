@@ -1523,7 +1523,7 @@ const generateInventoryContent = (data, t) => {
     
     <div class="receipt-section">
       <div class="section-title">PRODUCTS</div>
-      ${Array.isArray(products) ? products.slice(0, 20).map(item => `
+      ${Array.isArray(products) ? products.map(item => `
         <div class="product-item">
           <div class="product-name">${(item.name || 'N/A').substring(0, 20)}</div>
           <div class="product-details">
@@ -1709,7 +1709,7 @@ const generateSaleContent = (data, t) => {
           </span>
         </div>
       
-        ${items && Array.isArray(items) ? items.slice(0, 20).map(item => `
+        ${items && Array.isArray(items) ? items.map(item => `
           <div class="no-data">¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯</div>         
           <div class="sale-item">
             <div class="item-name">${(item.product_name || 'N/A').substring(0, 25)} </div>
@@ -1736,7 +1736,7 @@ const generateSaleContent = (data, t) => {
             </span>
           </div>
         
-          ${data.packaging_items.slice(0, 10).map(item => {
+          ${data.packaging_items.map(item => {
             let unitPriceDisplay, totalPriceDisplay;
             
             if (item.status === 'consignation') {
@@ -1908,7 +1908,7 @@ const generatePackagingValidationContent = (data, t) => {
     
     <div class="receipt-section">
       <div class="section-title">PACKAGING ITEMS</div>
-      ${data.packaging_items && Array.isArray(data.packaging_items) ? data.packaging_items.slice(0, 15).map(item => `
+      ${data.packaging_items && Array.isArray(data.packaging_items) ? data.packaging_items.map(item => `
         <div class="packaging-item">
           <div class="item-name">${(item.product_name || 'N/A').substring(0, 25)}</div>
           <div class="item-details">

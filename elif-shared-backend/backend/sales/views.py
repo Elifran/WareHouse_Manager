@@ -3,7 +3,7 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
-from django_filters import FilterSet, DateFilter
+from django_filters import FilterSet, DateFilter, CharFilter
 from django.db.models import Sum, Count, Q
 from django.utils import timezone
 from datetime import datetime, timedelta
@@ -17,10 +17,11 @@ from .serializers import (
 class SaleFilter(FilterSet):
     created_at__date__gte = DateFilter(field_name='created_at', lookup_expr='date__gte')
     created_at__date__lte = DateFilter(field_name='created_at', lookup_expr='date__lte')
+    sale_number = CharFilter(field_name='sale_number', lookup_expr='icontains')
     
     class Meta:
         model = Sale
-        fields = ['status', 'payment_method', 'sold_by', 'created_at__date__gte', 'created_at__date__lte']
+        fields = ['status', 'payment_method', 'sold_by', 'sale_number', 'created_at__date__gte', 'created_at__date__lte']
 
 class SaleListCreateView(generics.ListCreateAPIView):
     queryset = Sale.objects.select_related('sold_by', 'created_by').prefetch_related('items__product', 'items__unit', 'packaging_items__product', 'packaging_items__unit', 'payments').all()

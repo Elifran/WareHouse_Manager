@@ -34,6 +34,7 @@ const PrintButton = ({
 
   const handlePrint = async (validateFirst = false, useThermalPrinter = false, useReceiptApp = false, usePreview = false) => {
     // Validate data structure
+    // console.log(data);
     if (!data) {
       console.error('No data provided to PrintButton');
       window.alert(t('print.no_data', 'No data available to print.'));
