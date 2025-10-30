@@ -488,6 +488,19 @@ const PurchaseOrders = () => {
     }
   };
 
+  const handleDeleteDelivery = async (deliveryId) => {
+    if (window.confirm('Are you sure you want to permanently delete this delivery? This action cannot be undone.')) {
+      try {
+        await api.delete(`/api/purchases/deliveries/${deliveryId}/`);
+        fetchData();
+        alert('Delivery deleted successfully');
+      } catch (error) {
+        console.error('Error deleting delivery:', error);
+        alert('Error deleting delivery: ' + (error.response?.data?.detail || error.message));
+      }
+    }
+  };
+
   const getStatusBadge = (status) => {
     const statusClasses = {
       draft: 'status-draft',
@@ -795,21 +808,34 @@ const PurchaseOrders = () => {
             className="print-delivery-btn"
             size="small"
           />
-          {row.status === 'pending' && (
+          {['pending', 'received', 'verified'].includes(row.status) && (
             <>
+              {row.status === 'pending' && (
+                <>
+                  <Button
+                    size="small"
+                    variant="primary"
+                    onClick={() => handleConfirmDelivery(row.id)}
+                  >
+                    Confirm
+                  </Button>
+                  <Button
+                    size="small"
+                    variant="secondary"
+                    onClick={() => handleEditDelivery(row)}
+                  >
+                    Edit
+                  </Button>
+                </>
+              )}
+              {/* Add Delete Button for unconfirmed deliveries */}
               <Button
                 size="small"
-                variant="primary"
-                onClick={() => handleConfirmDelivery(row.id)}
+                variant="danger"
+                onClick={() => handleDeleteDelivery(row.id)}
+                title="Delete this delivery"
               >
-                Confirm
-              </Button>
-              <Button
-                size="small"
-                variant="secondary"
-                onClick={() => handleEditDelivery(row)}
-              >
-                Edit
+                Delete
               </Button>
             </>
           )}
