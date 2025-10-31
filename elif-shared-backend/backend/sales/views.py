@@ -21,7 +21,7 @@ class SaleFilter(FilterSet):
     
     class Meta:
         model = Sale
-        fields = ['status', 'payment_method', 'sold_by', 'sale_number', 'created_at__date__gte', 'created_at__date__lte']
+        fields = ['status', 'payment_method', 'sold_by', 'sale_number', 'created_at__date__gte', 'created_at__date__lte','payment_status']
 
 class SaleListCreateView(generics.ListCreateAPIView):
     queryset = Sale.objects.select_related('sold_by', 'created_by').prefetch_related('items__product', 'items__unit', 'packaging_items__product', 'packaging_items__unit', 'payments').all()
