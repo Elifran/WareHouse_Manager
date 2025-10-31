@@ -1318,13 +1318,13 @@ const PointOfSale = () => {
           setPriceMode('standard');
           
           // Wait a moment for the backend to process stock movements
-          await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second
+          await new Promise(resolve => setTimeout(resolve, 500)); // Wait 1 second
           
           // Refresh product data to update stock quantities
           await fetchProducts();
           
           // Wait another moment for stock availability to be updated
-          await new Promise(resolve => setTimeout(resolve, 500)); // Wait 0.5 seconds
+          await new Promise(resolve => setTimeout(resolve, 250)); // Wait 0.5 seconds
           
           // Refresh stock availability for all products
           refreshStockAvailability();
@@ -1347,11 +1347,11 @@ const PointOfSale = () => {
           setPaidAmount(0);
           
           // Wait for backend to process any completed stock movements
-          await new Promise(resolve => setTimeout(resolve, 1000));
+          await new Promise(resolve => setTimeout(resolve, 500));
           
           // Refresh data
           await fetchProducts();
-          await new Promise(resolve => setTimeout(resolve, 500));
+          await new Promise(resolve => setTimeout(resolve, 250));
           refreshStockAvailability();
         }
       } else {
