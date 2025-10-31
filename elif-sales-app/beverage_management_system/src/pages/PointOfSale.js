@@ -1429,17 +1429,20 @@ const PointOfSale = () => {
 
   const handleQuantityChange = (e) => {
     const value = e.target.value;
-    // Only allow numbers and empty string
-    if (value === '' || /^\d*\.?\d{0,1}$/.test(value)) {
+    // Allow digits with optional decimal separator (dot or comma), or empty string
+    if (value === '' || /^\d*(?:[.,]\d{0,1})?$/.test(value)) {
       setTempQuantity(value);
     }
   };
 
   const handleQuantitySubmit = (item) => {
-    const newQuantity = parseFloat(tempQuantity);
+    const normalized = (tempQuantity || '').replace(',', '.');
+    const newQuantity = parseFloat(normalized);
     
-    if (tempQuantity === '' || isNaN(newQuantity) || newQuantity < 0) {
-      setError('Please enter a valid quantity');
+    // Enforce: minimum 1, at most one digit after decimal
+    const isValidFormat = /^\d+(?:\.\d)?$/.test(normalized);
+    if (tempQuantity === '' || isNaN(newQuantity) || newQuantity < 1 || !isValidFormat) {
+      setError('Quantity must be >= 1 and have at most 1 decimal digit');
       setEditingQuantity(null);
       return;
     }
@@ -2050,14 +2053,14 @@ const PointOfSale = () => {
                         {editingQuantity === `${item.id}-${item.unit_id}` ? (
                           <div className="quantity-edit">
                             <input
-                              type="number"
+                              type="text"
+                              inputMode="decimal"
+                              pattern="^\\d+([.,]\\d)?$"
                               value={tempQuantity}
                               onChange={handleQuantityChange}
                               onKeyPress={(e) => handleQuantityKeyPress(e, item)}
                               onBlur={() => handleQuantitySubmit(item)}
                               className="quantity-input"
-                              min="0"
-                              max={item.stock_quantity}
                               autoFocus
                             />
                           </div>
