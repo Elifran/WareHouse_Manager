@@ -1430,7 +1430,7 @@ const PointOfSale = () => {
   const handleQuantityChange = (e) => {
     const value = e.target.value;
     // Only allow numbers and empty string
-    if (value === '' || /^\d+$/.test(value)) {
+    if (value === '' || /^\d*\.?\d{0,1}$/.test(value)) {
       setTempQuantity(value);
     }
   };
