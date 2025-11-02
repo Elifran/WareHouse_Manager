@@ -99,7 +99,7 @@
     "low_stock": "low stock",
     "out_of_stock": "Out of Stock",
     "products_need_restocking": "products need restocking",
-    "sales_trend": "Sales Trend (Last 7 Days)",
+    "sales_trend": "Sales Trend (Last 31 Days)",
     "no_sales_data": "No sales data available",
     "recent_sales": "Recent Sales",
     "print_recent_sales": "Print Recent Sales",

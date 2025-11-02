@@ -257,7 +257,7 @@ const Dashboard = () => {
             {dashboardData?.chart_data?.length > 0 ? (
               <div className="chart-container">
                 <div className="chart-bars">
-                  {dashboardData.chart_data.map((day, index) => (
+                  {dashboardData.chart_data.reverse().map((day, index) => (
                     <div key={index} className="chart-bar">
                       <div className="bar-group">
                         <div 

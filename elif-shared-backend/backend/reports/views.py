@@ -284,9 +284,9 @@ def dashboard_data(request):
     total_revenue = float(period_sales['total_sales'] or 0)
     profit_margin = ((total_revenue - total_cost) / total_revenue * 100) if total_revenue > 0 else 0
     
-    # Daily sales for chart (last 7 days)
+    # Daily sales for chart (last 31 days)
     chart_data = []
-    for i in range(7):
+    for i in range(31):
         date = today - timedelta(days=i)
         daily_sales = Sale.objects.filter(
             created_at__date=date,
@@ -366,7 +366,7 @@ def dashboard_data(request):
         total_sold=Sum('quantity'),
         total_revenue=Sum('total_price'),
         total_cost=Sum('total_cost')
-    ).order_by('-total_sold')[:5]
+    ).order_by('-total_sold')[:10]
     
     # Add cost and profit data to top products using stored item costs
     top_products_data = []

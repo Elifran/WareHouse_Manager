@@ -99,7 +99,7 @@
     "low_stock": "stock faible",
     "out_of_stock": "Rupture de stock",
     "products_need_restocking": "produits nécessitent un réapprovisionnement",
-    "sales_trend": "Tendance des ventes (7 derniers jours)",
+    "sales_trend": "Tendance des ventes (31 derniers jours)",
     "no_sales_data": "Aucune donnée de vente disponible",
     "recent_sales": "Ventes récentes",
     "print_recent_sales": "Imprimer les ventes récentes",
