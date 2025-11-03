@@ -33,7 +33,7 @@ const AllPages = () => {
     }
     
     // Default based on common ports
-    return 'elif-admin-app'; // Current app
+    return 'elif-sales-app'; // Current app
   };
 
   // Get base path dynamically from current location
@@ -69,16 +69,16 @@ const AllPages = () => {
   // Other apps links
   const otherApps = [
     { 
+      name: 'Admin App', 
+      url: getOtherAppUrl('elif-admin-app'), 
+      icon: '⚙️',
+      description: 'Manage inventory, users, system settings, and more'
+    },
+    { 
       name: 'Orders App', 
       url: getOtherAppUrl('elif-orders-app'), 
       icon: '📋',
       description: 'Manage purchase orders, inventory, and suppliers'
-    },
-    { 
-      name: 'Sales App', 
-      url: getOtherAppUrl('elif-sales-app'), 
-      icon: '🛒',
-      description: 'Point of sale, sales management, and reports'
     }
   ];
 
@@ -114,3 +114,4 @@ const AllPages = () => {
 };
 
 export default AllPages;
+

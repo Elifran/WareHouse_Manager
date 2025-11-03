@@ -10,6 +10,7 @@ import PendingSales from './pages/PendingSales';
 import SalesManagement from './pages/SalesManagement';
 import PackagingManagement from './pages/PackagingManagement';
 import Reports from './pages/Reports';
+import AllPages from './pages/AllPages';
 import './i18n';
 import './App.css';
 
@@ -144,6 +145,17 @@ const AppRoutes = () => {
                 <Reports />
               </MainLayout>
             </RoleProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/all-pages"
+          element={
+            <ProtectedRoute>
+              <MainLayout>
+                <AllPages />
+              </MainLayout>
+            </ProtectedRoute>
           }
         />
 

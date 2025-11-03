@@ -60,7 +60,8 @@
     "reports": "Tatitra",
     "logout": "Fivoahana",
     "profile": "Tantara",
-    "settings": "Fandaharana"
+    "settings": "Fandaharana",
+    "all_pages": "Pejy rehetra"
   },
   "auth": {
     "login": "Fidirana",
@@ -281,7 +282,11 @@
     "print_sales_report": "Printy ny tatitra fivarotana",
     "print_receipt": "Printy ny rosia",
     "print": "Printy",
-    "print_order": "Printy ny baiko"
+    "print_order": "Printy ny baiko",
+    "previous": "Teo aloha",
+    "next": "Manaraka",
+    "apply_filters": "Ampiharo ny sivana",
+    "clear_filters": "Fadio ny sivana"
   },
   "messages": {
     "sale_updated_successfully": "Nohavaozina soa aman-tsara ny fivarotana",
@@ -311,7 +316,8 @@
     "sale_receipt": "Rosia fivarotana",
     "sales_management_report": "Tatitra ny fitantanana ny fivarotana",
     "inventory_report_data": "Angon-drakitra ny tatitra inventaire",
-    "stock_movement_report_data": "Angon-drakitra ny tatitra fifindran'ny stock"
+    "stock_movement_report_data": "Angon-drakitra ny tatitra fifindran'ny stock",
+    "inventory_summary": "FAMINTINANA NY INVENTAIRE"
   },
   "table_headers": {
     "sale_number": "Laharana fivarotana",
@@ -380,7 +386,10 @@
     "return_reason_placeholder": "Antony famerenana na fanamarihana fanampiny...",
     "return_summary": "Famintinana ny famerenana",
     "total_return_amount": "Volany manontolo ny famerenana",
-    "please_specify_quantities": "Ampidiro ny habe ho an'ny zavatra farafahakeliny iray azafady"
+    "please_specify_quantities": "Ampidiro ny habe ho an'ny zavatra farafahakeliny iray azafady",
+    "filter_sales": "Sivana ny fivarotana",
+    "recent_sales": "Fivarotana vao haingana",
+    "no_sales_found": "Tsy hita fivarotana"
   },
   "messages": {
     "failed_to_load_users": "Tsy nety ny fampidirana ny mpampiasa",
@@ -439,5 +448,34 @@
     "out_of_stock_label": " - TSY MISY STOCK",
     "available_label": " - {quantity} azo",
     "loading_stock_info": "Miandry ny fampahalalana stock... Andramo indray azafady."
+  },
+  "all_pages": {
+    "title": "Pejy rehetra",
+    "subtitle": "Mankafy ny fampiharana hafa",
+    "access_app": "Mankafy ny fampiharana"
+  },
+  "placeholders": {
+    "enter_sale_id": "Ampidiro ny ID fivarotana",
+    "enter_client_name": "Ampidiro ny anaran'ny mpanjifa"
+  },
+  "labels": {
+    "start_date": "Daty nanomboka",
+    "end_date": "Daty niafara"
+  },
+  "company": {
+    "name": "______ANTATSIMO______"
+  },
+  "customer": {
+    "walk_in": "Mpanjifa tonga"
+  },
+  "footer": {
+    "generated_by": "Noforonin'ny rafitra ______ANTATSIMO______"
+  },
+  "print": {
+    "no_data": "Tsy misy angon-drakitra azo printy."
+  },
+  "pagination": {
+    "page": "Pejy",
+    "of": "amin'ny"
   }
 }

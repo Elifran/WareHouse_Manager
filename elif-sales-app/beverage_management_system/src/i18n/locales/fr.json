@@ -60,7 +60,8 @@
     "reports": "Rapports",
     "logout": "Déconnexion",
     "profile": "Profil",
-    "settings": "Paramètres"
+    "settings": "Paramètres",
+    "all_pages": "Toutes les pages"
   },
   "auth": {
     "login": "Connexion",
@@ -281,7 +282,11 @@
     "print_sales_report": "Imprimer le rapport de ventes",
     "print_receipt": "Imprimer le reçu",
     "print": "Imprimer",
-    "print_order": "Imprimer la commande"
+    "print_order": "Imprimer la commande",
+    "previous": "Précédent",
+    "next": "Suivant",
+    "apply_filters": "Appliquer les filtres",
+    "clear_filters": "Effacer les filtres"
   },
   "messages": {
     "sale_updated_successfully": "Vente mise à jour avec succès",
@@ -311,7 +316,8 @@
     "sale_receipt": "Reçu de vente",
     "sales_management_report": "Rapport de gestion des ventes",
     "inventory_report_data": "Données du rapport d'inventaire",
-    "stock_movement_report_data": "Données du rapport de mouvements de stock"
+    "stock_movement_report_data": "Données du rapport de mouvements de stock",
+    "inventory_summary": "RÉSUMÉ D'INVENTAIRE"
   },
   "table_headers": {
     "sale_number": "Numéro de vente",
@@ -380,7 +386,10 @@
     "return_reason_placeholder": "Raison du retour ou notes supplémentaires...",
     "return_summary": "Résumé du retour",
     "total_return_amount": "Montant total du retour",
-    "please_specify_quantities": "Veuillez spécifier les quantités pour au moins un article"
+    "please_specify_quantities": "Veuillez spécifier les quantités pour au moins un article",
+    "filter_sales": "Filtrer les ventes",
+    "recent_sales": "Ventes récentes",
+    "no_sales_found": "Aucune vente trouvée"
   },
   "messages": {
     "failed_to_load_users": "Échec du chargement des utilisateurs",
@@ -439,5 +448,34 @@
     "out_of_stock_label": " - RUPTURE DE STOCK",
     "available_label": " - {quantity} disponible",
     "loading_stock_info": "Chargement des informations de stock... Veuillez réessayer."
+  },
+  "all_pages": {
+    "title": "Toutes les pages",
+    "subtitle": "Accéder aux autres applications",
+    "access_app": "Accéder à l'application"
+  },
+  "placeholders": {
+    "enter_sale_id": "Saisir l'ID de vente",
+    "enter_client_name": "Saisir le nom du client"
+  },
+  "labels": {
+    "start_date": "Date de début",
+    "end_date": "Date de fin"
+  },
+  "company": {
+    "name": "______ANTATSIMO______"
+  },
+  "customer": {
+    "walk_in": "Client de passage"
+  },
+  "footer": {
+    "generated_by": "Généré par le système ______ANTATSIMO______"
+  },
+  "print": {
+    "no_data": "Aucune donnée disponible à imprimer."
+  },
+  "pagination": {
+    "page": "Page",
+    "of": "sur"
   }
 }

@@ -53,7 +53,8 @@ const Navbar = () => {
     { name: t('navigation.pending_sales'), path: '/pending-sales', icon: '⏳' },
     { name: t('navigation.sales_management'), path: '/sales-management', icon: '📊' },
     { name: t('navigation.packaging_management'), path: '/packaging-management', icon: '📦' },
-    { name: t('navigation.reports'), path: '/reports', icon: '📋' }
+    { name: t('navigation.reports'), path: '/reports', icon: '📋' },
+    { name: t('navigation.all_pages') || 'All Pages', path: '/all-pages', icon: '📄' }
   ];
 
   return (
