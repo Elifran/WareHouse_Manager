@@ -865,7 +865,7 @@ const SalesManagement = () => {
                             Edit
                           </Button>
                         )}
-                      {row.status === 'completed' &&
+                      {/* {row.status === 'completed' &&
                         row.status !== 'refunded' &&
                         row.sale_type !== 'return' && (
                           <Button
@@ -885,7 +885,7 @@ const SalesManagement = () => {
                           >
                             Return
                           </Button>
-                        )}
+                        )} */}
                       {(row.status === 'pending' || row.status === 'completed') &&
                         row.status !== 'refunded' &&
                         row.sale_type !== 'return' && (

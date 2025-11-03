@@ -275,6 +275,10 @@ def complete_sale(request, sale_id):
 @permission_classes([IsAuthenticated])
 def cancel_sale(request, sale_id):
     """Cancel a sale with different behaviors for pending vs confirmed sales"""
+        # Only allow admin and manager roles to edit sales
+    if request.user.role not in ['admin', 'manager']:
+        return Response({'error': 'Permission denied'}, status=status.HTTP_403_FORBIDDEN)
+        
     try:
         sale = Sale.objects.get(id=sale_id)
     except Sale.DoesNotExist:
