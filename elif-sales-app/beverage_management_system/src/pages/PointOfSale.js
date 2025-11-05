@@ -1519,7 +1519,7 @@ const PointOfSale = () => {
       return;
     }
     
-    if ((product.available_units && product.available_units.length > 1 && priceMode === 'wholesale') ||
+    if ((product.available_units && product.available_units.length > 0 && priceMode === 'wholesale') ||
         (priceMode === 'standard' && product.standard_prices_list && product.standard_prices_list.length > 0)) {
       // For multi-unit products or multiple standard prices, add with the currently selected option
       const selectedUnitId = selectedUnits[product.id];
@@ -1550,7 +1550,9 @@ const PointOfSale = () => {
                 symbol: selectedAvailableUnit.symbol
               };
               addToCart(product, selectedUnit);
-            } 
+            }else{
+              // console.log("No unit selected : " + selectedAvailableUnit);
+            }
           }
         }
         catch(error){
@@ -1808,7 +1810,7 @@ const PointOfSale = () => {
                   </p>
                   <p className="product-stock">
                     Stock: {product.stock_quantity} {product.unit}
-                    {product.available_units && product.available_units.length > 1 && priceMode === 'wholesale' && (
+                    {product.available_units && product.available_units.length > 0 && priceMode === 'wholesale' && (
                       <span className="stock-details">
                         {product.available_units.map(unit => {
                           let price = 0;
