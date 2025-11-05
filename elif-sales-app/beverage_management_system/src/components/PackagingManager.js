@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import api from '../services/api';
 import Button from './Button';
 import './PackagingManager.css';
+import {formatCurrency} from '../utils/helpers';
 
 const PackagingManager = ({ saleId, onPackagingUpdate, onClose }) => {
   const { t } = useTranslation();
@@ -110,6 +111,36 @@ const PackagingManager = ({ saleId, onPackagingUpdate, onClose }) => {
     );
   };
 
+  const handleSettlePackaging = async (packagingId) => {
+    try {
+      setError('');
+      setSuccess('');
+
+      // Update packaging status to 'consignation' (settled)
+      await api.patch(`/api/sales/packaging/${packagingId}/`, {
+        status: 'consignation'
+      });
+
+      setSuccess('Packaging item settled successfully');
+      
+      // Update local state
+      setPackagingItems(prev => 
+        prev.map(item => 
+          item.id === packagingId 
+            ? { ...item, status: 'consignation' }
+            : item
+        )
+      );
+      
+      if (onPackagingUpdate) {
+        onPackagingUpdate();
+      }
+    } catch (err) {
+      setError(err.response?.data?.error || 'Failed to settle packaging item');
+      console.error('Error settling packaging:', err);
+    }
+  };
+
   const calculatePackagingTotal = () => {
     return packagingItems.reduce((total, item) => {
       return total + (parseFloat(item.total_price) || 0);
@@ -143,7 +174,7 @@ const PackagingManager = ({ saleId, onPackagingUpdate, onClose }) => {
         </div>
         <div className="summary-row">
           <span>Packaging Total:</span>
-          <span>{calculatePackagingTotal().toFixed(2)} MGA</span>
+          <span>{formatCurrency(calculatePackagingTotal())}</span>
         </div>
       </div>
 
@@ -170,7 +201,7 @@ const PackagingManager = ({ saleId, onPackagingUpdate, onClose }) => {
               <option value="">Select Product</option>
               {availableProducts.map(product => (
                 <option key={product.id} value={product.id}>
-                  {product.name} - {product.packaging_price} MGA
+                  {product.name} - {formatCurrency(product.packaging_price)}
                 </option>
               ))}
             </select>
@@ -272,7 +303,7 @@ const PackagingManager = ({ saleId, onPackagingUpdate, onClose }) => {
                 <div className="item-info">
                   <div className="item-name">{item.product_name}</div>
                   <div className="item-details">
-                    {item.quantity} {item.unit_name} × {item.unit_price} MGA = {item.total_price} MGA
+                    {item.quantity} {item.unit_name} × {formatCurrency(item.unit_price)} = {formatCurrency(item.total_price)}
                   </div>
                   <div className="item-status">
                     Status: 
@@ -284,6 +315,16 @@ const PackagingManager = ({ saleId, onPackagingUpdate, onClose }) => {
                       <option value="exchange">Exchange</option>
                       <option value="due">Due (To be returned)</option>
                     </select>
+                    {item.status === 'due' && (
+                      <Button 
+                        onClick={() => handleSettlePackaging(item.id)}
+                        variant="success"
+                        size="small"
+                        style={{ marginLeft: '10px' }}
+                      >
+                        Settle
+                      </Button>
+                    )}
                   </div>
                   {item.customer_name && (
                     <div className="customer-info">

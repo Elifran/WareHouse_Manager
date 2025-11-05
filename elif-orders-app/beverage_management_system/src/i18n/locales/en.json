@@ -58,7 +58,8 @@
     "suppliers": "Suppliers",
     "logout": "Logout",
     "profile": "Profile",
-    "settings": "Settings"
+    "settings": "Settings",
+    "all_pages": "All Pages"
   },
   "auth": {
     "login": "Login",
@@ -330,7 +331,17 @@
     "failed_to_create_return": "Failed to create return",
     "pending_sale_created": "Pending sale created! Sale Number: {{saleNumber}}\nYou can complete it later in Sales Management.",
     "dont_have_account": "Don't have an account?",
-    "contact_administrator": "Contact administrator"
+    "contact_administrator": "Contact administrator",
+    "failed_to_load_users": "Failed to load users",
+    "failed_to_delete_user": "Failed to delete user"
+  },
+  "actions": {
+    "actions": "Actions"
+  },
+  "all_pages": {
+    "title": "All Pages",
+    "subtitle": "Access other applications",
+    "access_app": "Access App"
   },
   "titles": {
     "sales_management": "Sales Management",
@@ -480,11 +491,9 @@
     "active_supplier": "Active Supplier",
     "updating": "Updating...",
     "update_supplier": "Update Supplier",
-    "create_supplier": "Create Supplier"
-  },
-  "messages": {
-    "failed_to_load_users": "Failed to load users",
-    "failed_to_delete_user": "Failed to delete user"
+    "create_supplier": "Create Supplier",
+    "search_products": "Search products",
+    "total": "Total"
   },
   "alerts": {
     "sale_will_be_completed": "Sale will be completed immediately and stock will be deducted",

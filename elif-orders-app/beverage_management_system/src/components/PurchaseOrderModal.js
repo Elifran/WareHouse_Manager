@@ -690,6 +690,7 @@ const PurchaseOrderModal = ({ suppliers, onClose, onSubmit }) => {
 };
 
 export default PurchaseOrderModal;
+
 // import React, { useState, useEffect } from 'react';
 // import { useTranslation } from 'react-i18next';
 // import { useApi } from '../hooks/useApi';

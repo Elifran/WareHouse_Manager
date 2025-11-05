@@ -1,11 +1,19 @@
 // Helper functions for formatting and utilities
 
+// export const formatCurrency = (amount) => {
+//   if (amount === null || amount === undefined) {
+//     return '0.00';
+//   }
+//   // Format as number with 2 decimal places and add MGA suffix
+//   return `${parseFloat(amount).toFixed(2)} MGA`;
+// };
+
 export const formatCurrency = (amount) => {
-  if (amount === null || amount === undefined) {
-    return '0.00';
-  }
-  // Format as number with 2 decimal places and add MGA suffix
-  return `${parseFloat(amount).toFixed(2)} MGA`;
+  // return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount);
+  return new Intl.NumberFormat('mg-MG', { 
+      style: 'currency', 
+      currency: 'MGA' 
+  }).format(amount);
 };
 
 export const formatDate = (dateString) => {

@@ -80,7 +80,8 @@ const Navbar = () => {
   const navigationItems = [
     { name: t('navigation.purchase_orders'), path: '/purchase-orders', icon: '📋' },
     { name: t('navigation.inventory'), path: '/inventory', icon: '📦' },
-    { name: t('navigation.suppliers'), path: '/suppliers', icon: '🏢' }
+    { name: t('navigation.suppliers'), path: '/suppliers', icon: '🏢' },
+    { name: t('navigation.all_pages') || 'All Pages', path: '/all-pages', icon: '📄' }
   ];
 
   return (

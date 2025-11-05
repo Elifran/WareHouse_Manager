@@ -27,7 +27,7 @@ class PackagingPaymentSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = PackagingPayment
-        fields = ['id', 'amount', 'payment_method', 'notes', 'created_by_name', 'created_at']
+        fields = ['id', 'action_type', 'amount', 'payment_method', 'notes', 'created_by_name', 'created_at']
         read_only_fields = ['id', 'created_by_name', 'created_at']
 
 
@@ -111,17 +111,20 @@ class PackagingPaymentCreateSerializer(serializers.ModelSerializer):
         fields = ['amount', 'payment_method', 'notes']
     
     def create(self, validated_data):
-        transaction = self.context['transaction']
-        created_by = self.context['created_by']
+        # Prefer values passed via save(...), fallback to context
+        transaction = validated_data.pop('transaction', None) or self.context.get('transaction')
+        created_by = validated_data.pop('created_by', None) or self.context.get('created_by')
         
         payment = PackagingPayment.objects.create(
             transaction=transaction,
+            action_type='payment',
             created_by=created_by,
             **validated_data
         )
         
         # Update transaction payment amounts
-        transaction.paid_amount += payment.amount
-        transaction.calculate_totals()
+        if payment.amount:
+            transaction.paid_amount += payment.amount
+            transaction.calculate_totals()
         
         return payment

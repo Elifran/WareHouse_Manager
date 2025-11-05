@@ -1,6 +1,6 @@
 .dashboard {
   padding: 2rem;
-  max-width: 1200px;
+  /* max-width: 1200px; */
   margin: 0 auto;
 }
 
@@ -285,15 +285,19 @@
 
 .chart-container {
   margin-top: 1rem;
+  /* overflow: auto */
 }
 
 .chart-bars {
   display: flex;
   align-items: end;
-  gap: 0.5rem;
+  gap: 5rem;
   height: 200px;
   padding: 1rem 0;
   border-bottom: 1px solid #e5e7eb;
+  overflow: auto;
+  /* flex-direction: row-reverse; reverses order visually */
+
 }
 
 .chart-bar {

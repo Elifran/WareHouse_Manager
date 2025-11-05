@@ -284,9 +284,9 @@ def dashboard_data(request):
     total_revenue = float(period_sales['total_sales'] or 0)
     profit_margin = ((total_revenue - total_cost) / total_revenue * 100) if total_revenue > 0 else 0
     
-    # Daily sales for chart (last 7 days)
+    # Daily sales for chart (last 31 days)
     chart_data = []
-    for i in range(7):
+    for i in range(31):
         date = today - timedelta(days=i)
         daily_sales = Sale.objects.filter(
             created_at__date=date,
@@ -364,33 +364,26 @@ def dashboard_data(request):
         'product__name', 'product__sku', 'product__tax_class__tax_rate', 'unit__name', 'unit__symbol'
     ).annotate(
         total_sold=Sum('quantity'),
-        total_revenue=Sum('total_price')
-    ).order_by('-total_sold')[:5]
+        total_revenue=Sum('total_price'),
+        total_cost=Sum('total_cost')
+    ).order_by('-total_sold')[:10]
     
-    # Add cost and profit data to top products using tax-inclusive pricing
+    # Add cost and profit data to top products using stored item costs
     top_products_data = []
     for product in top_products:
-        # Calculate cost using tax-inclusive pricing logic
-        if product['product__tax_class__tax_rate'] and product['product__tax_class__tax_rate'] > 0:
-            # For tax-inclusive pricing: cost = (price × 100) / (100 + tax_rate)
-            tax_rate = float(product['product__tax_class__tax_rate'])
-            product_revenue = float(product['total_revenue'])
-            product_cost = (product_revenue * 100) / (100 + tax_rate)
-        else:
-            # No tax, full revenue is cost
-            product_cost = float(product['total_revenue'])
-        
-        profit = float(product['total_revenue']) - product_cost
+        product_revenue = float(product['total_revenue'] or 0)
+        product_cost = float(product['total_cost'] or 0)
+        profit = product_revenue - product_cost
         top_products_data.append({
             'product__name': product['product__name'],
             'product__sku': product['product__sku'],
             'total_sold': product['total_sold'],
             'unit_name': product['unit__name'] or 'piece',
             'unit_symbol': product['unit__symbol'] or 'piece',
-            'total_revenue': float(product['total_revenue']),
+            'total_revenue': product_revenue,
             'total_cost': product_cost,
             'profit': profit,
-            'profit_margin': (profit / float(product['total_revenue']) * 100) if product['total_revenue'] > 0 else 0
+            'profit_margin': (profit / product_revenue * 100) if product_revenue > 0 else 0
         })
     
     # Base response data

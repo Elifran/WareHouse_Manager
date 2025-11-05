@@ -34,6 +34,124 @@
   margin-right: 0.5rem;
 }
 
+/* Enhanced Filters Section */
+.filters-section {
+  background-color: #f9fafb;
+  padding: 1.5rem;
+  border-radius: 0.5rem;
+  margin-bottom: 2rem;
+  border: 1px solid #e5e7eb;
+}
+
+.filters-section h3 {
+  color: #1f2937;
+  margin-bottom: 1rem;
+  font-size: 1.25rem;
+  font-weight: 600;
+}
+
+.filters-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+}
+
+.form-group label {
+  font-weight: 500;
+  color: #374151;
+  margin-bottom: 0.5rem;
+  font-size: 0.875rem;
+}
+
+.form-group input,
+.form-group select {
+  padding: 0.75rem;
+  border: 1px solid #d1d5db;
+  border-radius: 0.375rem;
+  font-size: 0.875rem;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.form-group input:focus,
+.form-group select:focus {
+  outline: none;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.filter-actions {
+  display: flex;
+  gap: 1rem;
+  justify-content: flex-end;
+}
+
+/* Pagination Styles */
+.pagination-info-top {
+  background: #f8f9fa;
+  padding: 0.75rem 1rem;
+  border-radius: 0.375rem;
+  margin-bottom: 1rem;
+  font-size: 0.875rem;
+  color: #6b7280;
+  text-align: center;
+  border: 1px solid #e5e7eb;
+}
+
+.pagination-controls {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 1.5rem;
+  padding: 1rem;
+  border-top: 1px solid #e5e7eb;
+}
+
+.btn-pagination {
+  padding: 0.5rem 0.75rem;
+  border: 1px solid #d1d5db;
+  background: white;
+  color: #374151;
+  border-radius: 0.375rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-size: 0.875rem;
+  font-weight: 500;
+  min-width: 2.5rem;
+}
+
+.btn-pagination:hover:not(:disabled) {
+  background: #3b82f6;
+  color: white;
+  border-color: #3b82f6;
+}
+
+.btn-pagination:disabled {
+  border-color: #e5e7eb;
+  color: #9ca3af;
+  cursor: not-allowed;
+  background: #f9fafb;
+}
+
+.btn-pagination.active {
+  background: #3b82f6;
+  color: white;
+  border-color: #3b82f6;
+}
+
+.pagination-info {
+  font-weight: 500;
+  color: #6b7280;
+  font-size: 0.875rem;
+  margin: 0 1rem;
+}
+
 /* Sale Items Display */
 .sale-items {
   display: flex;
@@ -119,63 +237,6 @@
   font-size: 1.1rem;
 }
 
-/* Filters Section */
-.filters-section {
-  background-color: #f9fafb;
-  padding: 1.5rem;
-  border-radius: 0.5rem;
-  margin-bottom: 2rem;
-  border: 1px solid #e5e7eb;
-}
-
-.filters-section h3 {
-  color: #1f2937;
-  margin-bottom: 1rem;
-  font-size: 1.25rem;
-  font-weight: 600;
-}
-
-.filters-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 1rem;
-  margin-bottom: 1rem;
-}
-
-.form-group {
-  display: flex;
-  flex-direction: column;
-}
-
-.form-group label {
-  font-weight: 500;
-  color: #374151;
-  margin-bottom: 0.5rem;
-  font-size: 0.875rem;
-}
-
-.form-group input,
-.form-group select {
-  padding: 0.75rem;
-  border: 1px solid #d1d5db;
-  border-radius: 0.375rem;
-  font-size: 0.875rem;
-  transition: border-color 0.2s, box-shadow 0.2s;
-}
-
-.form-group input:focus,
-.form-group select:focus {
-  outline: none;
-  border-color: #3b82f6;
-  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
-}
-
-.filter-actions {
-  display: flex;
-  gap: 1rem;
-  justify-content: flex-end;
-}
-
 /* Table Section */
 .table-section {
   background-color: white;
@@ -195,6 +256,16 @@
   font-family: 'Courier New', monospace;
   font-weight: 600;
   color: #1f2937;
+}
+
+.clickable {
+  cursor: pointer;
+  transition: color 0.2s ease;
+}
+
+.clickable:hover {
+  color: #3b82f6;
+  text-decoration: underline;
 }
 
 .status-badge {
@@ -452,14 +523,14 @@
   background-color: white;
   border-radius: 0.5rem;
   box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
-  max-width: 500px;
+  max-width: 800px;
   width: 100%;
   max-height: 90vh;
   overflow-y: auto;
 }
 
 .large-modal {
-  max-width: 800px;
+  max-width: 1000px;
 }
 
 .modal-header {
@@ -558,52 +629,6 @@
   margin-top: 0.5rem;
 }
 
-/* Responsive Design */
-@media (max-width: 768px) {
-  .sales-management {
-    padding: 1rem;
-  }
-  
-  .page-header {
-    flex-direction: column;
-    gap: 1rem;
-    align-items: stretch;
-  }
-  
-  .filters-grid {
-    grid-template-columns: 1fr;
-  }
-  
-  .edit-item {
-    grid-template-columns: 1fr;
-    gap: 0.5rem;
-  }
-  
-  .modal-content {
-    margin: 1rem;
-    max-width: calc(100vw - 2rem);
-  }
-  
-  .action-buttons {
-    flex-direction: column;
-  }
-}
-
-@media (max-width: 480px) {
-  .sales-management {
-    padding: 0.5rem;
-  }
-  
-  .filters-section,
-  .modal-body {
-    padding: 1rem;
-  }
-  
-  .modal-header {
-    padding: 1rem;
-  }
-}
-
 /* Price Mode Badge */
 .price-mode-badge {
   display: inline-block;
@@ -639,4 +664,103 @@
   outline: none;
   border-color: #e5e7eb;
   box-shadow: none;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .sales-management {
+    padding: 1rem;
+  }
+  
+  .page-header {
+    flex-direction: column;
+    gap: 1rem;
+    align-items: stretch;
+  }
+  
+  .filters-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .filter-actions {
+    flex-direction: column;
+  }
+  
+  .pagination-controls {
+    flex-wrap: wrap;
+    gap: 0.25rem;
+  }
+  
+  .btn-pagination {
+    padding: 0.375rem 0.5rem;
+    font-size: 0.75rem;
+    min-width: 2rem;
+  }
+  
+  .pagination-info {
+    margin: 0.5rem 0;
+    order: -1;
+    width: 100%;
+    text-align: center;
+  }
+  
+  .edit-item {
+    grid-template-columns: 1fr;
+    gap: 0.5rem;
+  }
+  
+  .modal-content {
+    margin: 1rem;
+    max-width: calc(100vw - 2rem);
+  }
+  
+  .action-buttons {
+    flex-direction: column;
+  }
+}
+
+@media (max-width: 480px) {
+  .sales-management {
+    padding: 0.5rem;
+  }
+  
+  .filters-section,
+  .modal-body {
+    padding: 1rem;
+  }
+  
+  .modal-header {
+    padding: 1rem;
+  }
+  
+  .header-actions {
+    flex-direction: column;
+    width: 100%;
+  }
+  
+  .header-actions button {
+    width: 100%;
+  }
+}
+
+/* Loading states for pagination */
+.pagination-loading {
+  opacity: 0.6;
+  pointer-events: none;
+}
+
+/* Animation for page transitions */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.table-section {
+  animation: fadeIn 0.3s ease-in-out;
 }

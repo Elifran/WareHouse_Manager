@@ -3,22 +3,22 @@ import { useTranslation } from 'react-i18next';
 import { useAuth } from '../contexts/AuthContext';
 import api from '../services/api';
 import Button from '../components/Button';
-import PackagingManager from '../components/PackagingManager';
 import { 
   isMobileDevice,
   openPrintWindow,
   openPrintPreview,
   downloadReceiptFile,
-  generateXprinterPrintContent,
-  generateMobilePrintContent,
   generatePrintContent
 } from '../utils/printUtils';
+import {formatCurrency} from '../utils/helpers';
 import './PointOfSale.css';
 
 const PointOfSale = () => {
   const { t } = useTranslation();
   const { user } = useAuth();
   const [products, setProducts] = useState([]);
+  const [allProducts, setAllProducts] = useState([]); // Store all products for client-side filtering
+  const [filteredProducts, setFilteredProducts] = useState([]); // Store filtered products for display
   const [categories, setCategories] = useState([]);
   const [cart, setCart] = useState([]);
   const [customerInfo, setCustomerInfo] = useState({
@@ -30,6 +30,7 @@ const PointOfSale = () => {
   const [paymentType, setPaymentType] = useState('full'); // 'full' or 'partial'
   const [paidAmount, setPaidAmount] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [initialLoading, setInitialLoading] = useState(true); // Separate state for initial load
   const [processing, setProcessing] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -50,6 +51,15 @@ const PointOfSale = () => {
   const categoriesRef = useRef(categories); // Ref to store current categories
   const categoriesLoadedRef = useRef(categoriesLoaded); // Ref to store categories loaded state
 
+  const [showSellableToggle, setShowSellableToggle] = useState(false); // Show/hide sellable toggle
+  const [priceMode, setPriceMode] = useState('standard'); // 'standard' or 'wholesale'
+  const [saleMode, setSaleMode] = useState('complete'); // 'complete' or 'pending'
+  const [printReceipt, setPrintReceipt] = useState(true); // true or false
+  const [currentPage, setCurrentPage] = useState(1);
+  const PAGE_SIZE = 24;
+  
+  // Packaging state
+  const [packagingCart, setPackagingCart] = useState([]);
   // Update refs whenever state changes
   useEffect(() => {
     filtersRef.current = filters;
@@ -62,6 +72,49 @@ const PointOfSale = () => {
   useEffect(() => {
     categoriesLoadedRef.current = categoriesLoaded;
   }, [categoriesLoaded]);
+
+  // Client-side filtering function
+  const applyClientSideFilters = useCallback((productsToFilter, searchTerm = '', categoryId = '') => {
+    let filtered = [...productsToFilter];
+
+    // Apply search filter
+    if (searchTerm && searchTerm.trim() !== '') {
+      const searchLower = searchTerm.toLowerCase().trim();
+      filtered = filtered.filter(product => 
+        product.name?.toLowerCase().includes(searchLower) ||
+        product.sku?.toLowerCase().includes(searchLower) ||
+        product.description?.toLowerCase().includes(searchLower)
+      );
+    }
+
+    // Apply category filter
+    if (categoryId && categoryId !== '') {
+      const categoryIdNum = parseInt(categoryId);
+      filtered = filtered.filter(product => {
+        // Check different ways category might be stored
+        if (product.category_name) {
+          const category = categoriesRef.current.find(cat => cat.name === product.category_name);
+          return category && category.id === categoryIdNum;
+        } else if (product.category && typeof product.category === 'number') {
+          return product.category === categoryIdNum;
+        } else if (product.category && product.category.id) {
+          return product.category.id === categoryIdNum;
+        }
+        return false;
+      });
+    }
+
+    return filtered;
+  }, []);
+
+  // Effect to apply client-side filtering when allProducts, search, or category changes
+  useEffect(() => {
+    if (allProducts.length > 0) {
+      const filtered = applyClientSideFilters(allProducts, searchInput, filters.category);
+      setFilteredProducts(filtered);
+      setProducts(filtered); // Keep products state for backward compatibility
+    }
+  }, [allProducts, searchInput, filters.category, applyClientSideFilters]);
 
   // Function to sync session storage with categories state
   const syncSessionStorage = useCallback(() => {
@@ -86,16 +139,7 @@ const PointOfSale = () => {
     }
   }, [categoriesLoaded, categories.length, filters]);
 
-  const [showSellableToggle, setShowSellableToggle] = useState(false); // Show/hide sellable toggle
-  const [priceMode, setPriceMode] = useState('standard'); // 'standard' or 'wholesale'
-  const [saleMode, setSaleMode] = useState('complete'); // 'complete' or 'pending'
-  const [printReceipt, setPrintReceipt] = useState(true); // true or false
-  const [currentPage, setCurrentPage] = useState(1);
-  const PAGE_SIZE = 24;
   
-  // Packaging state
-  const [packagingCart, setPackagingCart] = useState([]);
-  const [showPackagingManager, setShowPackagingManager] = useState(false);
 
   const handlePrintReceipt = async (printData, title = 'Sale Receipt', usePreview = false) => {
     try {
@@ -246,14 +290,6 @@ const PointOfSale = () => {
     await handlePrintReceipt(printData, t('titles.sale_receipt'), true);
   };
 
-  // Function to get the current price based on price mode
-  const getCurrentPrice = (product) => {
-    if (priceMode === 'wholesale' && product.wholesale_price) {
-      return parseFloat(product.wholesale_price);
-    }
-    return parseFloat(product.price);
-  };
-
   // Calculate total amount (products only, excluding packaging)
   const calculateTotal = () => {
     const cartTotal = cart.reduce((total, item) => {
@@ -261,16 +297,6 @@ const PointOfSale = () => {
       return total + (unitPrice * item.quantity);
     }, 0);
     return cartTotal;
-  };
-
-  // Calculate total amount including packaging (for display purposes)
-  const calculateTotalWithPackaging = () => {
-    const cartTotal = cart.reduce((total, item) => {
-      const unitPrice = item.unit_price || 0;
-      return total + (unitPrice * item.quantity);
-    }, 0);
-    const packagingTotal = calculatePackagingTotal();
-    return cartTotal + packagingTotal;
   };
 
   // Update paid amount when payment type changes
@@ -286,70 +312,54 @@ const PointOfSale = () => {
     }
   }, [paymentType, cart, packagingCart]);
 
-  // Function to get the current price for a specific unit using new pricing structure
-  const getCurrentUnitPrice = (product, unitStockInfo) => {
-    if (!unitStockInfo) return 0;
-    
-    // If we're in standard mode, use standard prices
-    if (priceMode === 'standard') {
-      // Check if this unit has unit-specific standard price
-      if (unitStockInfo.unit_specific_standard_price) {
-        return unitStockInfo.unit_specific_standard_price;
-      }
-      
-      // Use the first available standard price from the product's standard prices list
-      if (product.standard_prices_list && product.standard_prices_list.length > 0) {
-        return product.standard_prices_list[0];
-      }
-      
-      // Fallback to legacy price
-      return unitStockInfo.price || 0;
-    }
-    
-    // If we're in wholesale mode, use wholesale prices
-    if (priceMode === 'wholesale') {
-      // Check if this unit has unit-specific wholesale price
-      if (unitStockInfo.unit_specific_wholesale_price) {
-        return unitStockInfo.unit_specific_wholesale_price;
-      }
-      
-      // Use the main wholesale price
-      if (product.wholesale_price) {
-        return parseFloat(product.wholesale_price);
-      }
-      
-      // Fallback to legacy wholesale calculation
-      if (product.wholesale_price && product.price) {
-        const standardBasePrice = parseFloat(product.price);
-        const wholesaleBasePrice = parseFloat(product.wholesale_price);
-        
-        if (standardBasePrice > 0) {
-          const wholesaleConversionFactor = wholesaleBasePrice / standardBasePrice;
-          return standardBasePrice * wholesaleConversionFactor;
-        }
-      }
-    }
-    
-    // Fallback to standard price
-    return unitStockInfo.price || 0;
-  };
-
   useEffect(() => {
     const initializeData = async () => {
+      // Load categories first
       await fetchCategories();
-      // Don't fetch products here - let the categories useEffect handle it
+      // Load all products immediately after categories are loaded
+      await fetchProducts({});
+      // Set initial loading to false after everything is loaded
+      setInitialLoading(false);
     };
     initializeData();
   }, []);
 
-  // Re-filter products when categories are loaded (to apply sellable filtering)
+  // Re-apply sellable filtering when categories are loaded
   useEffect(() => {
-    if (categoriesLoaded && categories.length > 0) {
-      fetchProducts(filters); // Re-fetch with current filters to apply sellable filtering
+    if (categoriesLoaded && allProducts.length > 0) {
+      // Re-apply sellable filtering to all products
+      const sellableProducts = allProducts.filter(product => {
+        let isSellable = false;
+        
+        // If product has category_name, find the category in our categories list
+        if (product.category_name) {
+          const category = categoriesRef.current.find(cat => cat.name === product.category_name);
+          isSellable = category ? category.is_sellable : false;
+        }
+        // If product has category ID, find the category in our categories list
+        else if (product.category && typeof product.category === 'number') {
+          const category = categoriesRef.current.find(cat => cat.id === product.category);
+          isSellable = category ? category.is_sellable : false;
+        }
+        // If product has category object with ID, find the category in our categories list
+        else if (product.category && product.category.id) {
+          const category = categoriesRef.current.find(cat => cat.id === product.category.id);
+          isSellable = category ? category.is_sellable : false;
+        }
+        // If no category information, exclude the product (safer approach)
+        else {
+          isSellable = false;
+        }
+        
+        return isSellable;
+      });
+      
+      // Update allProducts with sellable filtering
+      setAllProducts(sellableProducts);
     }
-  }, [categoriesLoaded]); // Only depend on categoriesLoaded flag
+  }, [categoriesLoaded, allProducts.length]);
 
-  // Debounced search effect - optimized to prevent focus loss
+  // Search effect - now only updates filters state, no database calls
   useEffect(() => {
     // Clear existing timeout
     if (searchTimeoutRef.current) {
@@ -361,13 +371,13 @@ const PointOfSale = () => {
       searchTimeoutRef.current = setTimeout(() => {
         const newFilters = { ...filtersRef.current, search: searchInput };
         setFilters(newFilters);
-        fetchProducts(newFilters);
-      }, 500);
+        // No fetchProducts call - client-side filtering will handle this
+      }, 300); // Reduced debounce time since it's now client-side
     } else if (filtersRef.current.search !== '') {
       // If search input is cleared, immediately update filters
       const newFilters = { ...filtersRef.current, search: '' };
       setFilters(newFilters);
-      fetchProducts(newFilters);
+      // No fetchProducts call - client-side filtering will handle this
     }
 
     // Cleanup function
@@ -380,14 +390,22 @@ const PointOfSale = () => {
 
   useEffect(() => {
     // Fetch stock availability for ALL products in bulk to improve performance
-    if (products.length > 0) {
+    if (allProducts.length > 0) {
       fetchBulkStockAvailability();
     }
     
-    // Set default selected units (default unit first, then base unit) for products with multiple compatible units
+    // Set default selected units/prices based on products
+    // For standard mode: prioritize setting first price for products with standard prices
+    // For wholesale mode: prioritize setting default unit for products with multiple units
     const defaultUnits = {};
-    products.forEach(product => {
-      if (product.compatible_units && product.compatible_units.length > 1) {
+    allProducts.forEach(product => {
+      // For standard mode: set default first price for products with multiple standard prices
+      if (product.standard_prices_list && product.standard_prices_list.length > 0) {
+        defaultUnits[product.id] = 'price-0';
+      }
+      // For wholesale mode: set default unit for products with multiple compatible units
+      // Only set if not already set by standard prices (products can have both)
+      else if (product.compatible_units && product.compatible_units.length > 1) {
         
         // First try to find the default unit (is_default: true)
         let selectedUnit = product.compatible_units.find(u => u.is_default);
@@ -408,11 +426,53 @@ const PointOfSale = () => {
       }
     });
     setSelectedUnits(defaultUnits);
-  }, [products]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [allProducts]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Recalculate packaging quantities whenever cart changes
+  useEffect(() => {
+    if (packagingCart.length > 0) {
+      recalculateAllPackagingQuantities();
+    }
+  }, [cart]); // Depend on cart changes
+
+  // Update selected units/prices when priceMode changes
+  useEffect(() => {
+    if (allProducts.length === 0) return;
+    
+    setSelectedUnits(prev => {
+      const updated = { ...prev };
+      
+      allProducts.forEach(product => {
+        if (priceMode === 'standard' && product.standard_prices_list && product.standard_prices_list.length > 0) {
+          // When switching to standard mode, set first price if not already a price selection
+          if (!updated[product.id] || !updated[product.id].toString().startsWith('price-')) {
+            updated[product.id] = 'price-0';
+          }
+        } else if (priceMode === 'wholesale' && product.compatible_units && product.compatible_units.length > 1) {
+          // When switching to wholesale mode, set default unit if currently a price selection
+          if (updated[product.id] && updated[product.id].toString().startsWith('price-')) {
+            // Find default unit
+            let selectedUnit = product.compatible_units.find(u => u.is_default);
+            if (!selectedUnit) {
+              selectedUnit = product.compatible_units.find(u => u.unit.is_base_unit);
+            }
+            if (!selectedUnit) {
+              selectedUnit = product.compatible_units[0];
+            }
+            if (selectedUnit) {
+              updated[product.id] = selectedUnit.unit?.id || selectedUnit.unit;
+            }
+          }
+        }
+      });
+      
+      return updated;
+    });
+  }, [priceMode, allProducts]);
 
   const fetchBulkStockAvailability = async () => {
     try {
-      const productIds = products.map(product => product.id);
+      const productIds = allProducts.map(product => product.id);
       const response = await api.post('/api/products/bulk-stock-availability/', {
         product_ids: productIds
       });
@@ -426,7 +486,7 @@ const PointOfSale = () => {
       setStockAvailability(stockData);
     } catch (err) {
       // Fallback to individual calls if bulk fails
-      products.forEach(product => {
+      allProducts.forEach(product => {
         fetchStockAvailability(product.id);
       });
     }
@@ -434,7 +494,7 @@ const PointOfSale = () => {
 
   const refreshStockAvailability = () => {
     // Use bulk fetch for better performance
-    if (products.length > 0) {
+    if (allProducts.length > 0) {
       fetchBulkStockAvailability();
     }
   };
@@ -493,15 +553,19 @@ const PointOfSale = () => {
 
   const fetchProducts = useCallback(async (filterParams = {}) => {
     try {
-      setLoading(true);
+      // Only show loading for initial load or category changes, not for search
+      if (allProducts.length === 0) {
+        setInitialLoading(true);
+        setLoading(true);
+      }
+      
       const params = new URLSearchParams();
       
       // Always filter for active products
       params.append('is_active', 'true');
       
-      // Add filters to params
+      // Only add category filter to API call, not search (search is now client-side)
       if (filterParams.category) params.append('category', filterParams.category);
-      if (filterParams.search) params.append('search', filterParams.search);
       
       const baseUrl = `/api/products/${params.toString() ? '?' + params.toString() : ''}`;
       let response = await api.get(baseUrl);
@@ -517,16 +581,20 @@ const PointOfSale = () => {
         nextUrl = response.data.next;
       }
       
-      const allProducts = aggregatedProducts;
+      const fetchedProducts = aggregatedProducts;
       
-      // If categories are not loaded yet, show all products but log a warning
+      // If categories are not loaded yet, store products but don't filter yet
       if (categoriesRef.current.length === 0 || !categoriesLoadedRef.current) {
-        setProducts(allProducts);
+        setAllProducts(fetchedProducts);
+        // Apply client-side filtering immediately even without categories
+        const filtered = applyClientSideFilters(fetchedProducts, searchInput, filters.category);
+        setFilteredProducts(filtered);
+        setProducts(filtered);
         return;
       }
       
       // ALWAYS filter out products from non-sellable categories
-      const sellableProducts = allProducts.filter(product => {
+      const sellableProducts = fetchedProducts.filter(product => {
         let isSellable = false;
         
         // If product has category_name, find the category in our categories list
@@ -557,19 +625,21 @@ const PointOfSale = () => {
         const selectedCategory = categoriesRef.current.find(cat => cat.id === parseInt(filterParams.category));
         if (selectedCategory && !selectedCategory.is_sellable) {
           // If selected category is not sellable, return empty array
-          setProducts([]);
+          setAllProducts([]);
           return;
         }
       }
       
-      setProducts(sellableProducts);
+      // Store all sellable products for client-side filtering
+      setAllProducts(sellableProducts);
       setCurrentPage(1);
     } catch (err) {
       setError('Failed to load products');
     } finally {
       setLoading(false);
+      setInitialLoading(false);
     }
-  }, []); // No dependencies to avoid circular references
+  }, [allProducts.length]); // Add allProducts.length as dependency
 
   const fetchCategories = useCallback(async () => {
     try {
@@ -740,24 +810,30 @@ const PointOfSale = () => {
       }
     }
     
-    const existingItemSTD = cart.find(item => 
-      item.id === product.id && 
-      item.unit_id === unit.id && 
-      item.price_mode === priceMode &&
-      item.unit_price !== unitPrice
-    );
+    // In standard mode, prevent adding the same product with different prices
+    if (priceMode === 'standard') {
+      const existingProductInCart = cart.find(item => 
+        item.id === product.id && 
+        item.price_mode === 'standard'
+      );
+      
+      if (existingProductInCart) {
+        // If product exists with a different price, prevent adding
+        if (existingProductInCart.unit_price !== unitPrice) {
+          setError(`This product is already in cart with a different price. Please update the existing item or remove it first.`);
+          return;
+        }
+        // If same product with same price exists, use existing item logic below
+      }
+    }
+    
     const existingItem = cart.find(item => 
       item.id === product.id && 
       item.unit_id === unit.id && 
       item.price_mode === priceMode &&
       item.unit_price === unitPrice
     );
-        
-    if(existingItemSTD && priceMode === 'standard'){
-        setError(`Cant add new ${product.name} for another STD unit prices are already added, only one type is selectable for standard prices`);
-        return;
-    }
-
+    
     // Update cart first
     if (existingItem) {
       // Check if adding 1 more would exceed available quantity (only for complete sales)
@@ -891,15 +967,33 @@ const PointOfSale = () => {
 
       // Update packaging cart
       setPackagingCart(currentPackagingCart => {
+        // Look for existing packaging for the same product (regardless of unit)
         const existingPackaging = currentPackagingCart.find(item => item.id === product.id);
+        
         if (existingPackaging) {
-          // Update existing packaging quantity to match sales quantity
+          // Calculate total packaging quantity from all units of this product in cart
+          const totalSalesQuantity = currentCart
+            .filter(item => item.id === product.id)
+            .reduce((sum, item) => {
+              // Get unit information for conversion
+              const updatedStockInfo = getUpdatedStockAvailability(product.id);
+              const unitStockInfo = updatedStockInfo?.find(u => u.id === item.unit_id);
+              
+              let quantity = item.quantity;
+              // Convert to base unit (pieces) if needed
+              if (unitStockInfo && !unitStockInfo.is_base_unit && unitStockInfo.conversion_factor) {
+                quantity = item.quantity * unitStockInfo.conversion_factor;
+              }
+              return sum + quantity;
+            }, 0);
+          
+          // Update existing packaging quantity to match total sales quantity
           return currentPackagingCart.map(item =>
             item.id === product.id
               ? { 
                   ...item, 
-                  quantity: packagingQuantity,
-                  total_price: parseFloat(product.packaging_price) * packagingQuantity
+                  quantity: totalSalesQuantity,
+                  total_price: parseFloat(product.packaging_price) * totalSalesQuantity
                 }
               : item
           );
@@ -925,34 +1019,6 @@ const PointOfSale = () => {
     });
   };
 
-  const addToPackagingCart = (product) => {
-    if (!product.has_packaging || !product.packaging_price) {
-      setError('This product does not have packaging consignation');
-      return;
-    }
-
-    const existingPackaging = packagingCart.find(item => item.id === product.id);
-    if (existingPackaging) {
-      setPackagingCart(packagingCart.map(item =>
-        item.id === product.id
-          ? { ...item, quantity: item.quantity + 1 }
-          : item
-      ));
-    } else {
-      const newPackagingItem = {
-        ...product,
-        quantity: 1,
-        unit_price: parseFloat(product.packaging_price),
-        total_price: parseFloat(product.packaging_price),
-        status: 'consignation',
-        customer_name: customerInfo.name,
-        customer_phone: customerInfo.phone
-      };
-      setPackagingCart([...packagingCart, newPackagingItem]);
-    }
-    setError('');
-  };
-
   const updatePackagingQuantityAutomatically = (product, unit, salesQuantity) => {
     if (!product.has_packaging || !product.packaging_price) {
       return;
@@ -971,15 +1037,33 @@ const PointOfSale = () => {
     }
 
     setPackagingCart(currentPackagingCart => {
+      // Look for existing packaging for the same product (regardless of unit)
       const existingPackaging = currentPackagingCart.find(item => item.id === product.id);
+      
       if (existingPackaging) {
-        // Update existing packaging quantity to match sales quantity
+        // Calculate total packaging quantity from all units of this product in cart
+        const totalSalesQuantity = cart
+          .filter(item => item.id === product.id)
+          .reduce((sum, item) => {
+            // Get unit information for conversion
+            const updatedStockInfo = getUpdatedStockAvailability(product.id);
+            const unitStockInfo = updatedStockInfo?.find(u => u.id === item.unit_id);
+            
+            let quantity = item.quantity;
+            // Convert to base unit (pieces) if needed
+            if (unitStockInfo && !unitStockInfo.is_base_unit && unitStockInfo.conversion_factor) {
+              quantity = item.quantity * unitStockInfo.conversion_factor;
+            }
+            return sum + quantity;
+          }, 0);
+        
+        // Update existing packaging quantity to match total sales quantity
         return currentPackagingCart.map(item =>
           item.id === product.id
             ? { 
                 ...item, 
-                quantity: packagingQuantity,
-                total_price: parseFloat(product.packaging_price) * packagingQuantity
+                quantity: totalSalesQuantity,
+                total_price: parseFloat(product.packaging_price) * totalSalesQuantity
               }
             : item
         );
@@ -1002,18 +1086,6 @@ const PointOfSale = () => {
     });
   };
 
-  const updatePackagingQuantity = (productId, quantity) => {
-    if (quantity <= 0) {
-      setPackagingCart(packagingCart.filter(item => item.id !== productId));
-    } else {
-      setPackagingCart(packagingCart.map(item =>
-        item.id === productId
-          ? { ...item, quantity, total_price: item.unit_price * quantity }
-          : item
-      ));
-    }
-  };
-
   const updatePackagingStatus = (productId, status) => {
     setPackagingCart(packagingCart.map(item =>
       item.id === productId
@@ -1024,6 +1096,41 @@ const PointOfSale = () => {
 
   const removeFromPackagingCart = (productId) => {
     setPackagingCart(packagingCart.filter(item => item.id !== productId));
+  };
+
+  // Function to recalculate packaging quantities for all products
+  const recalculateAllPackagingQuantities = () => {
+    setPackagingCart(currentPackagingCart => {
+      return currentPackagingCart.map(packagingItem => {
+        // Find all cart items for this product
+        const productCartItems = cart.filter(item => item.id === packagingItem.id);
+        
+        if (productCartItems.length === 0) {
+          // If product is no longer in cart, remove its packaging
+          return null;
+        }
+        
+        // Calculate total packaging quantity from all units of this product
+        const totalSalesQuantity = productCartItems.reduce((sum, item) => {
+          // Get unit information for conversion
+          const updatedStockInfo = getUpdatedStockAvailability(packagingItem.id);
+          const unitStockInfo = updatedStockInfo?.find(u => u.id === item.unit_id);
+          
+          let quantity = item.quantity;
+          // Convert to base unit (pieces) if needed
+          if (unitStockInfo && !unitStockInfo.is_base_unit && unitStockInfo.conversion_factor) {
+            quantity = item.quantity * unitStockInfo.conversion_factor;
+          }
+          return sum + quantity;
+        }, 0);
+        
+        return {
+          ...packagingItem,
+          quantity: totalSalesQuantity,
+          total_price: parseFloat(packagingItem.unit_price) * totalSalesQuantity
+        };
+      }).filter(item => item !== null); // Remove null items
+    });
   };
 
   const calculatePackagingTotal = () => {
@@ -1071,7 +1178,17 @@ const PointOfSale = () => {
   // Prepare print data for printing
   const preparePrintData = (saleNumber, saleStatus = 'completed') => {
     const total = calculateSubtotal();
-    const remaining = total - paidAmount;
+    
+    // Calculate packaging total only for "consignation" items
+    const packagingTotal = packagingCart.reduce((total, item) => {
+      if (item.status === 'consignation') {
+        return total + (item.total_price || 0);
+      }
+      return total;
+    }, 0);
+    
+    const grandTotal = total + packagingTotal;
+    const remaining = grandTotal - paidAmount;
     
     return {
       sale_number: saleNumber,
@@ -1079,11 +1196,14 @@ const PointOfSale = () => {
       customer_phone: customerInfo.phone || '',
       customer_email: customerInfo.email || '',
       user_name: user?.username || 'Unknown User',
+      user_id: user?.id || 'unknown',
       created_at: new Date().toISOString(),
       print_timestamp: new Date().toISOString(),
       print_id: `PRINT-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
       status: saleStatus,
       total_amount: total,
+      packaging_total: packagingTotal,
+      grand_total: grandTotal,
       paid_amount: paidAmount,
       remaining_amount: remaining,
       payment_status: remaining > 0 ? 'partial' : 'paid',
@@ -1095,6 +1215,13 @@ const PointOfSale = () => {
         unit_name: item.unit_name || item.unit?.name || 'piece',
         unit_price: item.unit_price,
         total_price: item.unit_price * item.quantity
+      })),
+      packaging_items: packagingCart.map(item => ({
+        product_name: item.name,
+        quantity: item.quantity,
+        unit_price: item.unit_price,
+        total_price: item.total_price,
+        status: item.status
       }))
     };
   };
@@ -1191,13 +1318,13 @@ const PointOfSale = () => {
           setPriceMode('standard');
           
           // Wait a moment for the backend to process stock movements
-          await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second
+          await new Promise(resolve => setTimeout(resolve, 500)); // Wait 1 second
           
           // Refresh product data to update stock quantities
           await fetchProducts();
           
           // Wait another moment for stock availability to be updated
-          await new Promise(resolve => setTimeout(resolve, 500)); // Wait 0.5 seconds
+          await new Promise(resolve => setTimeout(resolve, 250)); // Wait 0.5 seconds
           
           // Refresh stock availability for all products
           refreshStockAvailability();
@@ -1206,7 +1333,7 @@ const PointOfSale = () => {
           let successMessage = `Sale completed successfully! Sale Number: ${saleNumber}`;
           if (completionResponse.data.packaging_transaction) {
             const pkgTransaction = completionResponse.data.packaging_transaction;
-            successMessage += `\n\nPackaging transaction automatically created:\nTransaction: ${pkgTransaction.transaction_number}\nAmount: ${pkgTransaction.total_amount} MGA`;
+            successMessage += `\n\nPackaging transaction automatically created:\nTransaction: ${pkgTransaction.transaction_number}\nAmount: ${formatCurrency(pkgTransaction.total_amount)}`;
           }
           alert(successMessage);
         } catch (completeError) {
@@ -1220,11 +1347,11 @@ const PointOfSale = () => {
           setPaidAmount(0);
           
           // Wait for backend to process any completed stock movements
-          await new Promise(resolve => setTimeout(resolve, 1000));
+          await new Promise(resolve => setTimeout(resolve, 500));
           
           // Refresh data
           await fetchProducts();
-          await new Promise(resolve => setTimeout(resolve, 500));
+          await new Promise(resolve => setTimeout(resolve, 250));
           refreshStockAvailability();
         }
       } else {
@@ -1277,7 +1404,7 @@ const PointOfSale = () => {
       // For search, update the input state immediately (no API call)
       setSearchInput(value);
     } else {
-      // For other filters (like category), update immediately
+      // For other filters (like category), update immediately and fetch from server
       const newFilters = { ...filtersRef.current, [filterType]: value };
       setFilters(newFilters);
       fetchProducts(newFilters);
@@ -1302,17 +1429,20 @@ const PointOfSale = () => {
 
   const handleQuantityChange = (e) => {
     const value = e.target.value;
-    // Only allow numbers and empty string
-    if (value === '' || /^\d+$/.test(value)) {
+    // Allow digits with optional decimal separator (dot or comma), or empty string
+    if (value === '' || /^\d*(?:[.,]\d{0,1})?$/.test(value)) {
       setTempQuantity(value);
     }
   };
 
   const handleQuantitySubmit = (item) => {
-    const newQuantity = parseFloat(tempQuantity);
+    const normalized = (tempQuantity || '').replace(',', '.');
+    const newQuantity = parseFloat(normalized);
     
-    if (tempQuantity === '' || isNaN(newQuantity) || newQuantity < 0) {
-      setError('Please enter a valid quantity');
+    // Enforce: minimum 1, at most one digit after decimal
+    const isValidFormat = /^\d+(?:\.\d)?$/.test(normalized);
+    if (tempQuantity === '' || isNaN(newQuantity) || newQuantity < 1 || !isValidFormat) {
+      setError('Quantity must be >= 1 and have at most 1 decimal digit');
       setEditingQuantity(null);
       return;
     }
@@ -1389,7 +1519,7 @@ const PointOfSale = () => {
       return;
     }
     
-    if ((product.available_units && product.available_units.length > 1 && priceMode === 'wholesale') ||
+    if ((product.available_units && product.available_units.length > 0 && priceMode === 'wholesale') ||
         (priceMode === 'standard' && product.standard_prices_list && product.standard_prices_list.length > 0)) {
       // For multi-unit products or multiple standard prices, add with the currently selected option
       const selectedUnitId = selectedUnits[product.id];
@@ -1420,7 +1550,9 @@ const PointOfSale = () => {
                 symbol: selectedAvailableUnit.symbol
               };
               addToCart(product, selectedUnit);
-            } 
+            }else{
+              // console.log("No unit selected : " + selectedAvailableUnit);
+            }
           }
         }
         catch(error){
@@ -1436,16 +1568,16 @@ const PointOfSale = () => {
     }
   };
 
-  if (loading) {
-    return (
-      <div className="pos">
-        <div className="pos-loading">
-          <div className="spinner"></div>
-          <span>Loading products...</span>
-        </div>
-      </div>
-    );
-  }
+  // if (initialLoading) {
+  //   return (
+  //     <div className="pos">
+  //       <div className="pos-loading">
+  //         <div className="spinner"></div>
+  //         <span>Loading products...</span>
+  //       </div>
+  //     </div>
+  //   );
+  // }
 
   return (
     <div className="pos">
@@ -1646,12 +1778,12 @@ const PointOfSale = () => {
 
           <div className="products-info">
             <p className="products-count">
-              {products.length} product{products.length !== 1 ? 's' : ''} found
+              {filteredProducts.length} product{filteredProducts.length !== 1 ? 's' : ''} found
             </p>
           </div>
 
           <div className="products-grid">
-            {products
+            {filteredProducts
               .slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE)
               .map(product => (
               <div
@@ -1673,13 +1805,12 @@ const PointOfSale = () => {
                       }
                     })()} MGA */}
                     {product.available_units && product.available_units.length > 1 && 
-                      `Base unit: ${product.base_unit_symbol}`
-                      // `Base unit: ${product.base_unit?.symbol}`
+                      ` (Base Unit: ${product.base_unit_symbol})`
                     }
                   </p>
                   <p className="product-stock">
                     Stock: {product.stock_quantity} {product.unit}
-                    {product.available_units && product.available_units.length > 1 && priceMode === 'wholesale' && (
+                    {product.available_units && product.available_units.length > 0 && priceMode === 'wholesale' && (
                       <span className="stock-details">
                         {product.available_units.map(unit => {
                           let price = 0;
@@ -1707,7 +1838,7 @@ const PointOfSale = () => {
                             
                             return (
                             <span key={unit.id} className={`unit-stock ${isAvailable ? 'available' : 'unavailable'}`}>
-                              {unit.name}: {price.toFixed(2)} MGA ({availableQuantity.toFixed(1)} available)
+                              {unit.name}: {formatCurrency(price)} ({availableQuantity.toFixed(1)} available)
                               </span>
                             );
                         })}
@@ -1734,7 +1865,7 @@ const PointOfSale = () => {
                           // For standard mode with multiple prices, show price options
                           product.standard_prices_list.map((price, index) => (
                             <option key={`price-${index}`} value={`price-${index}`}>
-                              Standard Price {index + 1} - {parseFloat(price).toFixed(2)} MGA
+                              Standard Price {index + 1} - {formatCurrency(price)}
                             </option>
                           ))
                         ) : (
@@ -1769,7 +1900,7 @@ const PointOfSale = () => {
                                 value={unit.id}
                                 disabled={saleMode === 'complete' ? !isAvailable : false}
                               >
-                                {unit.name} ({unit.symbol}) - {price.toFixed(2)} MGA
+                                {unit.name} ({unit.symbol}) - {formatCurrency(price)}
                                 {!isAvailable && saleMode === 'complete' ? ' - OUT OF STOCK' : ''}
                               </option>
                             );
@@ -1821,7 +1952,7 @@ const PointOfSale = () => {
                   {product.has_packaging && product.packaging_price && (
                     <div className="packaging-info">
                       <small className="packaging-price">
-                        Packaging: {product.packaging_price} MGA (Auto-added)
+                        Packaging: {formatCurrency(product.packaging_price)} (Auto-added)
                       </small>
                     </div>
                   )}
@@ -1838,7 +1969,7 @@ const PointOfSale = () => {
           </div>
 
           {/* Pagination Controls */}
-          {products.length > PAGE_SIZE && (
+          {filteredProducts.length > PAGE_SIZE && (
             <div className="products-pagination" style={{ display: 'flex', justifyContent: 'center', gap: '12px', marginTop: '12px' }}>
               <Button
                 variant="outline"
@@ -1849,13 +1980,13 @@ const PointOfSale = () => {
                 Prev
               </Button>
               <span style={{ alignSelf: 'center' }}>
-                Page {currentPage} of {Math.ceil(products.length / PAGE_SIZE)}
+                Page {currentPage} of {Math.ceil(filteredProducts.length / PAGE_SIZE)}
               </span>
               <Button
                 variant="outline"
                 size="small"
-                onClick={() => setCurrentPage(p => Math.min(Math.ceil(products.length / PAGE_SIZE), p + 1))}
-                disabled={currentPage >= Math.ceil(products.length / PAGE_SIZE)}
+                onClick={() => setCurrentPage(p => Math.min(Math.ceil(filteredProducts.length / PAGE_SIZE), p + 1))}
+                disabled={currentPage >= Math.ceil(filteredProducts.length / PAGE_SIZE)}
               >
                 Next
               </Button>
@@ -1910,7 +2041,7 @@ const PointOfSale = () => {
                       {item.unit_symbol || 'piece'}
                     </div>
                     <div className="item-price">
-                      {parseFloat(item.unit_price).toFixed(2)} MGA
+                      {formatCurrency(item.unit_price)}
                     </div>
                     <div className="item-quantity">
                       <div className="quantity-controls">
@@ -1924,14 +2055,14 @@ const PointOfSale = () => {
                         {editingQuantity === `${item.id}-${item.unit_id}` ? (
                           <div className="quantity-edit">
                             <input
-                              type="number"
+                              type="text"
+                              inputMode="decimal"
+                              pattern="^\\d+([.,]\\d)?$"
                               value={tempQuantity}
                               onChange={handleQuantityChange}
                               onKeyPress={(e) => handleQuantityKeyPress(e, item)}
                               onBlur={() => handleQuantitySubmit(item)}
                               className="quantity-input"
-                              min="0"
-                              max={item.stock_quantity}
                               autoFocus
                             />
                           </div>
@@ -1971,7 +2102,7 @@ const PointOfSale = () => {
                       <span className="sales-item-status">-</span>
                     </div>
                     <div className="item-total">
-                      {(item.quantity * item.unit_price).toFixed(2)} MGA
+                      {formatCurrency(item.quantity * item.unit_price)}
                     </div>
                     <div className="item-actions">
                       <Button
@@ -2007,7 +2138,7 @@ const PointOfSale = () => {
                           piece
                         </div>
                         <div className="item-price">
-                          {parseFloat(item.unit_price).toFixed(2)} MGA
+                          {formatCurrency(item.unit_price)}
                         </div>
                         <div className="item-quantity">
                           <span className="quantity auto-calculated">
@@ -2027,7 +2158,7 @@ const PointOfSale = () => {
                           </select>
                         </div>
                         <div className="item-total">
-                          {(item.quantity * item.unit_price).toFixed(2)} MGA
+                          {formatCurrency(item.quantity * item.unit_price)}
                         </div>
                         <div className="item-actions">
                           <Button
@@ -2052,35 +2183,35 @@ const PointOfSale = () => {
               <div className="cart-summary">
                 <div className="summary-row">
                   <span>Items Total:</span>
-                  <span>{calculateSubtotal().toFixed(2)} MGA</span>
+                  <span>{formatCurrency(calculateSubtotal())}</span>
                 </div>
                 {packagingCart.length > 0 && (
                   <div className="summary-row packaging-breakdown">
                     <span>Packaging Total:</span>
-                    <span>{calculatePackagingTotal().toFixed(2)} MGA</span>
+                    <span>{formatCurrency(calculatePackagingTotal())} </span>
                   </div>
                 )}
                 <div className="summary-row cost-breakdown">
                   <span>Cost (excl. tax):</span>
-                  <span>{calculateCost().toFixed(2)} MGA</span>
+                  <span>{formatCurrency(calculateCost())}</span>
                 </div>
                 <div className="summary-row tax-breakdown">
                   <span>Tax included:</span>
-                  <span>{calculateTax().toFixed(2)} MGA</span>
+                  <span>{formatCurrency(calculateTax())} </span>
                 </div>
                 <div className="summary-row">
                   <span>Products Total:</span>
-                  <span>{calculateTotal().toFixed(2)} MGA</span>
+                  <span>{formatCurrency(calculateTotal())} </span>
                 </div>
                 {packagingCart.length > 0 && (
                   <div className="summary-row">
                     <span>Packaging Total:</span>
-                    <span>{calculatePackagingTotal().toFixed(2)} MGA</span>
+                    <span>{formatCurrency(calculatePackagingTotal())}</span>
                   </div>
                 )}
                 <div className="summary-row total">
                   <span>Total (Products Only):</span>
-                  <span>{calculateTotal().toFixed(2)} MGA</span>
+                  <span>{formatCurrency(calculateTotal())}</span>
                 </div>
               </div>
 

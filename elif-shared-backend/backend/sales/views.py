@@ -3,7 +3,7 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
-from django_filters import FilterSet, DateFilter
+from django_filters import FilterSet, DateFilter, CharFilter
 from django.db.models import Sum, Count, Q
 from django.utils import timezone
 from datetime import datetime, timedelta
@@ -17,10 +17,11 @@ from .serializers import (
 class SaleFilter(FilterSet):
     created_at__date__gte = DateFilter(field_name='created_at', lookup_expr='date__gte')
     created_at__date__lte = DateFilter(field_name='created_at', lookup_expr='date__lte')
+    sale_number = CharFilter(field_name='sale_number', lookup_expr='icontains')
     
     class Meta:
         model = Sale
-        fields = ['status', 'payment_method', 'sold_by', 'created_at__date__gte', 'created_at__date__lte']
+        fields = ['status', 'payment_method', 'sold_by', 'sale_number', 'created_at__date__gte', 'created_at__date__lte','payment_status']
 
 class SaleListCreateView(generics.ListCreateAPIView):
     queryset = Sale.objects.select_related('sold_by', 'created_by').prefetch_related('items__product', 'items__unit', 'packaging_items__product', 'packaging_items__unit', 'payments').all()
@@ -198,10 +199,20 @@ def complete_sale(request, sale_id):
             # Generate transaction number
             transaction_number = f"PKG-{uuid.uuid4().hex[:8].upper()}"
             
+            # Determine transaction type based on sale packaging item statuses
+            item_statuses = list(sale.packaging_items.values_list('status', flat=True))
+            if all(status == 'consignation' for status in item_statuses):
+                transaction_type = 'consignation'
+            elif any(status == 'due' for status in item_statuses):
+                transaction_type = 'due'
+            else:
+                # Fallback to exchange if not consignation and contains exchange
+                transaction_type = 'exchange'
+
             # Create packaging transaction
             packaging_transaction = PackagingTransaction.objects.create(
                 transaction_number=transaction_number,
-                transaction_type='consignation',
+                transaction_type=transaction_type,
                 sale=sale,
                 customer_name=sale.customer_name,
                 customer_phone=sale.customer_phone,
@@ -231,6 +242,18 @@ def complete_sale(request, sale_id):
             # Calculate packaging transaction totals
             packaging_transaction.calculate_totals()
             
+            # If consignation (paid), mark as paid/completed.
+            # If exchange, directly mark as completed without payment.
+            # If due, leave active and unpaid.
+            if transaction_type == 'consignation':
+                packaging_transaction.paid_amount = packaging_transaction.total_amount
+                packaging_transaction.payment_status = 'paid'
+                packaging_transaction.status = 'completed'
+                packaging_transaction.save(update_fields=['paid_amount', 'payment_status', 'status'])
+            elif transaction_type == 'exchange':
+                packaging_transaction.status = 'completed'
+                packaging_transaction.save(update_fields=['status'])
+            
         except Exception as e:
             # Log the error but don't fail the sale completion
             print(f"Error creating packaging transaction for sale {sale.sale_number}: {str(e)}")
@@ -252,6 +275,10 @@ def complete_sale(request, sale_id):
 @permission_classes([IsAuthenticated])
 def cancel_sale(request, sale_id):
     """Cancel a sale with different behaviors for pending vs confirmed sales"""
+        # Only allow admin and manager roles to edit sales
+    if request.user.role not in ['admin', 'manager']:
+        return Response({'error': 'Permission denied'}, status=status.HTTP_403_FORBIDDEN)
+        
     try:
         sale = Sale.objects.get(id=sale_id)
     except Sale.DoesNotExist:

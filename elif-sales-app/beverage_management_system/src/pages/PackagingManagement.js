@@ -4,6 +4,7 @@ import { useAuth } from '../contexts/AuthContext';
 import api from '../services/api';
 import Button from '../components/Button';
 import './PackagingManagement.css';
+import {formatCurrency, formatDate, formatDateTime, getStatusBadge} from '../utils/helpers';
 
 const PackagingManagement = () => {
   const { t } = useTranslation();
@@ -323,27 +324,6 @@ const PackagingManagement = () => {
     }
   };
 
-  const formatCurrency = (amount) => {
-    return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount);
-  };
-
-  const formatDate = (dateString) => {
-    return new Date(dateString).toLocaleDateString();
-  };
-
-  const formatDateTime = (dateString) => {
-    return new Date(dateString).toLocaleString();
-  };
-
-  const getStatusBadge = (status) => {
-    const statusClasses = {
-      active: 'status-active',
-      completed: 'status-completed',
-      cancelled: 'status-cancelled'
-    };
-    return <span className={`status-badge ${statusClasses[status] || ''}`}>{status}</span>;
-  };
-
   const getPaymentStatusBadge = (paymentStatus) => {
     const paymentClasses = {
       pending: 'payment-pending',
@@ -525,30 +505,43 @@ const PackagingManagement = () => {
                   </div>
                   
                   <div className="transaction-details">
-                    <div className="detail-row">
-                      <span>Type:</span>
-                      <span>{transaction.transaction_type}</span>
-                    </div>
-                    <div className="detail-row">
-                      <span>Total Amount:</span>
-                      <span>{formatCurrency(transaction.total_amount)}</span>
-                    </div>
-                    <div className="detail-row">
-                      <span>Paid Amount:</span>
-                      <span>{formatCurrency(transaction.paid_amount)}</span>
-                    </div>
-                    <div className="detail-row">
-                      <span>Remaining:</span>
-                      <span>{formatCurrency(transaction.remaining_amount)}</span>
-                    </div>
-                    <div className="detail-row">
-                      <span>Created:</span>
-                      <span>{formatDate(transaction.created_at)}</span>
-                    </div>
+                    {(() => {
+                      const showAmounts = transaction.transaction_type === 'consignation';
+                      const amountOrDash = (val) => showAmounts ? formatCurrency(val) : '-';
+                      return (
+                        <>
+                          <div className="detail-row">
+                            <span>Type:</span>
+                            <span>{transaction.transaction_type}</span>
+                          </div>
+                          <div className="detail-row">
+                            <span>Total Amount:</span>
+                            <span>{amountOrDash(transaction.total_amount)}</span>
+                          </div>
+                          <div className="detail-row">
+                            <span>Paid Amount:</span>
+                            <span>{amountOrDash(transaction.paid_amount)}</span>
+                          </div>
+                          <div className="detail-row">
+                            <span>Remaining:</span>
+                            <span>{amountOrDash(transaction.remaining_amount)}</span>
+                          </div>
+                          <div className="detail-row">
+                            <span>Created:</span>
+                            <span>{formatDate(transaction.created_at)}</span>
+                          </div>
+                        </>
+                      );
+                    })()}
                   </div>
 
                   <div className="transaction-actions">
-                    {transaction.remaining_amount > 0 && (
+                    {(
+                      transaction.transaction_type === 'consignation' &&
+                      transaction.status === 'active' &&
+                      (transaction.payment_status === 'pending' || transaction.payment_status === 'partial') &&
+                      transaction.remaining_amount > 0
+                    ) && (
                       <Button 
                         onClick={() => {
                           setSelectedTransaction(transaction);
@@ -561,7 +554,7 @@ const PackagingManagement = () => {
                         Make Payment
                       </Button>
                     )}
-                    {transaction.status === 'active' && (
+                    {(transaction.status === 'active' && (transaction.transaction_type === 'due')) && (
                       <Button 
                         onClick={() => {
                           setSelectedTransaction(transaction);
@@ -574,6 +567,39 @@ const PackagingManagement = () => {
                         Settle
                       </Button>
                     )}
+                    {(transaction.transaction_type === 'consignation' && transaction.payment_status === 'paid') && (
+                      <Button 
+                        onClick={() => {
+                          setSelectedTransaction(transaction);
+                          setSettleData({ settlement_type: 'return', notes: '' });
+                          setShowSettleForm(true);
+                        }}
+                        variant="warning"
+                        size="small"
+                      >
+                        Mark Returned
+                      </Button>
+                    )}
+
+                    {/* Delete action for any packaging transaction */}
+                    <Button 
+                      onClick={async () => {
+                        try {
+                          setError('');
+                          setSuccess('');
+                          await api.delete(`/api/packaging/transactions/${transaction.id}/`);
+                          setSuccess('Packaging transaction deleted');
+                          fetchTransactions();
+                          fetchStatistics();
+                        } catch (err) {
+                          setError(err.response?.data?.error || 'Failed to delete transaction');
+                        }
+                      }}
+                      variant="danger"
+                      size="small"
+                    >
+                      Delete
+                    </Button>
                     <Button 
                       onClick={() => handleViewDetails(transaction)}
                       variant="secondary"

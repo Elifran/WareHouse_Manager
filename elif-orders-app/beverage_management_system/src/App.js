@@ -8,6 +8,7 @@ import PurchaseOrders from './pages/PurchaseOrders';
 import Suppliers from './pages/Suppliers';
 import Inventory from './pages/Inventory';
 import StockMovement from './pages/StockMovement';
+import AllPages from './pages/AllPages';
 import './i18n'; // Initialize i18n
 import './App.css';
 
@@ -99,6 +100,14 @@ const AppRoutes = () => {
                 <RoleProtectedRoute allowedRoles={['admin', 'manager']}>
                   <StockMovement />
                 </RoleProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/all-pages" 
+              element={
+                <ProtectedRoute>
+                  <AllPages />
+                </ProtectedRoute>
               } 
             />
             <Route 

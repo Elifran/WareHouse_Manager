@@ -6,100 +6,107 @@ import './AllPages.css';
 const AllPages = () => {
   const { t } = useTranslation();
 
-  const allPages = [
-    // Orders App Pages
-    {
-      category: t('navigation.orders'),
+  // App port mappings
+  const appPorts = {
+    'elif-orders-app': 3000,
+    'elif-sales-app': 3001,
+    'elif-admin-app': 3002
+  };
+
+  // Get current app based on port or path
+  const getCurrentApp = () => {
+    const currentPort = parseInt(window.location.port);
+    const currentHostname = window.location.hostname;
+    
+    // Check by port first (most reliable)
+    if (currentPort === 3000) return 'elif-orders-app';
+    if (currentPort === 3001) return 'elif-sales-app';
+    if (currentPort === 3002) return 'elif-admin-app';
+    
+    // Fallback: check by path
+    const path = window.location.pathname;
+    const segments = path.split('/').filter(seg => seg);
+    const appNames = ['elif-admin-app', 'elif-orders-app', 'elif-sales-app'];
+    const appSegment = segments.find(seg => appNames.includes(seg));
+    if (appSegment) {
+      return appSegment;
+    }
+    
+    // Default based on common ports
+    return 'elif-admin-app'; // Current app
+  };
+
+  // Get base path dynamically from current location
+  const getBasePath = () => {
+    const path = window.location.pathname;
+    const segments = path.split('/').filter(seg => seg);
+    const appNames = ['elif-admin-app', 'elif-orders-app', 'elif-sales-app'];
+    const appSegment = segments.find(seg => appNames.includes(seg));
+    if (appSegment) {
+      return `/${appSegment}`;
+    }
+    return '';
+  };
+
+  const currentApp = getCurrentApp();
+  const basePath = getBasePath();
+  const currentHostname = window.location.hostname;
+  
+  // Construct URL for other apps with correct port
+  const getOtherAppUrl = (appName) => {
+    const targetPort = appPorts[appName];
+    const hostname = currentHostname || 'localhost';
+    
+    // If we have a base path, use it; otherwise just use root
+    const path = basePath ? basePath.replace(`/${currentApp}`, `/${appName}`) : `/${appName}`;
+    
+    // Construct URL with port
+    const protocol = window.location.protocol;
+    // return `${protocol}//${hostname}:${targetPort}${path}`;
+    return `${protocol}//${hostname}:${targetPort}`;
+  };
+
+  // Other apps links
+  const otherApps = [
+    { 
+      name: 'Orders App', 
+      url: getOtherAppUrl('elif-orders-app'), 
+      icon: '📋',
+      description: 'Manage purchase orders, inventory, and suppliers'
+    },
+    { 
+      name: 'Sales App', 
+      url: getOtherAppUrl('elif-sales-app'), 
       icon: '🛒',
-      pages: [
-        { name: t('navigation.pos'), path: '/pos', description: t('all_pages.pos_description') },
-        { name: t('navigation.sales_management'), path: '/sales-management', description: t('all_pages.sales_management_description') },
-        { name: t('navigation.pending_sales'), path: '/pending-sales', description: t('all_pages.pending_sales_description') },
-        { name: t('navigation.returns'), path: '/returns', description: t('all_pages.returns_description') }
-      ]
-    },
-    // Sales App Pages
-    {
-      category: t('navigation.sales'),
-      icon: '📈',
-      pages: [
-        { name: t('navigation.dashboard'), path: '/dashboard', description: t('all_pages.dashboard_description') },
-        { name: t('navigation.reports'), path: '/reports', description: t('all_pages.reports_description') },
-        { name: t('navigation.analytics'), path: '/analytics', description: t('all_pages.analytics_description') }
-      ]
-    },
-    // Admin App Pages
-    {
-      category: t('navigation.admin'),
-      icon: '⚙️',
-      pages: [
-        { name: t('navigation.inventory'), path: '/inventory', description: t('all_pages.inventory_description') },
-        { name: t('navigation.purchase_orders'), path: '/purchase-orders', description: t('all_pages.purchase_orders_description') },
-        { name: t('navigation.suppliers'), path: '/suppliers', description: t('all_pages.suppliers_description') },
-        { name: t('navigation.users'), path: '/users', description: t('all_pages.users_description') },
-        { name: t('navigation.tax_management'), path: '/tax-management', description: t('all_pages.tax_management_description') },
-        { name: t('navigation.system_management'), path: '/system-management', description: t('all_pages.system_management_description') },
-        { name: t('navigation.stock_movement'), path: '/stock-movement', description: t('all_pages.stock_movement_description') }
-      ]
+      description: 'Point of sale, sales management, and reports'
     }
   ];
 
   return (
     <div className="all-pages">
       <div className="all-pages-header">
-        <h1>{t('all_pages.title')}</h1>
-        <p>{t('all_pages.subtitle')}</p>
+        <h1>{t('all_pages.title') || 'All Pages'}</h1>
+        <p>{t('all_pages.subtitle') || 'Access other applications'}</p>
       </div>
 
       <div className="all-pages-content">
-        {allPages.map((category, categoryIndex) => (
-          <div key={categoryIndex} className="page-category">
-            <div className="category-header">
-              <span className="category-icon">{category.icon}</span>
-              <h2>{category.category}</h2>
+        <div className="pages-grid">
+          {otherApps.map((app, appIndex) => (
+            <div key={appIndex} className="page-card">
+              <div className="page-card-header">
+                <span className="page-icon">{app.icon}</span>
+                <h3>{app.name}</h3>
+              </div>
+              <div className="page-card-body">
+                <p>{app.description}</p>
+              </div>
+              <div className="page-card-footer">
+                <a href={app.url} className="page-link">
+                  {t('all_pages.access_app') || 'Access App'}
+                </a>
+              </div>
             </div>
-            
-            <div className="pages-grid">
-              {category.pages.map((page, pageIndex) => (
-                <div key={pageIndex} className="page-card">
-                  <div className="page-card-header">
-                    <h3>{page.name}</h3>
-                  </div>
-                  <div className="page-card-body">
-                    <p>{page.description}</p>
-                  </div>
-                  <div className="page-card-footer">
-                    <Link to={page.path} className="page-link">
-                      {t('all_pages.access_page')}
-                    </Link>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        ))}
-      </div>
-
-      <div className="all-pages-footer">
-        <div className="app-links">
-          <h3>{t('all_pages.other_apps')}</h3>
-          <div className="app-links-grid">
-            <a href="/elif-orders-app" className="app-link orders-app">
-              <span className="app-icon">🛒</span>
-              <span className="app-name">ELIF Orders</span>
-              <span className="app-description">{t('all_pages.orders_app_description')}</span>
-            </a>
-            <a href="/elif-sales-app" className="app-link sales-app">
-              <span className="app-icon">📈</span>
-              <span className="app-name">ELIF Sales</span>
-              <span className="app-description">{t('all_pages.sales_app_description')}</span>
-            </a>
-            <a href="/elif-admin-app" className="app-link admin-app current">
-              <span className="app-icon">⚙️</span>
-              <span className="app-name">ELIF Admin</span>
-              <span className="app-description">{t('all_pages.admin_app_description')}</span>
-            </a>
-          </div>
+          ))}
         </div>
       </div>
     </div>

@@ -160,6 +160,16 @@ const PendingSales = () => {
 
   const printPendingSale = (sale) => {
     try {
+      // Calculate packaging total only for "consignation" items
+      const packagingTotal = sale.packaging_items?.reduce((total, item) => {
+        if (item.status === 'consignation') {
+          return total + (parseFloat(item.total_price) || 0);
+        }
+        return total;
+      }, 0) || 0;
+      
+      const grandTotal = (sale.total_amount || sale.subtotal) + packagingTotal;
+      
       // Prepare print data in the same format as regular sales
       const printData = {
         sale_number: sale.sale_number,
@@ -175,8 +185,10 @@ const PendingSales = () => {
         payment_status: sale.payment_status || 'pending',
         payment_method: sale.payment_method || 'cash',
         total_amount: sale.total_amount || sale.subtotal,
+        packaging_total: packagingTotal,
+        grand_total: grandTotal,
         paid_amount: sale.paid_amount || 0,
-        remaining_amount: sale.remaining_amount || (parseFloat(sale.total_amount || sale.subtotal) - parseFloat(sale.paid_amount || 0)),
+        remaining_amount: sale.remaining_amount || (grandTotal - parseFloat(sale.paid_amount || 0)),
         due_date: sale.due_date || null,
         subtotal: sale.subtotal,
         discount_amount: sale.discount_amount || 0,
@@ -189,6 +201,13 @@ const PendingSales = () => {
           unit_name: item.unit_name,
           unit_price: item.unit_price,
           total_price: item.total_price
+        })) || [],
+        packaging_items: sale.packaging_items?.map(item => ({
+          product_name: item.product_name,
+          quantity: item.quantity,
+          unit_price: item.unit_price,
+          total_price: item.total_price,
+          status: item.status
         })) || []
       };
 

@@ -68,7 +68,9 @@
     "printer_settings": "Printer Settings",
     "logout": "Logout",
     "profile": "Profile",
-    "settings": "Settings"
+    "settings": "Settings",
+    "all_pages": "All Pages",
+    "stock_movement": "Stock Movement"
   },
   "auth": {
     "login": "Login",
@@ -155,7 +157,17 @@
     "avg_per_sale": "Avg. per Sale",
     "sales_trend_this_month": "Sales Trend (This Month)",
     "recent_sales": "Recent Sales",
-    "walk_in_customer": "Walk-in Customer"
+    "walk_in_customer": "Walk-in Customer",
+    "best_seller": "Best Seller",
+    "orders": "Orders",
+    "total_orders": "Total Orders",
+    "total_profit": "Total Profit",
+    "failed_to_load_sale_details": "Failed to load sale details: {error}",
+    "sales": "Sales",
+    "cost": "Cost", 
+    "profit": "Profit",
+    "sales_tooltip": "Sales: {amount} MGA",
+    "cost_tooltip": "Cost: {amount} MGA"
   },
   "inventory": {
     "title": "Inventory Management",
@@ -578,7 +590,9 @@
     "unpaid": "Unpaid",
     "completed": "Completed",
     "cancelled": "Cancelled",
-    "refunded": "Refunded"
+    "refunded": "Refunded",
+    "active": "Active",
+    "inactive": "Inactive"
   },
   "payment_methods": {
     "cash": "Cash",
@@ -681,10 +695,6 @@
     "update_supplier": "Update Supplier",
     "create_supplier": "Create Supplier"
   },
-  "messages": {
-    "failed_to_load_users": "Failed to load users",
-    "failed_to_delete_user": "Failed to delete user"
-  },
   "alerts": {
     "sale_will_be_completed": "Sale will be completed immediately and stock will be deducted",
     "sale_will_be_created_pending": "Sale will be created as pending and can be completed later",
@@ -739,17 +749,10 @@
     "available_label": " - {quantity} available",
     "loading_stock_info": "Loading stock information... Please try again."
   },
-  "dashboard": {
-    "failed_to_load_sale_details": "Failed to load sale details: {error}",
-    "sales": "Sales",
-    "cost": "Cost", 
-    "profit": "Profit",
-    "sales_tooltip": "Sales: {amount} MGA",
-    "cost_tooltip": "Cost: {amount} MGA"
-  },
   "all_pages": {
     "title": "All Pages",
-    "subtitle": "Access all available pages and features across the ELIF system",
+    "subtitle": "Access other applications",
+    "access_app": "Access App",
     "pos_description": "Point of sale system for processing customer transactions",
     "sales_management_description": "Manage and track all sales transactions",
     "pending_sales_description": "View and process pending sales orders",

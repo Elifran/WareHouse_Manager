@@ -5,6 +5,7 @@ import api from '../services/api';
 import SaleDetailModal from '../components/SaleDetailModal';
 import PrintButton from '../components/PrintButton';
 import './Dashboard.css';
+import {formatCurrency, formatDate, formatDateTime, getStatusBadge} from '../utils/helpers';
 
 const Dashboard = () => {
   const { t } = useTranslation();
@@ -30,6 +31,7 @@ const Dashboard = () => {
       // For sales teams, don't send period parameter (backend will default to daily)
       const url = isSalesTeam ? '/api/reports/dashboard/' : `/api/reports/dashboard/?period=${selectedPeriod}`;
       const response = await api.get(url);
+      console.log(response);
       setDashboardData(response.data);
     } catch (err) {
       setError(t('dashboard.failed_to_load'));
@@ -135,9 +137,16 @@ const Dashboard = () => {
           </div>
           <div className="metric-content">
             <h3>{t('dashboard.total_revenue')}</h3>
-            <p className="metric-value">
-              {dashboardData?.sales?.total_sales?.toFixed(2) || '0.00'} MGA
-            </p>
+            {!isSalesTeam && (
+              <p className="metric-value">
+                  {formatCurrency(dashboardData?.sales?.total_sales)}
+              </p>
+            )}
+            {isSalesTeam && (
+              <p className="metric-value">
+                  N/A
+              </p>
+            )}
             <p className="metric-label">
               {dashboardData?.sales?.total_count || 0} {t('dashboard.transactions')}
             </p>
@@ -155,7 +164,7 @@ const Dashboard = () => {
               <div className="metric-content">
                 <h3>{t('dashboard.total_cost')}</h3>
                 <p className="metric-value">
-                  {dashboardData?.sales?.total_cost?.toFixed(2) || '0.00'} MGA
+                  {formatCurrency(dashboardData?.sales?.total_cost)}
                 </p>
                 <p className="metric-label">
                   {t('dashboard.cost_of_goods_sold')}
@@ -172,7 +181,7 @@ const Dashboard = () => {
               <div className="metric-content">
                 <h3>{t('dashboard.profit')}</h3>
                 <p className="metric-value">
-                  {dashboardData?.sales?.profit?.toFixed(2) || '0.00'} MGA
+                  {formatCurrency(dashboardData?.sales?.profit)}
                 </p>
                 <p className="metric-label">
                   {dashboardData?.sales?.profit_margin?.toFixed(1) || '0.0'}% {t('dashboard.margin')}
@@ -193,7 +202,7 @@ const Dashboard = () => {
             <p className="metric-value">
               {isSalesTeam 
                 ? dashboardData?.inventory?.total_products || 0
-                : `${dashboardData?.inventory?.total_inventory_value?.toFixed(2) || '0.00'} MGA`
+                : `${formatCurrency(dashboardData?.inventory?.total_inventory_value)}`
               }
             </p>
             <p className="metric-label">
@@ -215,7 +224,7 @@ const Dashboard = () => {
             <div className="metric-content">
               <h3>Retail Value</h3>
               <p className="metric-value">
-                {dashboardData?.inventory?.total_retail_value?.toFixed(2) || '0.00'} MGA
+                {formatCurrency(dashboardData?.inventory?.total_retail_value)}
               </p>
               <p className="metric-label">
                 {dashboardData?.inventory?.low_stock_count || 0} low stock
@@ -248,26 +257,26 @@ const Dashboard = () => {
             {dashboardData?.chart_data?.length > 0 ? (
               <div className="chart-container">
                 <div className="chart-bars">
-                  {dashboardData.chart_data.map((day, index) => (
+                  {dashboardData.chart_data.reverse().map((day, index) => (
                     <div key={index} className="chart-bar">
                       <div className="bar-group">
                         <div 
                           className="bar sales-bar" 
                           style={{ height: `${Math.max(5, (day.sales / Math.max(...dashboardData.chart_data.map(d => d.sales))) * 100)}%` }}
-                          title={`${t('dashboard.sales')}: ${day.sales.toFixed(2)} MGA`}
+                          title={`${t('dashboard.sales')}: ${formatCurrency(day.sales)}`}
                         ></div>
                         <div 
                           className="bar cost-bar" 
                           style={{ height: `${Math.max(5, (day.cost / Math.max(...dashboardData.chart_data.map(d => d.sales))) * 100)}%` }}
-                          title={`${t('dashboard.cost')}: ${day.cost.toFixed(2)} MGA`}
+                          title={`${t('dashboard.cost')}: ${formatCurrency(day.cost)}`}
                         ></div>
                       </div>
                       <div className="bar-label">
                         {new Date(day.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                       </div>
                       <div className="bar-values">
-                        <div className="value sales">{day.sales.toFixed(0)} MGA</div>
-                        <div className="value cost">{day.cost.toFixed(0)} MGA</div>
+                        <div className="value sales">{formatCurrency(day.sales)}</div>
+                        <div className="value cost">{formatCurrency(day.cost)}</div>
                       </div>
                     </div>
                   ))}
@@ -325,7 +334,7 @@ const Dashboard = () => {
                     <p>{sale.customer_name || t('dashboard.walk_in_customer')}</p>
                   </div>
                   <div className="sale-amount">
-                    <span>{sale.total_amount.toFixed(2)} MGA</span>
+                    <span>{formatCurrency(sale.total_amount)}</span>
                     <small>{new Date(sale.created_at).toLocaleDateString()}</small>
                   </div>
                   <div className="sale-arrow">
@@ -361,17 +370,17 @@ const Dashboard = () => {
                     </div>
                     <div className="stat-row">
                       <span className="stat-label">{t('dashboard.revenue')}:</span>
-                      <span className="stat-value">{product.total_revenue.toFixed(2)} MGA</span>
+                      <span className="stat-value">{formatCurrency(product.total_revenue)}</span>
                     </div>
                     {!isSalesTeam && (
                       <>
                         <div className="stat-row">
                           <span className="stat-label">{t('dashboard.cost')}:</span>
-                          <span className="stat-value">{product.total_cost?.toFixed(2) || '0.00'} MGA</span>
+                          <span className="stat-value">{formatCurrency(product.total_cost)}</span>
                         </div>
                         <div className="stat-row">
                           <span className="stat-label">{t('dashboard.profit')}:</span>
-                          <span className="stat-value profit">{product.profit?.toFixed(2) || '0.00'} MGA</span>
+                          <span className="stat-value profit">{formatCurrency(product.profit)}</span>
                         </div>
                         <div className="stat-row">
                           <span className="stat-label">{t('dashboard.margin')}:</span>
