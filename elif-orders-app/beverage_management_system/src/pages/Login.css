@@ -114,3 +114,25 @@
 .register-link:hover {
   text-decoration: underline;
 }
+
+.all-pages-button {
+  margin-top: 1rem;
+  width: 100%;
+  background: #10b981;
+  color: white;
+  border: none;
+  padding: 0.75rem 1rem;
+  border-radius: 0.375rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.2s ease-in-out;
+}
+
+.all-pages-button:hover {
+  background: #059669;
+}
+
+.all-pages-button:active {
+  background: #047857;
+}

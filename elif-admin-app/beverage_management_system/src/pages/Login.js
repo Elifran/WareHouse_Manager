@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { useAuth } from '../contexts/AuthContext';
 import Button from '../components/Button';
 import LanguageSelector from '../components/LanguageSelector';
+import AllPagesPopup from '../components/AllPagesPopup';
 import './Login.css';
 
 const Login = () => {
@@ -13,6 +14,7 @@ const Login = () => {
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [showAllPages, setShowAllPages] = useState(false);
 
   const { login, isAuthenticated } = useAuth();
   const { t } = useTranslation();
@@ -108,8 +110,16 @@ const Login = () => {
               {t('messages.contact_administrator')}
             </Link>
           </p>
+          <button 
+            className="all-pages-button"
+            onClick={() => setShowAllPages(true)}
+            type="button"
+          >
+            📱 View All Applications
+          </button>
         </div>
       </div>
+      <AllPagesPopup isOpen={showAllPages} onClose={() => setShowAllPages(false)} />
     </div>
   );
 };

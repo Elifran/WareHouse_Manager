@@ -13,10 +13,11 @@ const Dashboard = () => {
   const [dashboardData, setDashboardData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [selectedPeriod, setSelectedPeriod] = useState('month');
+  const [selectedPeriod, setSelectedPeriod] = useState('daily');
   const [selectedSale, setSelectedSale] = useState(null);
   const [showSaleModal, setShowSaleModal] = useState(false);
   const [saleDetailLoading, setSaleDetailLoading] = useState(false);
+  const [topProductsVisibleCount, setTopProductsVisibleCount] = useState(10);
 
   // Check if user is sales team (limited access)
   const isSalesTeam = user?.role === 'sales';
@@ -24,6 +25,11 @@ const Dashboard = () => {
   useEffect(() => {
     fetchDashboardData();
   }, [selectedPeriod, isSalesTeam]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Reset top products visible count when dataset changes (period or role change)
+  useEffect(() => {
+    setTopProductsVisibleCount(10);
+  }, [selectedPeriod, isSalesTeam]);
 
   const fetchDashboardData = async () => {
     try {
@@ -120,7 +126,7 @@ const Dashboard = () => {
               >
                 <option value="daily">{t('dashboard.daily')}</option>
                 <option value="weekly">{t('dashboard.weekly')}</option>
-                <option value="month">{t('dashboard.monthly')}</option>
+                <option value="monthly">{t('dashboard.monthly')}</option>
               </select>
             </div>
           )}
@@ -357,7 +363,7 @@ const Dashboard = () => {
         <div className="top-products">
           {dashboardData?.top_products?.length > 0 ? (
             <div className="products-list">
-              {dashboardData.top_products.map((product, index) => (
+              {dashboardData.top_products.slice(0, topProductsVisibleCount).map((product, index) => (
                 <div key={index} className="product-item">
                   <div className="product-info">
                     <h4>{product.product__name}</h4>
@@ -391,6 +397,26 @@ const Dashboard = () => {
                   </div>
                 </div>
               ))}
+              <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem' }}>
+                {dashboardData.top_products.length > topProductsVisibleCount && (
+                  <button
+                    type="button"
+                    className="print-recent-sales-btn"
+                    onClick={() => setTopProductsVisibleCount(v => v + 10)}
+                  >
+                    Show More
+                  </button>
+                )}
+                {topProductsVisibleCount > 10 && (
+                  <button
+                    type="button"
+                    className="print-recent-sales-btn"
+                    onClick={() => setTopProductsVisibleCount(v => Math.max(10, v - 10))}
+                  >
+                    Show Less
+                  </button>
+                )}
+              </div>
             </div>
           ) : (
             <p className="no-data">No sales data available</p>

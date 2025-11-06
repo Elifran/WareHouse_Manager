@@ -14,6 +14,7 @@ import PurchaseOrders from './pages/PurchaseOrders';
 import Suppliers from './pages/Suppliers';
 import PackagingManagement from './pages/PackagingManagement';
 import AllPages from './pages/AllPages';
+import AccessDenied from './pages/AccessDenied';
 import './i18n'; // Initialize i18n
 import './App.css';
 
@@ -62,7 +63,22 @@ const RoleProtectedRoute = ({ children, allowedRoles = [], salesBlocked = false 
 };
 
 const AppRoutes = () => {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, loading, isAdmin, isManager } = useAuth();
+  
+  // Show loading while checking authentication
+  if (loading) {
+    return (
+      <div className="app-loading">
+        <div className="spinner"></div>
+        <span>Loading...</span>
+      </div>
+    );
+  }
+  
+  // If authenticated but not admin or manager, show access denied
+  if (isAuthenticated && !isAdmin && !isManager) {
+    return <AccessDenied />;
+  }
   
   return (
     <Router>
