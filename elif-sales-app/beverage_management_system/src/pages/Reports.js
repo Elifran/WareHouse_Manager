@@ -65,7 +65,7 @@ const Reports = () => {
   const fetchReports = async () => {
     try {
       setLoading(true);
-      const response = await api.get('/reports/');
+      const response = await api.get('/api/reports/');
       setReports(response.data);
     } catch (err) {
       setError('Failed to load reports');
@@ -115,7 +115,7 @@ const Reports = () => {
       let endpoint = '';
       switch (selectedReportType) {
         case 'sales':
-          endpoint = '/reports/sales/';
+          endpoint = '/api/reports/sales/';
           requestData = {
             start_date: reportFilters.start_date || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // Default to 30 days ago
             end_date: reportFilters.end_date || new Date().toISOString().split('T')[0], // Default to today
@@ -124,22 +124,30 @@ const Reports = () => {
           };
           break;
         case 'inventory':
-          endpoint = '/reports/inventory/';
-          requestData = {
-            start_date: reportFilters.start_date || new Date().toISOString().split('T')[0],
-            end_date: reportFilters.end_date || new Date().toISOString().split('T')[0],
-            include_low_stock: true,
-            include_out_of_stock: true
-          };
+          endpoint = '/api/reports/inventory/';
+          requestData = {};
+          if (reportFilters.category_id) {
+            const categoryId = parseInt(reportFilters.category_id);
+            if (!isNaN(categoryId)) {
+              requestData.category = categoryId;
+            }
+          }
+          // Note: Inventory report doesn't use date filters, it shows current inventory state
+          requestData.low_stock_only = false;
+          requestData.out_of_stock_only = false;
+          requestData.include_inactive = false;
           break;
         case 'stock_movement':
-          endpoint = '/reports/stock-movements/';
+          endpoint = '/api/reports/stock-movements/';
           requestData = {
             start_date: reportFilters.start_date || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
             end_date: reportFilters.end_date || new Date().toISOString().split('T')[0]
           };
           if (reportFilters.product_id) {
-            requestData.product = reportFilters.product_id;
+            const productId = parseInt(reportFilters.product_id);
+            if (!isNaN(productId)) {
+              requestData.product = productId;
+            }
           }
           break;
         default:
@@ -182,7 +190,7 @@ const Reports = () => {
         parameters: reportFilters
       };
 
-      await api.post('/reports/', reportData);
+      await api.post('/api/reports/', reportData);
       
       // Generate the actual file based on format
       let fileName = '';

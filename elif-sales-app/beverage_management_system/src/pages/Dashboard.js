@@ -18,6 +18,9 @@ const Dashboard = () => {
   const [showSaleModal, setShowSaleModal] = useState(false);
   const [saleDetailLoading, setSaleDetailLoading] = useState(false);
   const [topProductsVisibleCount, setTopProductsVisibleCount] = useState(10);
+  const [topProductsLoadedCount, setTopProductsLoadedCount] = useState(10); // Track how many products we've actually loaded
+  const [topProductsHasMore, setTopProductsHasMore] = useState(false);
+  const [loadingMoreProducts, setLoadingMoreProducts] = useState(false);
 
   // Check if user is sales team (limited access)
   const isSalesTeam = user?.role === 'sales';
@@ -29,6 +32,7 @@ const Dashboard = () => {
   // Reset top products visible count when dataset changes (period or role change)
   useEffect(() => {
     setTopProductsVisibleCount(10);
+    setTopProductsLoadedCount(10);
   }, [selectedPeriod, isSalesTeam]);
 
   const fetchDashboardData = async () => {
@@ -39,6 +43,22 @@ const Dashboard = () => {
       const response = await api.get(url);
       console.log(response);
       setDashboardData(response.data);
+      // Check if there might be more products (if we got exactly 10, there might be more)
+      if (response.data?.top_products?.length === 10) {
+        // Make a quick check to see if there are more products
+        try {
+          const checkUrl = isSalesTeam 
+            ? '/api/reports/top-products/?offset=10&limit=1'
+            : `/api/reports/top-products/?period=${selectedPeriod}&offset=10&limit=1`;
+          const checkResponse = await api.get(checkUrl);
+          setTopProductsHasMore(checkResponse.data.has_more || checkResponse.data.products.length > 0);
+        } catch (checkErr) {
+          // If check fails, assume there might be more if we got exactly 10
+          setTopProductsHasMore(true);
+        }
+      } else {
+        setTopProductsHasMore(false);
+      }
     } catch (err) {
       setError(t('dashboard.failed_to_load'));
       console.error('Dashboard error:', err);
@@ -80,6 +100,37 @@ const Dashboard = () => {
   const handleCloseSaleModal = () => {
     setShowSaleModal(false);
     setSelectedSale(null);
+  };
+
+  const handleLoadMoreProducts = async () => {
+    try {
+      setLoadingMoreProducts(true);
+      const url = isSalesTeam 
+        ? `/api/reports/top-products/?offset=${topProductsLoadedCount}&limit=10`
+        : `/api/reports/top-products/?period=${selectedPeriod}&offset=${topProductsLoadedCount}&limit=10`;
+      
+      const response = await api.get(url);
+      const newProducts = response.data.products;
+      
+      if (newProducts && newProducts.length > 0) {
+        // Append new products to existing list
+        setDashboardData(prev => ({
+          ...prev,
+          top_products: [...(prev.top_products || []), ...newProducts]
+        }));
+        const newLoadedCount = topProductsLoadedCount + newProducts.length;
+        setTopProductsLoadedCount(newLoadedCount);
+        setTopProductsVisibleCount(newLoadedCount);
+        setTopProductsHasMore(response.data.has_more);
+      } else {
+        setTopProductsHasMore(false);
+      }
+    } catch (err) {
+      console.error('Failed to load more products:', err);
+      setError(t('dashboard.failed_to_load_more_products'));
+    } finally {
+      setLoadingMoreProducts(false);
+    }
   };
 
   if (loading) {
@@ -397,23 +448,28 @@ const Dashboard = () => {
                   </div>
                 </div>
               ))}
-              <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem' }}>
-                {dashboardData.top_products.length > topProductsVisibleCount && (
+              <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem', justifyContent: 'center' }}>
+                {topProductsHasMore && (
                   <button
                     type="button"
                     className="print-recent-sales-btn"
-                    onClick={() => setTopProductsVisibleCount(v => v + 10)}
+                    onClick={handleLoadMoreProducts}
+                    disabled={loadingMoreProducts}
                   >
-                    Show More
+                    {loadingMoreProducts ? (t('dashboard.loading') || 'Loading...') : (t('dashboard.show_more') || 'Show More')}
                   </button>
                 )}
                 {topProductsVisibleCount > 10 && (
                   <button
                     type="button"
                     className="print-recent-sales-btn"
-                    onClick={() => setTopProductsVisibleCount(v => Math.max(10, v - 10))}
+                    onClick={() => {
+                      setTopProductsVisibleCount(10);
+                      // Check if we have more products loaded than we're showing
+                      setTopProductsHasMore(topProductsLoadedCount > 10 || dashboardData.top_products.length > 10);
+                    }}
                   >
-                    Show Less
+                    {t('dashboard.show_less') || 'Show Less'}
                   </button>
                 )}
               </div>

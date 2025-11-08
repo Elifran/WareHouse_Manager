@@ -433,3 +433,102 @@ def dashboard_data(request):
         response_data['top_products'] = basic_top_products
     
     return Response(response_data)
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def top_products(request):
+    """Get paginated top selling products with time period support"""
+    today = timezone.now().date()
+    this_week = today - timedelta(days=today.weekday())
+    this_month = today.replace(day=1)
+    
+    # Get user role
+    user_role = request.user.role
+    is_sales_team = user_role == 'sales'
+    
+    # For sales teams, only allow daily view
+    if is_sales_team:
+        period = 'daily'
+        start_date = today
+        end_date = today
+    else:
+        # Get time period from query params for admin/manager
+        period = request.GET.get('period', 'monthly')  # daily, weekly, monthly
+        
+        # Calculate date range based on period
+        if period == 'daily':
+            start_date = today
+            end_date = today
+        elif period == 'weekly':
+            start_date = this_week
+            end_date = today
+        else:  # monthly
+            start_date = this_month
+            end_date = today
+    
+    # Get pagination parameters
+    offset = int(request.GET.get('offset', 0))
+    limit = int(request.GET.get('limit', 10))
+    
+    # Top selling products with cost data and unit information
+    top_products = SaleItem.objects.filter(
+        sale__status__in=['completed', 'pending'],  # Include completed and pending sales
+        sale__created_at__date__range=[start_date, end_date],
+        sale__sale_type__in=['sale', 'return']  # Include both regular sales and return sales
+    ).exclude(
+        sale__status='pending',
+        sale__paid_amount=0  # Exclude pending sales with no payment
+    ).select_related('product', 'unit', 'product__tax_class').values(
+        'product__name', 'product__sku', 'product__tax_class__tax_rate', 'unit__name', 'unit__symbol'
+    ).annotate(
+        total_sold=Sum('quantity'),
+        total_revenue=Sum('total_price'),
+        total_cost=Sum('total_cost')
+    ).order_by('-total_sold')[offset:offset + limit]
+    
+    # Add cost and profit data to top products using stored item costs
+    top_products_data = []
+    for product in top_products:
+        product_revenue = float(product['total_revenue'] or 0)
+        product_cost = float(product['total_cost'] or 0)
+        profit = product_revenue - product_cost
+        product_data = {
+            'product__name': product['product__name'],
+            'product__sku': product['product__sku'],
+            'total_sold': product['total_sold'],
+            'unit_name': product['unit__name'] or 'piece',
+            'unit_symbol': product['unit__symbol'] or 'piece',
+            'total_revenue': product_revenue,
+        }
+        
+        # Add cost/profit data only for non-sales teams
+        if not is_sales_team:
+            product_data.update({
+                'total_cost': product_cost,
+                'profit': profit,
+                'profit_margin': (profit / product_revenue * 100) if product_revenue > 0 else 0
+            })
+        
+        top_products_data.append(product_data)
+    
+    # Check if there are more products available
+    total_count = SaleItem.objects.filter(
+        sale__status__in=['completed', 'pending'],
+        sale__created_at__date__range=[start_date, end_date],
+        sale__sale_type__in=['sale', 'return']
+    ).exclude(
+        sale__status='pending',
+        sale__paid_amount=0
+    ).values('product__name', 'product__sku').annotate(
+        total_sold=Sum('quantity')
+    ).order_by('-total_sold').count()
+    
+    has_more = (offset + limit) < total_count
+    
+    return Response({
+        'products': top_products_data,
+        'has_more': has_more,
+        'offset': offset,
+        'limit': limit,
+        'total_count': total_count
+    })
