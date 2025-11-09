@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import api from '../services/api';
+import { usePendingSales } from '../hooks/useSales';
 import Button from '../components/Button';
 import PrintButton from '../components/PrintButton';
 import { formatCurrency, formatDate } from '../utils/helpers';
@@ -26,77 +27,110 @@ const PendingSales = () => {
   const [showPackagingValidation, setShowPackagingValidation] = useState(false);
   const [packagingValidationSaleId, setPackagingValidationSaleId] = useState(null);
 
+  // React Query hook for pending sales with caching
+  const { data: pendingSalesData = [], isLoading: pendingSalesLoading, error: pendingSalesError, refetch: refetchPendingSales } = usePendingSales();
+
+  // Update state from query data
   useEffect(() => {
-    if (!authLoading && user) {
-      fetchPendingSales();
+    if (pendingSalesData) {
+      setPendingSales(pendingSalesData);
     }
-  }, [authLoading, user]);
+  }, [pendingSalesData]);
 
   useEffect(() => {
-    if (pendingSales.length > 0) {
-      validateStockForAllSales();
-    }
-  }, [pendingSales]);
+    setLoading(pendingSalesLoading);
+  }, [pendingSalesLoading]);
 
-  const fetchPendingSales = async () => {
-    try {
-      setLoading(true);
-      
-      // Check if user is authenticated
-      const token = localStorage.getItem('accessToken');
-      
-      const response = await api.get('/api/sales/pending/');
-      setPendingSales(response.data);
-    } catch (error) {
-      console.error('Error fetching pending sales:', error);
-      console.error('Error details:', {
-        message: error.message,
-        response: error.response?.data,
-        status: error.response?.status,
-        statusText: error.response?.statusText
-      });
-      
-      // More specific error handling
-      if (error.response?.status === 401) {
+  useEffect(() => {
+    if (pendingSalesError) {
+      if (pendingSalesError.response?.status === 401) {
         alert('Authentication required. Please log in again.');
-        // Redirect to login or refresh token
         window.location.href = '/login';
       } else {
-        alert('Error fetching pending sales: ' + (error.response?.data?.detail || error.message));
+        alert('Error fetching pending sales: ' + (pendingSalesError.response?.data?.detail || pendingSalesError.message));
       }
-    } finally {
-      setLoading(false);
     }
-  };
+  }, [pendingSalesError]);
 
-  const validateStockForAllSales = async () => {
-    const validationStatus = {};
-    
-    for (const sale of pendingSales) {
-      let hasInsufficientStock = false;
-      
-      for (const item of sale.items || []) {
-        try {
-          const response = await api.get(`/api/products/${item.product}/stock-availability/`);
-          const stockData = response.data;
+  useEffect(() => {
+    setLoading(pendingSalesLoading);
+  }, [pendingSalesLoading]);
+
+  useEffect(() => {
+    if (pendingSalesError) {
+      if (pendingSalesError.response?.status === 401) {
+        alert('Authentication required. Please log in again.');
+        window.location.href = '/login';
+      } else {
+        alert('Error fetching pending sales: ' + (pendingSalesError.response?.data?.detail || pendingSalesError.message));
+      }
+    }
+  }, [pendingSalesError]);
+
+  // Fix N+1 query problem: Use bulk endpoint instead of individual calls
+  const validateStockForAllSales = useCallback(async () => {
+    try {
+      // Collect all unique product IDs from all sales
+      const productIds = new Set();
+      pendingSales.forEach(sale => {
+        sale.items?.forEach(item => {
+          if (item.product) {
+            productIds.add(item.product);
+          }
+        });
+      });
+
+      if (productIds.size === 0) {
+        setStockValidationStatus({});
+        return;
+      }
+
+      // Single API call to get stock for all products
+      const response = await api.post('/api/products/bulk-stock-availability/', {
+        product_ids: Array.from(productIds)
+      });
+
+      const stockData = response.data || {};
+      const validationStatus = {};
+
+      // Validate each sale using the bulk stock data
+      for (const sale of pendingSales) {
+        let hasInsufficientStock = false;
+
+        for (const item of sale.items || []) {
+          // Backend returns data keyed by product ID (as number or string)
+          const productId = item.product;
+          const productStock = stockData[productId] || stockData[String(productId)] || stockData[Number(productId)];
           
-          if (stockData.available_units) {
-            const unitData = stockData.available_units.find(unit => unit.id === item.unit);
+          if (productStock && productStock.available_units) {
+            const unitData = productStock.available_units.find(unit => unit.id === item.unit);
             if (unitData && unitData.available_quantity < item.quantity_display) {
               hasInsufficientStock = true;
               break;
             }
           }
-        } catch (error) {
-          console.error(`Error checking stock for product ${item.product}:`, error);
         }
+
+        validationStatus[sale.id] = { hasInsufficientStock };
       }
-      
-      validationStatus[sale.id] = { hasInsufficientStock };
+
+      setStockValidationStatus(validationStatus);
+    } catch (error) {
+      console.error('Error validating stock:', error);
+      // Fallback: mark all as having insufficient stock if validation fails
+      const validationStatus = {};
+      pendingSales.forEach(sale => {
+        validationStatus[sale.id] = { hasInsufficientStock: true };
+      });
+      setStockValidationStatus(validationStatus);
     }
-    
-    setStockValidationStatus(validationStatus);
-  };
+  }, [pendingSales]);
+
+  useEffect(() => {
+    if (pendingSales.length > 0) {
+      validateStockForAllSales();
+    }
+  }, [pendingSales, validateStockForAllSales]);
 
   const completeSale = async (saleId) => {
     try {
@@ -413,7 +447,7 @@ const PendingSales = () => {
       setEditFormData({});
       
       // Refresh the pending sales list
-      fetchPendingSales();
+      refetchPendingSales();
       
       alert('Sale updated successfully!');
     } catch (error) {

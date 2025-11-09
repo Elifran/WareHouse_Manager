@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../contexts/AuthContext';
 import api from '../services/api';
+import { useDashboard, useTopProducts } from '../hooks/useDashboard';
+import { useSale } from '../hooks/useSales';
 import SaleDetailModal from '../components/SaleDetailModal';
 import PrintButton from '../components/PrintButton';
 import './Dashboard.css';
@@ -10,7 +12,6 @@ import {formatCurrency, formatDate, formatDateTime, getStatusBadge} from '../uti
 const Dashboard = () => {
   const { t } = useTranslation();
   const { user } = useAuth();
-  const [dashboardData, setDashboardData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [selectedPeriod, setSelectedPeriod] = useState('daily');
@@ -21,51 +22,48 @@ const Dashboard = () => {
   const [topProductsLoadedCount, setTopProductsLoadedCount] = useState(10); // Track how many products we've actually loaded
   const [topProductsHasMore, setTopProductsHasMore] = useState(false);
   const [loadingMoreProducts, setLoadingMoreProducts] = useState(false);
+  const [dashboardData, setDashboardData] = useState(null); // Local state for dashboard data with additional products
 
   // Check if user is sales team (limited access)
   const isSalesTeam = user?.role === 'sales';
 
+  // React Query hooks for data fetching with caching
+  const { data: dashboardDataFromQuery, isLoading: dashboardLoading, error: dashboardError, refetch: refetchDashboard } = useDashboard(selectedPeriod, isSalesTeam);
+  const { data: topProductsCheck } = useTopProducts(selectedPeriod, isSalesTeam, 10, 1);
+
+  // Update loading state
   useEffect(() => {
-    fetchDashboardData();
-  }, [selectedPeriod, isSalesTeam]); // eslint-disable-line react-hooks/exhaustive-deps
+    setLoading(dashboardLoading);
+  }, [dashboardLoading]);
+
+  // Update error state
+  useEffect(() => {
+    if (dashboardError) {
+      setError(t('dashboard.failed_to_load'));
+    }
+  }, [dashboardError, t]);
+
+  // Update dashboardData from query
+  useEffect(() => {
+    if (dashboardDataFromQuery) {
+      setDashboardData(dashboardDataFromQuery);
+    }
+  }, [dashboardDataFromQuery]);
+
+  // Check if there are more products
+  useEffect(() => {
+    if (dashboardData?.top_products?.length === 10) {
+      setTopProductsHasMore(topProductsCheck?.has_more || topProductsCheck?.products?.length > 0 || false);
+    } else {
+      setTopProductsHasMore(false);
+    }
+  }, [dashboardData, topProductsCheck]);
 
   // Reset top products visible count when dataset changes (period or role change)
   useEffect(() => {
     setTopProductsVisibleCount(10);
     setTopProductsLoadedCount(10);
   }, [selectedPeriod, isSalesTeam]);
-
-  const fetchDashboardData = async () => {
-    try {
-      setLoading(true);
-      // For sales teams, don't send period parameter (backend will default to daily)
-      const url = isSalesTeam ? '/api/reports/dashboard/' : `/api/reports/dashboard/?period=${selectedPeriod}`;
-      const response = await api.get(url);
-      console.log(response);
-      setDashboardData(response.data);
-      // Check if there might be more products (if we got exactly 10, there might be more)
-      if (response.data?.top_products?.length === 10) {
-        // Make a quick check to see if there are more products
-        try {
-          const checkUrl = isSalesTeam 
-            ? '/api/reports/top-products/?offset=10&limit=1'
-            : `/api/reports/top-products/?period=${selectedPeriod}&offset=10&limit=1`;
-          const checkResponse = await api.get(checkUrl);
-          setTopProductsHasMore(checkResponse.data.has_more || checkResponse.data.products.length > 0);
-        } catch (checkErr) {
-          // If check fails, assume there might be more if we got exactly 10
-          setTopProductsHasMore(true);
-        }
-      } else {
-        setTopProductsHasMore(false);
-      }
-    } catch (err) {
-      setError(t('dashboard.failed_to_load'));
-      console.error('Dashboard error:', err);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const handlePeriodChange = (period) => {
     // Only allow period changes for non-sales users
@@ -74,28 +72,28 @@ const Dashboard = () => {
     }
   };
 
-  const handleSaleClick = async (sale) => {
-    try {
-      setSaleDetailLoading(true);
-      setShowSaleModal(true);
-      
-      // Check if sale has an ID
-      const saleId = sale.id || sale.sale_id;
-      if (!saleId) {
-        throw new Error(t('errors.not_found'));
-      }
-      
-      // Fetch detailed sale information
-      const response = await api.get(`/api/sales/${saleId}/`);
-      setSelectedSale(response.data);
-    } catch (err) {
-      console.error('Failed to fetch sale details:', err);
-      setError(`Failed to load sale details: ${err.message}`);
-      setShowSaleModal(false);
-    } finally {
-      setSaleDetailLoading(false);
+  const handleSaleClick = (sale) => {
+    // Check if sale has an ID
+    const saleId = sale.id || sale.sale_id;
+    if (!saleId) {
+      setError(t('errors.not_found'));
+      return;
     }
+    
+    setSelectedSale(sale);
+    setShowSaleModal(true);
   };
+
+  // Fetch sale details using React Query when modal is shown
+  const saleId = selectedSale?.id || selectedSale?.sale_id;
+  const { data: saleDetails, isLoading: saleDetailsLoading } = useSale(saleId);
+  
+  useEffect(() => {
+    if (showSaleModal && saleId && saleDetails) {
+      setSelectedSale(saleDetails);
+    }
+    setSaleDetailLoading(saleDetailsLoading);
+  }, [showSaleModal, saleId, saleDetails, saleDetailsLoading]);
 
   const handleCloseSaleModal = () => {
     setShowSaleModal(false);
@@ -150,7 +148,7 @@ const Dashboard = () => {
         <div className="dashboard-error">
           <h2>{t('dashboard.error')}</h2>
           <p>{error}</p>
-          <button onClick={fetchDashboardData}>{t('common.retry')}</button>
+          <button onClick={() => refetchDashboard()}>{t('common.retry')}</button>
         </div>
       </div>
     );
