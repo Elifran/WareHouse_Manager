@@ -415,6 +415,10 @@
   background-color: #10b981;
 }
 
+.cost-bar {
+  background-color: #f59e0b;
+}
+
 .bar-label {
   font-size: 0.75rem;
   color: #6b7280;
@@ -436,6 +440,43 @@
 }
 
 .value.sales {
+  color: #10b981;
+}
+
+.value.cost {
+  color: #f59e0b;
+}
+
+.chart-legend {
+  display: flex;
+  justify-content: center;
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.875rem;
+  color: #374151;
+}
+
+.legend-color {
+  width: 12px;
+  height: 12px;
+  border-radius: 2px;
+}
+
+.legend-color.sales {
+  background-color: #10b981;
+}
+
+.legend-color.cost {
+  background-color: #f59e0b;
+}
+
+.summary-card .profit {
   color: #10b981;
 }
 
