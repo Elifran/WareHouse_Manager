@@ -9,7 +9,7 @@ services:
       - "0.0.0.0:3001:80"
     environment:
       - NODE_ENV=production
-      - REACT_APP_API_URL=${REACT_APP_API_URL:-http://10.10.1.1:8000}
+      - REACT_APP_API_URL=${REACT_APP_API_URL:-http://api.elif}
       - REACT_APP_DYNAMIC_IP=${REACT_APP_DYNAMIC_IP:-10.10.1.1}
     volumes:
       - ./beverage_management_system/build:/usr/share/nginx/html

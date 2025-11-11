@@ -41,6 +41,10 @@ echo "2. Stop Backend"
 echo "3. Verify all services stopped"
 echo ""
 
+# Stop nginx proxy
+docker stop nginx-proxy 2>/dev/null && echo "✅ Nginx Proxy stopped"
+docker rm nginx-proxy 2>/dev/null
+
 # Step 1: Stop Frontend Applications
 print_status "Step 1: Stopping Frontend Applications..."
 
