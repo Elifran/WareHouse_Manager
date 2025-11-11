@@ -9,4 +9,5 @@ urlpatterns = [
     path('inventory/', views.generate_inventory_report, name='generate-inventory-report'),
     path('stock-movements/', views.generate_stock_movement_report, name='generate-stock-movement-report'),
     path('dashboard/', views.dashboard_data, name='dashboard-data'),
+    path('top-products/', views.top_products, name='top-products'),
 ]

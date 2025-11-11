@@ -1,10 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useAuth } from '../contexts/AuthContext';
 import api from '../services/api';
+import PrintButton from '../components/PrintButton';
+import { formatCurrency } from '../utils/helpers';
 import './Reports.css';
 
 const Reports = () => {
   const { t } = useTranslation();
+  const { user } = useAuth();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -65,7 +69,7 @@ const Reports = () => {
   const fetchReports = async () => {
     try {
       setLoading(true);
-      const response = await api.get('/reports/');
+      const response = await api.get('/api/reports/');
       setReports(response.data);
     } catch (err) {
       setError('Failed to load reports');
@@ -115,7 +119,7 @@ const Reports = () => {
       let endpoint = '';
       switch (selectedReportType) {
         case 'sales':
-          endpoint = '/reports/sales/';
+          endpoint = '/api/reports/sales/';
           requestData = {
             start_date: reportFilters.start_date || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // Default to 30 days ago
             end_date: reportFilters.end_date || new Date().toISOString().split('T')[0], // Default to today
@@ -124,22 +128,30 @@ const Reports = () => {
           };
           break;
         case 'inventory':
-          endpoint = '/reports/inventory/';
-          requestData = {
-            start_date: reportFilters.start_date || new Date().toISOString().split('T')[0],
-            end_date: reportFilters.end_date || new Date().toISOString().split('T')[0],
-            include_low_stock: true,
-            include_out_of_stock: true
-          };
+          endpoint = '/api/reports/inventory/';
+          requestData = {};
+          if (reportFilters.category_id) {
+            const categoryId = parseInt(reportFilters.category_id);
+            if (!isNaN(categoryId)) {
+              requestData.category = categoryId;
+            }
+          }
+          // Note: Inventory report doesn't use date filters, it shows current inventory state
+          requestData.low_stock_only = false;
+          requestData.out_of_stock_only = false;
+          requestData.include_inactive = false;
           break;
         case 'stock_movement':
-          endpoint = '/reports/stock-movements/';
+          endpoint = '/api/reports/stock-movements/';
           requestData = {
             start_date: reportFilters.start_date || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
             end_date: reportFilters.end_date || new Date().toISOString().split('T')[0]
           };
           if (reportFilters.product_id) {
-            requestData.product = reportFilters.product_id;
+            const productId = parseInt(reportFilters.product_id);
+            if (!isNaN(productId)) {
+              requestData.product = productId;
+            }
           }
           break;
         default:
@@ -182,7 +194,7 @@ const Reports = () => {
         parameters: reportFilters
       };
 
-      await api.post('/reports/', reportData);
+      await api.post('/api/reports/', reportData);
       
       // Generate the actual file based on format
       let fileName = '';
@@ -358,8 +370,20 @@ const Reports = () => {
             <h3>Sales Report Data</h3>
             <div className="sales-summary">
               <div className="summary-card">
-                <h4>Total Sales</h4>
-                <p>{data.summary?.total_sales?.toFixed(2) || '0.00'} MGA</p>
+                <h4>Total Revenue</h4>
+                <p>{formatCurrency(data.summary?.total_sales || 0)}</p>
+              </div>
+              <div className="summary-card">
+                <h4>Total Cost</h4>
+                <p>{formatCurrency(data.summary?.total_cost || 0)}</p>
+              </div>
+              <div className="summary-card">
+                <h4>Profit</h4>
+                <p className="profit">{formatCurrency(data.summary?.profit || 0)}</p>
+              </div>
+              <div className="summary-card">
+                <h4>Profit Margin</h4>
+                <p>{data.summary?.profit_margin?.toFixed(2) || '0.00'}%</p>
               </div>
               <div className="summary-card">
                 <h4>Total Transactions</h4>
@@ -371,7 +395,7 @@ const Reports = () => {
               </div>
               <div className="summary-card">
                 <h4>Average Sale</h4>
-                <p>{data.summary?.total_sales && data.summary?.total_count ? (data.summary.total_sales / data.summary.total_count).toFixed(2) : '0.00'} MGA</p>
+                <p>{data.summary?.total_sales && data.summary?.total_count ? formatCurrency(data.summary.total_sales / data.summary.total_count) : formatCurrency(0)}</p>
               </div>
             </div>
             
@@ -380,24 +404,77 @@ const Reports = () => {
                 <h4>Sales Trend</h4>
                 <div className="chart-container">
                   <div className="chart-bars">
-                    {data.chart_data.map((day, index) => (
-                      <div key={index} className="chart-bar">
-                        <div className="bar-group">
-                          <div 
-                            className="bar sales-bar" 
-                            style={{ height: `${Math.max(5, (day.total / Math.max(...data.chart_data.map(d => d.total))) * 100)}%` }}
-                            title={`Sales: ${day.total.toFixed(2)} MGA`}
-                          ></div>
+                    {data.chart_data.map((day, index) => {
+                      const maxValue = Math.max(...data.chart_data.map(d => Math.max(d.total || 0, d.cost || 0)));
+                      return (
+                        <div key={index} className="chart-bar">
+                          <div className="bar-group">
+                            <div 
+                              className="bar sales-bar" 
+                              style={{ height: `${Math.max(5, ((day.total || 0) / maxValue) * 100)}%` }}
+                              title={`Revenue: ${formatCurrency(day.total || 0)}`}
+                            ></div>
+                            <div 
+                              className="bar cost-bar" 
+                              style={{ height: `${Math.max(5, ((day.cost || 0) / maxValue) * 100)}%` }}
+                              title={`Cost: ${formatCurrency(day.cost || 0)}`}
+                            ></div>
+                          </div>
+                          <div className="bar-label">
+                            {day.date}
+                          </div>
+                          <div className="bar-values">
+                            <div className="value sales">{formatCurrency(day.total || 0)}</div>
+                            <div className="value cost">{formatCurrency(day.cost || 0)}</div>
+                          </div>
                         </div>
-                        <div className="bar-label">
-                          {day.date}
-                        </div>
-                        <div className="bar-values">
-                          <div className="value sales">{day.total.toFixed(0)} MGA</div>
-                        </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
+                  <div className="chart-legend">
+                    <div className="legend-item">
+                      <div className="legend-color sales"></div>
+                      <span>Revenue</span>
+                    </div>
+                    <div className="legend-item">
+                      <div className="legend-color cost"></div>
+                      <span>Cost</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+            
+            {data.top_products && data.top_products.length > 0 && (
+              <div className="top-products-section">
+                <h4>Top Selling Products</h4>
+                <div className="table-container">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Product</th>
+                        <th>SKU</th>
+                        <th>Quantity Sold</th>
+                        <th>Revenue</th>
+                        <th>Cost</th>
+                        <th>Profit</th>
+                        <th>Margin</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {data.top_products.map((product, index) => (
+                        <tr key={index}>
+                          <td>{product.product__name}</td>
+                          <td>{product.product__sku}</td>
+                          <td>{product.total_sold} {product.unit_symbol || 'piece'}</td>
+                          <td>{formatCurrency(product.total_revenue || 0)}</td>
+                          <td>{formatCurrency(product.total_cost || 0)}</td>
+                          <td className="profit">{formatCurrency(product.profit || 0)}</td>
+                          <td>{product.profit_margin?.toFixed(1) || '0.0'}%</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
               </div>
             )}
@@ -470,6 +547,7 @@ const Reports = () => {
                         <th>SKU</th>
                         <th>Category</th>
                         <th>Stock</th>
+                        <th>Unit</th>
                         <th>Min Level</th>
                         <th>Cost Price</th>
                         <th>Selling Price</th>
@@ -483,11 +561,12 @@ const Reports = () => {
                           <td>{product.name}</td>
                           <td>{product.sku}</td>
                           <td>{product.category}</td>
-                          <td>{product.stock_quantity}</td>
-                          <td>{product.min_stock_level}</td>
-                          <td>{product.cost_price?.toFixed(2) || '0.00'} MGA</td>
-                          <td>{product.selling_price?.toFixed(2) || '0.00'} MGA</td>
-                          <td>{product.stock_value?.toFixed(2) || '0.00'} MGA</td>
+                          <td>{product.stock_quantity?.toFixed(2) || '0.00'}</td>
+                          <td>{product.base_unit_symbol || product.base_unit_name || 'piece'}</td>
+                          <td>{product.min_stock_level?.toFixed(2) || '0.00'}</td>
+                          <td>{formatCurrency(product.cost_price || 0)}</td>
+                          <td>{formatCurrency(product.selling_price || 0)}</td>
+                          <td>{formatCurrency(product.stock_value || 0)}</td>
                           <td>
                             <span className={`status ${product.is_out_of_stock ? 'out-of-stock' : product.is_low_stock ? 'low-stock' : 'in-stock'}`}>
                               {product.is_out_of_stock ? 'Out of Stock' : product.is_low_stock ? 'Low Stock' : 'In Stock'}
@@ -708,6 +787,86 @@ const Reports = () => {
                 </span>
               </h2>
               <div className="report-actions">
+                {selectedReportType === 'sales' && generatedReport.data && (
+                  <PrintButton
+                    data={{
+                      ...generatedReport.data,
+                      report_type: selectedReportType,
+                      report_name: reportTypes.find(r => r.id === selectedReportType)?.name,
+                      generated_at: generatedReport.generated_at,
+                      date_range: {
+                        start_date: reportFilters.start_date || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+                        end_date: reportFilters.end_date || new Date().toISOString().split('T')[0]
+                      },
+                      user_name: user?.username || t('app.unknown_user'),
+                      user_id: user?.id || 'unknown',
+                      print_timestamp: new Date().toISOString(),
+                      print_id: `REPORT-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+                    }}
+                    title={reportTypes.find(r => r.id === selectedReportType)?.name || 'Sales Report'}
+                    type="sales_report"
+                    printText={t('buttons.print_report') || 'Print Report'}
+                    className="print-report-btn"
+                  />
+                )}
+                {selectedReportType === 'inventory' && generatedReport.data && (
+                  <>
+                    {generatedReport.data.products?.some(p => p.is_low_stock) && (
+                      <PrintButton
+                        data={{
+                          ...generatedReport.data,
+                          report_type: selectedReportType,
+                          report_name: 'Low Stock Report',
+                          filter_type: 'low_stock',
+                          generated_at: generatedReport.generated_at,
+                          user_name: user?.username || t('app.unknown_user'),
+                          user_id: user?.id || 'unknown',
+                          print_timestamp: new Date().toISOString(),
+                          print_id: `LOW-STOCK-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+                        }}
+                        title="Low Stock Report"
+                        type="inventory_report"
+                        printText={t('buttons.print_low_stock') || 'Print Low Stock'}
+                        className="print-report-btn"
+                      />
+                    )}
+                    {generatedReport.data.products?.some(p => p.is_out_of_stock) && (
+                      <PrintButton
+                        data={{
+                          ...generatedReport.data,
+                          report_type: selectedReportType,
+                          report_name: 'Out of Stock Report',
+                          filter_type: 'out_of_stock',
+                          generated_at: generatedReport.generated_at,
+                          user_name: user?.username || t('app.unknown_user'),
+                          user_id: user?.id || 'unknown',
+                          print_timestamp: new Date().toISOString(),
+                          print_id: `OUT-OF-STOCK-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+                        }}
+                        title="Out of Stock Report"
+                        type="inventory_report"
+                        printText={t('buttons.print_out_of_stock') || 'Print Out of Stock'}
+                        className="print-report-btn"
+                      />
+                    )}
+                    <PrintButton
+                      data={{
+                        ...generatedReport.data,
+                        report_type: selectedReportType,
+                        report_name: reportTypes.find(r => r.id === selectedReportType)?.name,
+                        generated_at: generatedReport.generated_at,
+                        user_name: user?.username || t('app.unknown_user'),
+                        user_id: user?.id || 'unknown',
+                        print_timestamp: new Date().toISOString(),
+                        print_id: `INVENTORY-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+                      }}
+                      title={reportTypes.find(r => r.id === selectedReportType)?.name || 'Inventory Report'}
+                      type="inventory_report"
+                      printText={t('buttons.print_report') || 'Print Report'}
+                      className="print-report-btn"
+                    />
+                  </>
+                )}
                 <button
                   className="btn btn-success"
                   onClick={() => exportReport('pdf')}

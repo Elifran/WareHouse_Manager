@@ -1483,58 +1483,113 @@ export const generateMobilePrintContent = (data, title, type, t) => {
 // Print content from print button
 // Helper functions for generating print content optimized for 80mm thermal printers
 const generateInventoryContent = (data, t) => {
-  let products = data;
-  if (!Array.isArray(data)) {
-    if (data.results && Array.isArray(data.results)) {
-      products = data.results;
-    } else if (data.data && Array.isArray(data.data)) {
-      products = data.data;
-    } else if (data.items && Array.isArray(data.items)) {
-      products = data.items;
-    } else {
-      const numberedKeys = Object.keys(data).filter(key => /^\d+$/.test(key));
-      if (numberedKeys.length > 0) {
-        products = numberedKeys.map(key => data[key]).filter(item => item && typeof item === 'object');
-      } else {
-        products = [];
-      }
+  // Handle different data structures
+  let products = [];
+  let summary = {};
+  let filterType = data.filter_type || '';
+  let reportName = data.report_name || 'INVENTORY REPORT';
+  
+  if (Array.isArray(data)) {
+    products = data;
+  } else if (data.products && Array.isArray(data.products)) {
+    products = data.products;
+    summary = data.summary || {};
+  } else if (data.results && Array.isArray(data.results)) {
+    products = data.results;
+  } else if (data.data && Array.isArray(data.data)) {
+    products = data.data;
+  } else if (data.items && Array.isArray(data.items)) {
+    products = data.items;
+  } else {
+    const numberedKeys = Object.keys(data).filter(key => /^\d+$/.test(key));
+    if (numberedKeys.length > 0) {
+      products = numberedKeys.map(key => data[key]).filter(item => item && typeof item === 'object');
     }
   }
+  
+  // Filter products based on filter_type
+  if (filterType === 'low_stock') {
+    products = products.filter(p => p.is_low_stock);
+    reportName = 'LOW STOCK REPORT';
+  } else if (filterType === 'out_of_stock') {
+    products = products.filter(p => p.is_out_of_stock);
+    reportName = 'OUT OF STOCK REPORT';
+  }
+  
+  const totalValue = summary.total_value || products.reduce((sum, p) => sum + parseFloat(p.stock_value || 0), 0);
+  const lowStockCount = summary.low_stock_count || products.filter(p => p.is_low_stock).length;
+  const outOfStockCount = summary.out_of_stock_count || products.filter(p => p.is_out_of_stock).length;
 
   return `
     <div class="receipt-header">
       <div class="company-name">${t('company.name', '______ANTATSIMO______')}</div>
-      <div class="document-title">${t('titles.inventory_summary', 'INVENTORY SUMMARY')}</div>
-      <div class="receipt-date">${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}</div>
+      <div class="document-title">${reportName}</div>
+      <div class="receipt-date">${data.generated_at ? new Date(data.generated_at).toLocaleDateString() : new Date().toLocaleDateString()}</div>
     </div>
     
     <div class="receipt-section">
       <div class="section-title">SUMMARY</div>
       <div class="receipt-row">
         <span>Total Products:</span>
-        <span>${Array.isArray(products) ? products.length : 0}</span>
+        <span>${products.length}</span>
       </div>
+      ${summary.total_value !== undefined ? `
+        <div class="receipt-row">
+          <span>Total Value:</span>
+          <span>${parseFloat(totalValue).toFixed(2)} MGA</span>
+        </div>
+      ` : ''}
+      ${!filterType ? `
+        <div class="receipt-row">
+          <span>Low Stock:</span>
+          <span style="color: #f59e0b">${lowStockCount}</span>
+        </div>
+        <div class="receipt-row">
+          <span>Out of Stock:</span>
+          <span style="color: #dc2626">${outOfStockCount}</span>
+        </div>
+      ` : ''}
     </div>
     
     <div class="receipt-section">
-      <div class="section-title">PRODUCTS</div>
-      ${Array.isArray(products) ? products.map(item => `
-        <div class="product-item">
-          <div class="product-name">${(item.name || 'N/A').substring(0, 20)}</div>
-          <div class="product-details">
-            <span>SKU: ${(item.sku || 'N/A').substring(0, 8)}</span>
-            <span>Qty: ${item.stock_quantity || 0}</span>
-            <span>${parseFloat(item.price || 0).toFixed(2)} MGA</span>
+      <div class="section-title">PRODUCTS (${products.length})</div>
+      ${products.length > 0 ? products.slice(0, 30).map((item, index) => {
+        const stockQty = parseFloat(item.stock_quantity || 0);
+        const minLevel = parseFloat(item.min_stock_level || 0);
+        const unitSymbol = item.base_unit_symbol || item.base_unit_name || 'pcs';
+        const statusColor = item.is_out_of_stock ? '#dc2626' : item.is_low_stock ? '#f59e0b' : '#10b981';
+        const statusText = item.is_out_of_stock ? 'OUT' : item.is_low_stock ? 'LOW' : 'OK';
+        
+        return `
+          <div class="product-item" style="margin-bottom: 4px; padding: 2px 0; border-bottom: 1px dotted #ccc;">
+            <div class="product-name" style="font-weight: bold; margin-bottom: 2px;">
+              ${index + 1}. ${(item.name || 'N/A').substring(0, 22)}
+            </div>
+            <div class="product-details" style="font-size: 9px; display: flex; justify-content: space-between; flex-wrap: wrap; margin-bottom: 1px;">
+              <span>SKU: ${(item.sku || 'N/A').substring(0, 10)}</span>
+              <span>Cat: ${(item.category || 'N/A').substring(0, 8)}</span>
+              ${item.storage_section ? `<span>Loc: ${item.storage_section}</span>` : ''}
+            </div>
+            <div class="product-details" style="font-size: 9px; display: flex; justify-content: space-between; margin-top: 1px;">
+              <span>Stock: ${stockQty.toFixed(2)} ${unitSymbol}</span>
+              <span>Min: ${minLevel.toFixed(2)}</span>
+              <span style="color: ${statusColor}; font-weight: bold">${statusText}</span>
+            </div>
+            <div class="product-details" style="font-size: 9px; display: flex; justify-content: space-between; margin-top: 1px;">
+              <span>Cost: ${parseFloat(item.cost_price || 0).toFixed(2)} MGA</span>
+              <span>Value: ${parseFloat(item.stock_value || 0).toFixed(2)} MGA</span>
+            </div>
           </div>
-        </div>
-      `).join('') : '<div class="no-data">No products found</div>'}
-      ${Array.isArray(products) && products.length > 20 ? `
-        <div class="truncated-warning">... and ${products.length - 20} more products</div>
+        `;
+      }).join('') : '<div class="no-data">No products found</div>'}
+      ${products.length > 30 ? `
+        <div class="truncated-warning">... and ${products.length - 30} more products</div>
       ` : ''}
     </div>
     
     <div class="receipt-footer">
-      <div class="footer-text">${t('footer.generated_by', 'Generated by ______ANTATSIMO______ System')}</div>
+      <div class="footer-text">Report generated by: ${data.user_name || 'System'}</div>
+      <div class="footer-text">${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}</div>
     </div>
   `;
 };
@@ -1866,6 +1921,147 @@ const generateSalesHistoryContent = (data, t) => {
   `;
 };
 
+const generateSalesReportContent = (data, t) => {
+  const summary = data.summary || {};
+  const chartData = data.chart_data || [];
+  const details = data.details || [];
+  const topProducts = data.top_products || [];
+  const dateRange = data.date_range || {};
+  
+  const totalRevenue = parseFloat(summary.total_sales || 0);
+  const totalCost = parseFloat(summary.total_cost || 0);
+  const profit = parseFloat(summary.profit || 0);
+  const profitMargin = parseFloat(summary.profit_margin || 0);
+  const totalTransactions = summary.total_count || 0;
+  const totalItems = summary.total_items || 0;
+  const avgSale = totalTransactions > 0 ? totalRevenue / totalTransactions : 0;
+
+  return `
+    <div class="receipt-header">
+      <div class="company-name">${t('company.name', '______ANTATSIMO______')}</div>
+      <div class="document-title">SALES REPORT</div>
+      <div class="receipt-date">${data.generated_at ? new Date(data.generated_at).toLocaleDateString() : new Date().toLocaleDateString()}</div>
+      ${dateRange.start_date && dateRange.end_date ? `
+        <div class="receipt-date" style="font-size: 10px; margin-top: 2px;">
+          ${new Date(dateRange.start_date).toLocaleDateString()} - ${new Date(dateRange.end_date).toLocaleDateString()}
+        </div>
+      ` : ''}
+    </div>
+    
+    <div class="receipt-section">
+      <div class="section-title">FINANCIAL SUMMARY</div>
+      <div class="receipt-row">
+        <span>Total Revenue:</span>
+        <span>${totalRevenue.toFixed(2)} MGA</span>
+      </div>
+      <div class="receipt-row">
+        <span>Total Cost:</span>
+        <span>${totalCost.toFixed(2)} MGA</span>
+      </div>
+      <div class="receipt-row" style="font-weight: bold; border-top: 1px solid #000; padding-top: 3px; margin-top: 3px;">
+        <span>Profit:</span>
+        <span style="color: ${profit >= 0 ? '#090' : '#d00'}">${profit.toFixed(2)} MGA</span>
+      </div>
+      <div class="receipt-row">
+        <span>Profit Margin:</span>
+        <span style="color: ${profitMargin >= 0 ? '#090' : '#d00'}">${profitMargin.toFixed(2)}%</span>
+      </div>
+    </div>
+    
+    <div class="receipt-section">
+      <div class="section-title">SALES SUMMARY</div>
+      <div class="receipt-row">
+        <span>Total Transactions:</span>
+        <span>${totalTransactions}</span>
+      </div>
+      <div class="receipt-row">
+        <span>Total Items Sold:</span>
+        <span>${totalItems}</span>
+      </div>
+      <div class="receipt-row">
+        <span>Average Sale:</span>
+        <span>${avgSale.toFixed(2)} MGA</span>
+      </div>
+    </div>
+    
+    ${chartData.length > 0 ? `
+      <div class="receipt-section">
+        <div class="section-title">DAILY BREAKDOWN</div>
+        ${chartData.slice(0, 10).map(day => {
+          const dayProfit = (day.total || 0) - (day.cost || 0);
+          return `
+            <div class="sale-summary" style="margin-bottom: 4px; padding: 2px 0; border-bottom: 1px dotted #ccc;">
+              <div class="sale-info" style="font-weight: bold; margin-bottom: 2px;">
+                <span>${day.date}</span>
+              </div>
+              <div class="sale-details" style="font-size: 9px; display: flex; justify-content: space-between;">
+                <span>Rev: ${parseFloat(day.total || 0).toFixed(2)} MGA</span>
+                <span>Cost: ${parseFloat(day.cost || 0).toFixed(2)} MGA</span>
+                <span style="color: ${dayProfit >= 0 ? '#090' : '#d00'}">Profit: ${dayProfit.toFixed(2)} MGA</span>
+              </div>
+            </div>
+          `;
+        }).join('')}
+        ${chartData.length > 10 ? `
+          <div class="truncated-warning">... and ${chartData.length - 10} more days</div>
+        ` : ''}
+      </div>
+    ` : ''}
+    
+    ${topProducts.length > 0 ? `
+      <div class="receipt-section">
+        <div class="section-title">TOP PRODUCTS (${topProducts.length})</div>
+        ${topProducts.map((product, index) => {
+          const productProfit = parseFloat(product.profit || 0);
+          return `
+            <div class="sale-summary" style="margin-bottom: 4px; padding: 2px 0; border-bottom: 1px dotted #ccc;">
+              <div class="sale-info" style="font-weight: bold; margin-bottom: 2px;">
+                <span>${index + 1}. ${(product.product__name || 'N/A').substring(0, 20)}</span>
+              </div>
+              <div class="sale-details" style="font-size: 9px; display: flex; justify-content: space-between; flex-wrap: wrap;">
+                <span>SKU: ${product.product__sku || 'N/A'}</span>
+                <span>Qty: ${product.total_sold || 0} ${product.unit_symbol || 'pcs'}</span>
+              </div>
+              <div class="sale-details" style="font-size: 9px; display: flex; justify-content: space-between; margin-top: 1px;">
+                <span>Rev: ${parseFloat(product.total_revenue || 0).toFixed(2)} MGA</span>
+                <span>Cost: ${parseFloat(product.total_cost || 0).toFixed(2)} MGA</span>
+                <span style="color: ${productProfit >= 0 ? '#090' : '#d00'}">Profit: ${productProfit.toFixed(2)} MGA</span>
+                <span style="color: ${productProfit >= 0 ? '#090' : '#d00'}">${parseFloat(product.profit_margin || 0).toFixed(1)}%</span>
+              </div>
+            </div>
+          `;
+        }).join('')}
+      </div>
+    ` : ''}
+    
+    ${details.length > 0 ? `
+      <div class="receipt-section">
+        <div class="section-title">RECENT SALES (${Math.min(details.length, 5)} of ${details.length})</div>
+        ${details.slice(0, 5).map(sale => `
+          <div class="sale-summary" style="margin-bottom: 3px; padding: 2px 0;">
+            <div class="sale-info">
+              <span>${sale.sale_number || 'N/A'}</span>
+              <span>${parseFloat(sale.total_amount || 0).toFixed(2)} MGA</span>
+            </div>
+            <div class="sale-details" style="font-size: 9px;">
+              <span>${(sale.customer_name || t('customer.walk_in', 'Walk-in')).substring(0, 20)}</span>
+              <span>${sale.created_at ? new Date(sale.created_at).toLocaleDateString() : 'N/A'}</span>
+            </div>
+          </div>
+        `).join('')}
+        ${details.length > 5 ? `
+          <div class="truncated-warning">... and ${details.length - 5} more sales</div>
+        ` : ''}
+      </div>
+    ` : ''}
+    
+    <div class="receipt-footer">
+      <div class="footer-text">Report generated by: ${data.user_name || 'System'}</div>
+      <div class="footer-text">${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}</div>
+    </div>
+  `;
+};
+
 const generatePackagingValidationContent = (data, t) => {
   return `
     <div class="receipt-header">
@@ -2148,6 +2344,7 @@ export const generatePrintContent = (data, title, type, t) => {
   // Add type-specific content
   switch (type) {
     case 'inventory':
+    case 'inventory_report':
       content += generateInventoryContent(data, t);
       break;
     case 'purchase_order':
@@ -2161,6 +2358,9 @@ export const generatePrintContent = (data, title, type, t) => {
       break;
     case 'sales_history':
       content += generateSalesHistoryContent(data, t);
+      break;
+    case 'sales_report':
+      content += generateSalesReportContent(data, t);
       break;
     case 'packaging_validation':
       content += generatePackagingValidationContent(data, t);

@@ -2,6 +2,8 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import api from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
+import { useSales } from '../hooks/useSales';
+import { useProducts } from '../hooks/useProducts';
 import Table from '../components/Table';
 import Button from '../components/Button';
 import PrintButton from '../components/PrintButton';
@@ -64,87 +66,67 @@ const SalesManagement = () => {
     payment_status: ''
   });
 
-  const fetchSales = useCallback(async (page = 1, filterParams = {}) => {
-    try {
-      setLoading(true);
-      setError('');
-      const params = new URLSearchParams();
-      
-      // Pagination params
-      params.append('page', page.toString());
-      params.append('page_size', ITEMS_PER_PAGE.toString());
-      
-      // Filter params
-      if (filterParams.status) params.append('status', filterParams.status);
-      if (filterParams.customer_name) params.append('search', filterParams.customer_name);
-      if (filterParams.start_date) params.append('created_at__date__gte', filterParams.start_date);
-      if (filterParams.end_date) params.append('created_at__date__lte', filterParams.end_date);
-      if (filterParams.sale_number) params.append('sale_number', filterParams.sale_number);
-      if (filterParams.payment_status) params.append('payment_status', filterParams.payment_status); // Added payment status filter
-      
-      const response = await api.get(`/api/sales/?${params.toString()}`);
-      const salesData = response.data.results || response.data;
-      
-      // Ensure salesData is always an array
-      if (!Array.isArray(salesData)) {
-        console.error('Sales data is not an array:', salesData);
-        setSales([]);
-        return;
-      }
-      
-      setSales(salesData);
-      
-      // Set pagination info
-      if (response.data.count !== undefined) {
-        setTotalCount(response.data.count);
-        setTotalPages(Math.ceil(response.data.count / ITEMS_PER_PAGE));
-      } else {
-        // Fallback if pagination info not available
-        setTotalCount(salesData.length);
-        setTotalPages(1);
-      }
-      
-      setCurrentPage(page);
-    } catch (err) {
-      setError('Failed to fetch sales: ' + (err.response?.data?.error || err.message));
-      console.error('Sales fetch error:', err);
-    } finally {
-      setLoading(false);
+  // React Query hooks for data fetching with caching
+  const { data: salesData, isLoading: salesLoading, error: salesError, refetch: refetchSales } = useSales({
+    page: currentPage,
+    pageSize: ITEMS_PER_PAGE,
+    status: filters.status || undefined,
+    customer_name: filters.customer_name || undefined,
+    start_date: filters.start_date || undefined,
+    end_date: filters.end_date || undefined,
+    sale_number: filters.sale_number || undefined,
+    payment_status: filters.payment_status || undefined,
+  });
+
+  const { data: productsData = [], refetch: refetchProducts } = useProducts({ is_active: true });
+
+  // Update state from query data
+  useEffect(() => {
+    if (salesData) {
+      setSales(salesData.sales || []);
+      setTotalCount(salesData.count || 0);
+      setTotalPages(salesData.totalPages || 1);
+      setCurrentPage(salesData.currentPage || 1);
     }
-  }, []);
+  }, [salesData]);
 
   useEffect(() => {
-    fetchSales(1, filters);
-    fetchProducts();
-  }, [fetchSales]);
-
-  const fetchProducts = async () => {
-    try {
-      const response = await api.get('/api/products/?is_active=true');
-      setProducts(response.data.results || response.data);
-    } catch (err) {
-      console.error('Products fetch error:', err);
+    if (productsData) {
+      setProducts(productsData);
     }
-  };
+  }, [productsData]);
 
-  // Navigation handlers
+  useEffect(() => {
+    setLoading(salesLoading);
+  }, [salesLoading]);
+
+  useEffect(() => {
+    if (salesError) {
+      setError('Failed to fetch sales: ' + (salesError.response?.data?.error || salesError.message));
+    }
+  }, [salesError]);
+
+  // Refetch when filters change
+  useEffect(() => {
+    refetchSales();
+  }, [filters, currentPage, refetchSales]);
+
+  // Navigation handlers - React Query will automatically refetch when currentPage changes
   const goToNextPage = () => {
     if (currentPage < totalPages) {
-      const nextPage = currentPage + 1;
-      fetchSales(nextPage, filters);
+      setCurrentPage(currentPage + 1);
     }
   };
 
   const goToPrevPage = () => {
     if (currentPage > 1) {
-      const prevPage = currentPage - 1;
-      fetchSales(prevPage, filters);
+      setCurrentPage(currentPage - 1);
     }
   };
 
   const goToPage = (page) => {
     if (page >= 1 && page <= totalPages) {
-      fetchSales(page, filters);
+      setCurrentPage(page);
     }
   };
 
@@ -163,8 +145,8 @@ const SalesManagement = () => {
         end_date: '',
         status: 'completed'
       });
-      fetchSales(currentPage, filters);
-      fetchProducts(); // Refresh products to update stock quantities
+      refetchSales();
+      refetchProducts(); // Refresh products to update stock quantities
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to delete sales');
       console.error('Delete sales error:', err);
@@ -186,8 +168,8 @@ const SalesManagement = () => {
       setShowEditModal(false);
       setSelectedSale(null);
       setEditFormData({ items: [], payment_type: 'full', paid_amount: 0 });
-      fetchSales(currentPage, filters);
-      fetchProducts(); // Refresh products to update stock quantities
+      refetchSales();
+      refetchProducts(); // Refresh products to update stock quantities
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to update sale');
       console.error('Edit sale error:', err);
@@ -203,7 +185,7 @@ const SalesManagement = () => {
       });
       alert('Payment processed successfully');
       setShowPaymentModal(false);
-      fetchSales(currentPage, filters);
+      refetchSales();
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to process payment');
       console.error('Payment error:', err);
@@ -228,7 +210,8 @@ const SalesManagement = () => {
 
   const applyFilters = () => {
     setCurrentPage(1);
-    fetchSales(1, filters);
+      setCurrentPage(1);
+      refetchSales();
   };
 
   const clearFilters = () => {
@@ -241,7 +224,8 @@ const SalesManagement = () => {
       payment_status: '' // Reset payment status filter
     });
     setCurrentPage(1);
-    fetchSales(1, {});
+      setCurrentPage(1);
+      refetchSales();
   };
 
   const openEditModal = async (sale) => {
@@ -291,8 +275,8 @@ const SalesManagement = () => {
         alert('Sale cancelled successfully');
       }
       
-      fetchSales(currentPage, filters);
-      fetchProducts(); // Refresh products to update stock quantities
+      refetchSales();
+      refetchProducts(); // Refresh products to update stock quantities
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to cancel sale');
       console.error('Cancel sale error:', err);
@@ -326,8 +310,8 @@ const SalesManagement = () => {
       alert(`Return created successfully: ${response.data.sale_number}. Stock has been restored.`);
       
       // Refresh the sales list and products
-      fetchSales(currentPage, filters);
-      fetchProducts();
+      refetchSales();
+      refetchProducts(); // Refresh products to update stock quantities
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to create return');
       console.error('Create return error:', err);

@@ -20,7 +20,8 @@ from .serializers import (
 
 
 class SupplierListCreateView(generics.ListCreateAPIView):
-    queryset = Supplier.objects.filter(is_active=True)
+    # queryset = Supplier.objects.filter(is_active=True)
+    queryset = Supplier.objects.all()
     serializer_class = SupplierSerializer
     permission_classes = [IsAuthenticated]
 
