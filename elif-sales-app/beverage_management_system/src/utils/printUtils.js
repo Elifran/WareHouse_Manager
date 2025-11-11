@@ -1852,6 +1852,7 @@ const generateSaleContent = (data, t) => {
       <div class="receipt-footer">
         <div class="thank-you">Thank you!</div>
         <div class="footer-text" style="text-align: center;">Created by: ${(data.created_by_name || data.sold_by_name || data.user_name || 'N/A')} -- ${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}</div>
+        <div class="terms">${t('messages.terms_of_sales')}</div>
       </div>
   `;
 };

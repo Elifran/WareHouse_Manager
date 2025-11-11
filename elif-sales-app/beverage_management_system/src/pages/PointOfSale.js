@@ -207,7 +207,7 @@ const PointOfSale = () => {
       
       // Generate optimized content for thermal printers
       // const printContent = generateThermalOptimizedContent(printData, title, 'sale');
-      const printContent = generatePrintContent(printData, title, 'sale');
+      const printContent = generatePrintContent(printData, title, 'sale', t);
 
       // Handle print preview
       if (usePreview) {
@@ -1244,8 +1244,7 @@ const PointOfSale = () => {
       if (saleMode === 'complete') {
         // Complete the sale immediately
         try {
-          const completionResponse = await api.post(`/api/sales/${saleId}/complete/`);
-          
+          const completionResponse = await api.post(`/api/sales/${saleId}/complete/`);          
           // Auto-print the receipt after successful sale completion (only if printReceipt is true)
           if (printReceipt) {
             // Use the improved printing logic for completed sale

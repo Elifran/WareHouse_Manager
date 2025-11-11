@@ -304,7 +304,8 @@
     "failed_to_create_return": "Tsy nety ny famoronana ny famerenana",
     "pending_sale_created": "Noforona miandry ny fivarotana! Laharana fivarotana: {{saleNumber}}\nAzonao atao ny hamita azy any aoriana ao amin'ny Fitantanana ny fivarotana.",
     "dont_have_account": "Tsy manana kaonty?",
-    "contact_administrator": "Mifandraisa amin'ny mpitantana"
+    "contact_administrator": "Mifandraisa amin'ny mpitantana",
+    "terms_of_sales" : "TERMS: Tsy misy fifanakalozana, famerenam-bola na famerenan'entana."
   },
   "titles": {
     "sales_management": "Fitantanana ny fivarotana",

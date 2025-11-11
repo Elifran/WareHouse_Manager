@@ -304,7 +304,10 @@
     "failed_to_create_return": "Échec de la création du retour",
     "pending_sale_created": "Vente en attente créée ! Numéro de vente : {{saleNumber}}\nVous pouvez la terminer plus tard dans la Gestion des ventes.",
     "dont_have_account": "Vous n'avez pas de compte ?",
-    "contact_administrator": "Contacter l'administrateur"
+    "contact_administrator": "Contacter l'administrateur",
+    "failed_to_load_users": "Échec du chargement des utilisateurs",
+    "failed_to_delete_user": "Échec de la suppression de l'utilisateur",
+    "terms_of_sales" : "CONDITIONS : Aucun échange, remboursement ou retour. Toutes les ventes sont définitives."
   },
   "titles": {
     "sales_management": "Gestion des ventes",
@@ -390,10 +393,6 @@
     "filter_sales": "Filtrer les ventes",
     "recent_sales": "Ventes récentes",
     "no_sales_found": "Aucune vente trouvée"
-  },
-  "messages": {
-    "failed_to_load_users": "Échec du chargement des utilisateurs",
-    "failed_to_delete_user": "Échec de la suppression de l'utilisateur"
   },
   "alerts": {
     "sale_will_be_completed": "La vente sera terminée immédiatement et le stock sera déduit",
