@@ -43,11 +43,13 @@ class DashboardWidgetDetailView(generics.RetrieveUpdateDestroyAPIView):
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def generate_sales_report(request):
-            # Only allow admin and manager roles to edit sales
-    if request.user.role not in ['admin', 'manager']:
-        return Response({'error': 'Permission denied'}, status=status.HTTP_403_FORBIDDEN)
-        
-    """Generate sales report"""
+    # if request.user.role not in ['admin', 'manager']:
+    #     return Response({'error': 'Permission denied'}, status=status.HTTP_403_FORBIDDEN)
+
+    """Generate sales report with role-based access"""
+    # Get user role
+    user_role = request.user.role
+    is_sales_team = user_role == 'sales'
     serializer = SalesReportSerializer(data=request.data)
     if not serializer.is_valid():
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
@@ -154,11 +156,36 @@ def generate_sales_report(request):
             'profit_margin': (profit / product_revenue * 100) if product_revenue > 0 else 0
         })
     
-    result = {
-        'summary': summary,
-        'chart_data': chart_data,
-        'top_products': top_products_data
-    }
+    # Prepare result based on user role
+    if is_sales_team:
+        # For sales teams, exclude cost and profit data
+        result = {
+            'summary': {
+                'total_sales': total_revenue,
+                'total_count': summary['total_count'] or 0,
+                'total_items': summary['total_items'] or 0
+            },
+            'chart_data': [{
+                'date': day['date'],
+                'total': day['total'],
+                'count': day['count']
+            } for day in chart_data],
+            'top_products': [{
+                'product__name': p['product__name'],
+                'product__sku': p['product__sku'],
+                'total_sold': p['total_sold'],
+                'unit_name': p['unit_name'],
+                'unit_symbol': p['unit_symbol'],
+                'total_revenue': p['total_revenue']
+            } for p in top_products_data]
+        }
+    else:
+        # For admin/manager, include all data including cost and profit
+        result = {
+            'summary': summary,
+            'chart_data': chart_data,
+            'top_products': top_products_data
+        }
     
     if include_details:
         # Include detailed sales data
@@ -180,6 +207,9 @@ def generate_sales_report(request):
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def generate_inventory_report(request):
+    # if request.user.role not in ['admin', 'manager']:
+    #     return Response({'error': 'Permission denied'}, status=status.HTTP_403_FORBIDDEN)
+
     """Generate inventory report"""
     serializer = InventoryReportSerializer(data=request.data)
     if not serializer.is_valid():
