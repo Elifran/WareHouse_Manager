@@ -856,39 +856,61 @@ def add_packaging_to_sale(request, sale_id):
     if not packaging_data:
         return Response({'error': 'Packaging items are required'}, status=status.HTTP_400_BAD_REQUEST)
     
-    from products.models import Product, Unit
+    from products.models import Packaging
     from decimal import Decimal
+    from collections import defaultdict
     
-    created_packaging = []
+    # Group packaging items by packaging_id
+    packaging_groups = defaultdict(lambda: {'quantity': 0, 'data': {}})
+    
     for item_data in packaging_data:
-        # Validate product
+        packaging_id = item_data.get('packaging')
+        if not packaging_id:
+            return Response({'error': 'Packaging ID is required for each item'}, status=status.HTTP_400_BAD_REQUEST)
+        
         try:
-            product = Product.objects.get(id=item_data['product'])
-        except Product.DoesNotExist:
-            return Response({'error': f"Product with ID {item_data['product']} not found"}, status=status.HTTP_400_BAD_REQUEST)
+            packaging_obj = Packaging.objects.get(id=packaging_id, is_active=True)
+        except Packaging.DoesNotExist:
+            return Response({'error': f"Packaging with ID {packaging_id} not found"}, status=status.HTTP_400_BAD_REQUEST)
         
-        if not product.has_packaging:
-            return Response({'error': f"Product {product.name} does not have packaging"}, status=status.HTTP_400_BAD_REQUEST)
+        # Aggregate quantities for the same packaging
+        packaging_groups[packaging_id]['quantity'] += float(item_data.get('quantity', 0))
+        # Store other data (use first occurrence for status, customer info, etc.)
+        if not packaging_groups[packaging_id]['data']:
+            packaging_groups[packaging_id]['data'] = {
+                'status': item_data.get('status', 'consignation'),
+                'customer_name': item_data.get('customer_name', sale.customer_name),
+                'customer_phone': item_data.get('customer_phone', sale.customer_phone),
+                'notes': item_data.get('notes', ''),
+                'unit_price': packaging_obj.price
+            }
+    
+    # Create or update SalePackaging records (one per packaging type)
+    created_packaging = []
+    for packaging_id, group_data in packaging_groups.items():
+        packaging_obj = Packaging.objects.get(id=packaging_id)
         
-        # Validate unit
-        try:
-            unit = Unit.objects.get(id=item_data['unit'])
-        except Unit.DoesNotExist:
-            return Response({'error': f"Unit with ID {item_data['unit']} not found"}, status=status.HTTP_400_BAD_REQUEST)
-        
-        # Create packaging item
-        packaging = SalePackaging.objects.create(
+        # Check if packaging already exists for this sale
+        existing_packaging, created = SalePackaging.objects.get_or_create(
             sale=sale,
-            product=product,
-            unit=unit,
-            quantity=item_data['quantity'],
-            unit_price=item_data.get('unit_price', product.packaging_price or Decimal('0.00')),
-            status=item_data.get('status', 'consignation'),
-            customer_name=item_data.get('customer_name', sale.customer_name),
-            customer_phone=item_data.get('customer_phone', sale.customer_phone),
-            notes=item_data.get('notes', '')
+            packaging=packaging_obj,
+            defaults={
+                'quantity': group_data['quantity'],
+                'unit_price': group_data['data']['unit_price'],
+                'status': group_data['data']['status'],
+                'customer_name': group_data['data']['customer_name'],
+                'customer_phone': group_data['data']['customer_phone'],
+                'notes': group_data['data']['notes']
+            }
         )
-        created_packaging.append(packaging)
+        
+        if not created:
+            # Update existing packaging quantity
+            existing_packaging.quantity += group_data['quantity']
+            existing_packaging.save()
+            created_packaging.append(existing_packaging)
+        else:
+            created_packaging.append(existing_packaging)
     
     # Recalculate sale totals
     sale.calculate_totals()

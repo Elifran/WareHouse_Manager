@@ -26,11 +26,13 @@ const Inventory = () => {
     min_stock_level: '',
     max_stock_level: '',
     tax_class: '',
+    packaging: '',
     is_active: true
   });
   const [allUnits, setAllUnits] = useState([]);
   const [allTaxClasses, setAllTaxClasses] = useState([]);
   const [compatibleUnits, setCompatibleUnits] = useState([]);
+  const [packagings, setPackagings] = useState([]);
   const [showAddUnitModal, setShowAddUnitModal] = useState(false);
   const [selectedUnit, setSelectedUnit] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
@@ -97,6 +99,17 @@ const Inventory = () => {
     }
   }, []);
 
+  // Fetch packagings
+  const fetchPackagings = useCallback(async () => {
+    try {
+      const response = await api.get('/api/products/packagings/');
+      const packagingsData = response.data.results || response.data;
+      setPackagings(Array.isArray(packagingsData) ? packagingsData : []);
+    } catch (err) {
+      console.error('Error fetching packagings:', err);
+    }
+  }, []);
+
   // Fetch compatible units for a product
   const fetchCompatibleUnits = useCallback(async (productId) => {
     try {
@@ -124,7 +137,8 @@ const Inventory = () => {
     fetchCategories();
     fetchUnits();
     fetchTaxClasses();
-  }, [fetchProducts, fetchCategories, fetchUnits, fetchTaxClasses]);
+    fetchPackagings();
+  }, [fetchProducts, fetchCategories, fetchUnits, fetchTaxClasses, fetchPackagings]);
 
   const handleAddProduct = () => {
     setEditingProduct(null);
@@ -140,6 +154,7 @@ const Inventory = () => {
       min_stock_level: '',
       max_stock_level: '',
       tax_class: '',
+      packaging: '',
       is_active: true
     });
     setCompatibleUnits([]);
@@ -177,6 +192,7 @@ const Inventory = () => {
         min_stock_level: freshProduct.min_stock_level || '',
         max_stock_level: freshProduct.max_stock_level || '',
         tax_class: freshProduct.tax_class || '',
+        packaging: freshProduct.packaging || '',
         is_active: freshProduct.is_active !== false
       });
       
@@ -605,6 +621,21 @@ const Inventory = () => {
                     {allTaxClasses.map(taxClass => (
                   <option key={taxClass.id} value={taxClass.id}>
                     {taxClass.name} ({taxClass.tax_rate}%)
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="form-group">
+              <label htmlFor="packaging">Packaging Type</label>
+              <select
+                id="packaging"
+                value={productFormData.packaging || ''}
+                onChange={(e) => setProductFormData({ ...productFormData, packaging: e.target.value })}
+              >
+                <option value="">No Packaging</option>
+                {packagings.filter(p => p.is_active).map(packaging => (
+                  <option key={packaging.id} value={packaging.id}>
+                    {packaging.name} - {parseFloat(packaging.price).toFixed(2)} MGA
                   </option>
                 ))}
               </select>

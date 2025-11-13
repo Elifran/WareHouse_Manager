@@ -819,7 +819,7 @@ const PointOfSale = () => {
     }
 
     // Automatically add packaging if product has packaging - use setTimeout to ensure cart is updated first
-    if (product.has_packaging && product.packaging_price) {
+    if (product.packaging) {
       setTimeout(() => {
         addPackagingAutomatically(product, unit);
       }, 0);
@@ -831,8 +831,18 @@ const PointOfSale = () => {
   const updateQuantity = (productId, unitId, quantity, priceMode = null) => {
     if (quantity <= 0) {
       setCart(cart.filter(item => !(item.id === productId && item.unit_id === unitId && item.price_mode === priceMode)));
-      // Also remove packaging if sales item is removed
-      setPackagingCart(packagingCart.filter(item => item.id !== productId));
+      // Also remove packaging if sales item is removed - check if any other products with same packaging remain
+      const removedProduct = allProducts.find(p => p.id === productId);
+      if (removedProduct && removedProduct.packaging) {
+        // Check if any other products in cart have the same packaging
+        const hasOtherProductsWithSamePackaging = cart.some(item => 
+          item.id !== productId && 
+          allProducts.find(p => p.id === item.id)?.packaging === removedProduct.packaging
+        );
+        if (!hasOtherProductsWithSamePackaging) {
+          setPackagingCart(packagingCart.filter(item => item.packaging_id !== removedProduct.packaging));
+        }
+      }
     } else {
       // Skip stock validation for pending sales since stock won't be removed until completion
       if (saleMode === 'complete') {
@@ -867,7 +877,7 @@ const PointOfSale = () => {
 
       // Update packaging quantity automatically if product has packaging
       const product = products.find(p => p.id === productId);
-      if (product && product.has_packaging && product.packaging_price) {
+      if (product && product.packaging) {
         const unit = { id: unitId };
         updatePackagingQuantityAutomatically(product, unit, quantity);
       }
@@ -880,9 +890,9 @@ const PointOfSale = () => {
     setCart(cart.filter(item => !(item.id === productId && item.unit_id === unitId && item.price_mode === priceMode)));
   };
 
-  // Packaging functions
+  // Packaging functions - now groups by packaging_id instead of product_id
   const addPackagingAutomatically = (product, unit) => {
-    if (!product.has_packaging || !product.packaging_price) {
+    if (!product.packaging) {
       return;
     }
 
@@ -910,18 +920,25 @@ const PointOfSale = () => {
         packagingQuantity = salesItem.quantity * unitStockInfo.conversion_factor;
       }
 
-      // Update packaging cart
+      // Update packaging cart - group by packaging_id
       setPackagingCart(currentPackagingCart => {
-        // Look for existing packaging for the same product (regardless of unit)
-        const existingPackaging = currentPackagingCart.find(item => item.id === product.id);
+        const packagingId = product.packaging;
+        // Look for existing packaging with the same packaging_id (not product_id)
+        const existingPackaging = currentPackagingCart.find(item => item.packaging_id === packagingId);
         
         if (existingPackaging) {
-          // Calculate total packaging quantity from all units of this product in cart
+          // Calculate total packaging quantity from all products with the same packaging in cart
           const totalSalesQuantity = currentCart
-            .filter(item => item.id === product.id)
+            .filter(item => {
+              const cartProduct = allProducts.find(p => p.id === item.id);
+              return cartProduct && cartProduct.packaging === packagingId;
+            })
             .reduce((sum, item) => {
               // Get unit information for conversion
-              const updatedStockInfo = getUpdatedStockAvailability(product.id);
+              const cartProduct = allProducts.find(p => p.id === item.id);
+              if (!cartProduct) return sum;
+              
+              const updatedStockInfo = getUpdatedStockAvailability(cartProduct.id);
               const unitStockInfo = updatedStockInfo?.find(u => u.id === item.unit_id);
               
               let quantity = item.quantity;
@@ -934,27 +951,26 @@ const PointOfSale = () => {
           
           // Update existing packaging quantity to match total sales quantity
           return currentPackagingCart.map(item =>
-            item.id === product.id
+            item.packaging_id === packagingId
               ? { 
                   ...item, 
                   quantity: totalSalesQuantity,
-                  total_price: parseFloat(product.packaging_price) * totalSalesQuantity
+                  total_price: parseFloat(item.unit_price) * totalSalesQuantity
                 }
               : item
           );
         } else {
-          // Create new packaging item
+          // Create new packaging item - use packaging info instead of product info
+          const packagingPrice = product.packaging_price_display || product.packaging_price || 0;
           const newPackagingItem = {
-            ...product,
+            packaging_id: packagingId,
+            packaging_name: product.packaging_name || 'Packaging',
             quantity: packagingQuantity,
-            unit_price: parseFloat(product.packaging_price),
-            total_price: parseFloat(product.packaging_price) * packagingQuantity,
+            unit_price: parseFloat(packagingPrice),
+            total_price: parseFloat(packagingPrice) * packagingQuantity,
             status: 'consignation', // Default status
             customer_name: customerInfo.name,
-            customer_phone: customerInfo.phone,
-            sales_unit_id: unit.id, // Track which sales unit this packaging is for
-            sales_unit_name: unit.name,
-            sales_unit_symbol: unit.symbol
+            customer_phone: customerInfo.phone
           };
           return [...currentPackagingCart, newPackagingItem];
         }
@@ -965,7 +981,7 @@ const PointOfSale = () => {
   };
 
   const updatePackagingQuantityAutomatically = (product, unit, salesQuantity) => {
-    if (!product.has_packaging || !product.packaging_price) {
+    if (!product.packaging) {
       return;
     }
 
@@ -982,16 +998,23 @@ const PointOfSale = () => {
     }
 
     setPackagingCart(currentPackagingCart => {
-      // Look for existing packaging for the same product (regardless of unit)
-      const existingPackaging = currentPackagingCart.find(item => item.id === product.id);
+      const packagingId = product.packaging;
+      // Look for existing packaging with the same packaging_id (not product_id)
+      const existingPackaging = currentPackagingCart.find(item => item.packaging_id === packagingId);
       
       if (existingPackaging) {
-        // Calculate total packaging quantity from all units of this product in cart
+        // Calculate total packaging quantity from all products with the same packaging in cart
         const totalSalesQuantity = cart
-          .filter(item => item.id === product.id)
+          .filter(item => {
+            const cartProduct = allProducts.find(p => p.id === item.id);
+            return cartProduct && cartProduct.packaging === packagingId;
+          })
           .reduce((sum, item) => {
             // Get unit information for conversion
-            const updatedStockInfo = getUpdatedStockAvailability(product.id);
+            const cartProduct = allProducts.find(p => p.id === item.id);
+            if (!cartProduct) return sum;
+            
+            const updatedStockInfo = getUpdatedStockAvailability(cartProduct.id);
             const unitStockInfo = updatedStockInfo?.find(u => u.id === item.unit_id);
             
             let quantity = item.quantity;
@@ -1004,77 +1027,89 @@ const PointOfSale = () => {
         
         // Update existing packaging quantity to match total sales quantity
         return currentPackagingCart.map(item =>
-          item.id === product.id
+          item.packaging_id === packagingId
             ? { 
                 ...item, 
                 quantity: totalSalesQuantity,
-                total_price: parseFloat(product.packaging_price) * totalSalesQuantity
+                total_price: parseFloat(item.unit_price) * totalSalesQuantity
               }
             : item
         );
       } else {
         // Create new packaging item if it doesn't exist
+        const packagingPrice = product.packaging_price_display || product.packaging_price || 0;
         const newPackagingItem = {
-          ...product,
+          packaging_id: packagingId,
+          packaging_name: product.packaging_name || 'Packaging',
           quantity: packagingQuantity,
-          unit_price: parseFloat(product.packaging_price),
-          total_price: parseFloat(product.packaging_price) * packagingQuantity,
+          unit_price: parseFloat(packagingPrice),
+          total_price: parseFloat(packagingPrice) * packagingQuantity,
           status: 'consignation', // Default status
           customer_name: customerInfo.name,
-          customer_phone: customerInfo.phone,
-          sales_unit_id: unit.id,
-          sales_unit_name: unit.name,
-          sales_unit_symbol: unit.symbol
+          customer_phone: customerInfo.phone
         };
         return [...currentPackagingCart, newPackagingItem];
       }
     });
   };
 
-  const updatePackagingStatus = (productId, status) => {
+  const updatePackagingStatus = (packagingId, status) => {
     setPackagingCart(packagingCart.map(item =>
-      item.id === productId
+      item.packaging_id === packagingId
         ? { ...item, status }
         : item
     ));
   };
 
-  const removeFromPackagingCart = (productId) => {
-    setPackagingCart(packagingCart.filter(item => item.id !== productId));
+  const removeFromPackagingCart = (packagingId) => {
+    setPackagingCart(packagingCart.filter(item => item.packaging_id !== packagingId));
   };
 
-  // Function to recalculate packaging quantities for all products
+  // Function to recalculate packaging quantities - now groups by packaging_id
   const recalculateAllPackagingQuantities = () => {
     setPackagingCart(currentPackagingCart => {
-      return currentPackagingCart.map(packagingItem => {
-        // Find all cart items for this product
-        const productCartItems = cart.filter(item => item.id === packagingItem.id);
-        
-        if (productCartItems.length === 0) {
-          // If product is no longer in cart, remove its packaging
-          return null;
-        }
-        
-        // Calculate total packaging quantity from all units of this product
-        const totalSalesQuantity = productCartItems.reduce((sum, item) => {
-          // Get unit information for conversion
-          const updatedStockInfo = getUpdatedStockAvailability(packagingItem.id);
-          const unitStockInfo = updatedStockInfo?.find(u => u.id === item.unit_id);
+      // Group cart items by packaging_id
+      const packagingGroups = {};
+      
+      cart.forEach(cartItem => {
+        const cartProduct = allProducts.find(p => p.id === cartItem.id);
+        if (cartProduct && cartProduct.packaging) {
+          const packagingId = cartProduct.packaging;
           
-          let quantity = item.quantity;
+          if (!packagingGroups[packagingId]) {
+            packagingGroups[packagingId] = {
+              packaging_id: packagingId,
+              packaging_name: cartProduct.packaging_name || 'Packaging',
+              unit_price: parseFloat(cartProduct.packaging_price_display || cartProduct.packaging_price || 0),
+              quantity: 0
+            };
+          }
+          
+          // Get unit information for conversion
+          const updatedStockInfo = getUpdatedStockAvailability(cartProduct.id);
+          const unitStockInfo = updatedStockInfo?.find(u => u.id === cartItem.unit_id);
+          
+          let quantity = cartItem.quantity;
           // Convert to base unit (pieces) if needed
           if (unitStockInfo && !unitStockInfo.is_base_unit && unitStockInfo.conversion_factor) {
-            quantity = item.quantity * unitStockInfo.conversion_factor;
+            quantity = cartItem.quantity * unitStockInfo.conversion_factor;
           }
-          return sum + quantity;
-        }, 0);
-        
+          
+          packagingGroups[packagingId].quantity += quantity;
+        }
+      });
+      
+      // Convert groups to array and preserve status/customer info from existing items
+      return Object.values(packagingGroups).map(group => {
+        const existingItem = currentPackagingCart.find(item => item.packaging_id === group.packaging_id);
         return {
-          ...packagingItem,
-          quantity: totalSalesQuantity,
-          total_price: parseFloat(packagingItem.unit_price) * totalSalesQuantity
+          ...group,
+          total_price: group.unit_price * group.quantity,
+          status: existingItem?.status || 'consignation',
+          customer_name: existingItem?.customer_name || customerInfo.name,
+          customer_phone: existingItem?.customer_phone || customerInfo.phone
         };
-      }).filter(item => item !== null); // Remove null items
+      });
     });
   };
 
@@ -1162,10 +1197,10 @@ const PointOfSale = () => {
         total_price: item.unit_price * item.quantity
       })),
       packaging_items: packagingCart.map(item => ({
-        product_name: item.name,
+        packaging_name: item.packaging_name || 'Packaging',
         quantity: item.quantity,
         unit_price: item.unit_price,
-        total_price: item.total_price,
+        total_price: item.total_price || (item.quantity * item.unit_price),
         status: item.status
       }))
     };
@@ -1225,10 +1260,8 @@ const PointOfSale = () => {
           };
         }),
         packaging_items: packagingCart.map(item => ({
-          product: item.id,
+          packaging: item.packaging_id, // Use packaging_id instead of product
           quantity: parseFloat(item.quantity),
-          unit: 7, // Use the correct piece unit ID (7) for packaging
-          unit_price: parseFloat(item.unit_price),
           status: item.status || 'consignation',
           customer_name: item.customer_name || customerInfo.name,
           customer_phone: item.customer_phone || customerInfo.phone,
@@ -1893,10 +1926,10 @@ const PointOfSale = () => {
                   )}
                   
                   {/* Packaging Info - Show for products with packaging */}
-                  {product.has_packaging && product.packaging_price && (
+                  {product.packaging_name && (
                     <div className="packaging-info">
                       <small className="packaging-price">
-                        Packaging: {formatCurrency(product.packaging_price)} (Auto-added)
+                        Packaging: {product.packaging_name} - {formatCurrency(product.packaging_price_display || product.packaging_price || 0)} (Auto-added)
                       </small>
                     </div>
                   )}
@@ -2068,15 +2101,10 @@ const PointOfSale = () => {
                       <h4>Packaging Items (Auto-calculated)</h4>
                     </div>
                     {packagingCart.map(item => (
-                      <div key={`packaging-${item.id}`} className="cart-item packaging-item">
+                      <div key={`packaging-${item.packaging_id}`} className="cart-item packaging-item">
                         <div className="item-product">
-                          <h4>{item.name} (Packaging)</h4>
-                          <p className="item-sku">SKU: {item.sku}</p>
-                          {item.sales_unit_name && (
-                            <p className="packaging-source">
-                              From: {item.quantity} {item.sales_unit_symbol || 'piece'}
-                            </p>
-                          )}
+                          <h4>{item.packaging_name || 'Packaging'}</h4>
+                          <p className="item-sku">Packaging Type</p>
                         </div>
                         <div className="item-unit">
                           piece
@@ -2093,7 +2121,7 @@ const PointOfSale = () => {
                         <div className="item-status">
                           <select
                             value={item.status}
-                            onChange={(e) => updatePackagingStatus(item.id, e.target.value)}
+                            onChange={(e) => updatePackagingStatus(item.packaging_id, e.target.value)}
                             className="packaging-status-select"
                           >
                             <option value="consignation">Consigned (Paid)</option>
@@ -2102,13 +2130,13 @@ const PointOfSale = () => {
                           </select>
                         </div>
                         <div className="item-total">
-                          {formatCurrency(item.quantity * item.unit_price)}
+                          {formatCurrency(item.total_price || (item.quantity * item.unit_price))}
                         </div>
                         <div className="item-actions">
                           <Button
                             size="small"
                             variant="danger"
-                            onClick={() => removeFromPackagingCart(item.id)}
+                            onClick={() => removeFromPackagingCart(item.packaging_id)}
                             title="Remove packaging item"
                           >
                             ×

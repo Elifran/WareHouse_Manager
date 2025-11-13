@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Category, TaxClass, Unit, UnitConversion, Product, StockMovement
+from .models import Category, TaxClass, Unit, UnitConversion, Product, StockMovement, Packaging
 
 @admin.register(Category)
 class CategoryAdmin(admin.ModelAdmin):
@@ -28,6 +28,23 @@ class UnitConversionAdmin(admin.ModelAdmin):
     search_fields = ['from_unit__name', 'to_unit__name', 'description']
     ordering = ['from_unit__name', 'to_unit__name']
 
+@admin.register(Packaging)
+class PackagingAdmin(admin.ModelAdmin):
+    list_display = ['name', 'price', 'is_active', 'created_at', 'updated_at']
+    list_filter = ['is_active']
+    search_fields = ['name', 'description']
+    ordering = ['name']
+    fieldsets = (
+        (None, {
+            'fields': ('name', 'price', 'description', 'is_active')
+        }),
+        ('Timestamps', {
+            'fields': ('created_at', 'updated_at'),
+            'classes': ('collapse',)
+        }),
+    )
+    readonly_fields = ['created_at', 'updated_at']
+
 @admin.register(Product)
 class ProductAdmin(admin.ModelAdmin):
     list_display = ['name', 'sku', 'category', 'unit', 'base_unit', 'price', 'cost_price', 'stock_quantity', 'has_packaging', 'storage_section', 'storage_type', 'is_active']
@@ -42,7 +59,7 @@ class ProductAdmin(admin.ModelAdmin):
             'fields': ('price', 'wholesale_price', 'cost_price', 'tax_class')
         }),
         ('Packaging', {
-            'fields': ('has_packaging', 'packaging_price'),
+            'fields': ('packaging', 'has_packaging', 'packaging_price'),  # packaging is new, others are legacy
             'classes': ('collapse',)
         }),
         ('Storage', {

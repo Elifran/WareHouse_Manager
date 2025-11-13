@@ -70,6 +70,22 @@ class UnitConversion(models.Model):
         if self.from_unit == self.to_unit:
             raise ValidationError("From unit and to unit cannot be the same")
 
+class Packaging(models.Model):
+    """Centralized packaging model with name and price"""
+    name = models.CharField(max_length=200, unique=True, help_text="Packaging name (e.g., 'Bottle', 'Can', 'Box')")
+    price = models.DecimalField(max_digits=10, decimal_places=2, validators=[MinValueValidator(Decimal('0.01'))], help_text="Packaging price per unit")
+    description = models.TextField(blank=True, help_text="Optional description of the packaging")
+    is_active = models.BooleanField(default=True, help_text="Whether this packaging is currently active")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"{self.name} - {self.price} MGA"
+
+    class Meta:
+        verbose_name_plural = "Packagings"
+        ordering = ['name']
+
 class ProductUnit(models.Model):
     """Model to link products with their compatible units"""
     product = models.ForeignKey('Product', on_delete=models.CASCADE, related_name='compatible_units')
@@ -116,9 +132,11 @@ class Product(models.Model):
     unit = models.CharField(max_length=20, default='piece')
     base_unit = models.ForeignKey(Unit, on_delete=models.PROTECT, related_name='base_products', null=True, blank=True, help_text="The smallest unit for this product")
     
-    # Packaging consignation fields
-    has_packaging = models.BooleanField(default=False, help_text="Whether this product has packaging consignation")
-    packaging_price = models.DecimalField(max_digits=10, decimal_places=2, validators=[MinValueValidator(Decimal('0.00'))], null=True, blank=True, help_text="Packaging consignation price (e.g., bottle deposit)")
+    # Packaging consignation fields - now using centralized Packaging model
+    packaging = models.ForeignKey(Packaging, on_delete=models.SET_NULL, null=True, blank=True, related_name='products', help_text="Packaging type for this product (e.g., bottle, can)")
+    # Legacy fields kept for backward compatibility during migration
+    has_packaging = models.BooleanField(default=False, help_text="Whether this product has packaging consignation (legacy - use packaging field instead)")
+    packaging_price = models.DecimalField(max_digits=10, decimal_places=2, validators=[MinValueValidator(Decimal('0.00'))], null=True, blank=True, help_text="Packaging consignation price (legacy - use packaging.price instead)")
     
     # Storage location fields
     storage_section = models.CharField(max_length=10, blank=True, help_text="Storage section code (e.g., A12, G11, K10, C33)")

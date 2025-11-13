@@ -27,8 +27,7 @@ const Inventory = () => {
     min_stock_level: '',
     max_stock_level: '',
     tax_class: '',
-    has_packaging: false,
-    packaging_price: '',
+    packaging: '',
     storage_type: 'STR',
     storage_section: '',
     is_active: true,
@@ -43,6 +42,7 @@ const Inventory = () => {
   const [baseUnits, setBaseUnits] = useState([]);
   const [allTaxClasses, setAllTaxClasses] = useState([]);
   const [compatibleUnits, setCompatibleUnits] = useState([]);
+  const [packagings, setPackagings] = useState([]);
   const [showAddUnitModal, setShowAddUnitModal] = useState(false);
   const [selectedUnit, setSelectedUnit] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
@@ -169,6 +169,17 @@ const Inventory = () => {
     }
   }, []);
 
+  // Fetch packagings
+  const fetchPackagings = useCallback(async () => {
+    try {
+      const response = await api.get('/api/products/packagings/');
+      const packagingsData = response.data.results || response.data;
+      setPackagings(Array.isArray(packagingsData) ? packagingsData : []);
+    } catch (err) {
+      console.error('Error fetching packagings:', err);
+    }
+  }, []);
+
   // Fetch compatible units for a product
   const fetchCompatibleUnits = useCallback(async (productId) => {
     try {
@@ -196,7 +207,8 @@ const Inventory = () => {
     fetchCategories();
     fetchUnits();
     fetchTaxClasses();
-  }, [fetchProducts, fetchCategories, fetchUnits, fetchTaxClasses]);
+    fetchPackagings();
+  }, [fetchProducts, fetchCategories, fetchUnits, fetchTaxClasses, fetchPackagings]);
 
   // Filter products based on search term, category, and stock filter
   const filteredProducts = products.filter(product => {
@@ -287,8 +299,7 @@ const Inventory = () => {
       min_stock_level: '',
       max_stock_level: '',
       tax_class: '',
-      has_packaging: false,
-      packaging_price: '',
+      packaging: '',
       storage_type: 'STR',
       storage_section: '',
       is_active: true,
@@ -330,8 +341,7 @@ const Inventory = () => {
         min_stock_level: freshProduct.min_stock_level || '',
         max_stock_level: freshProduct.max_stock_level || '',
         tax_class: freshProduct.tax_class || '',
-        has_packaging: freshProduct.has_packaging || false,
-        packaging_price: freshProduct.packaging_price || '',
+        packaging: freshProduct.packaging || '',
         storage_type: freshProduct.storage_type || 'STR',
         storage_section: freshProduct.storage_section || '',
         is_active: freshProduct.is_active !== false
@@ -593,11 +603,12 @@ const Inventory = () => {
           <div className="detail-row">
             <span className="label">Packaging:</span>
             <span className="value">
-              {product.has_packaging ? (
+              {product.packaging_name ? (
                 <span className="packaging-info">
                   <span className="packaging-badge">PKG</span>
-                  {product.packaging_price && (
-                    <span className="packaging-price">MGA {parseFloat(product.packaging_price).toFixed(2)}</span>
+                  <span className="packaging-name">{product.packaging_name}</span>
+                  {product.packaging_price_display && (
+                    <span className="packaging-price">MGA {parseFloat(product.packaging_price_display).toFixed(2)}</span>
                   )}
                 </span>
               ) : (
@@ -772,11 +783,12 @@ const Inventory = () => {
                     </td>
                     <td>{product.stock_quantity || 0}</td>
                     <td>
-                      {product.has_packaging === true || product.has_packaging === 'true' || product.has_packaging === 1 ? (
+                      {product.packaging_name ? (
                         <span className="packaging-info">
                           <span className="packaging-badge">PKG</span>
-                          {product.packaging_price && product.packaging_price > 0 && (
-                            <span className="packaging-price">MGA {parseFloat(product.packaging_price).toFixed(2)}</span>
+                          <span className="packaging-name">{product.packaging_name}</span>
+                          {product.packaging_price_display && (
+                            <span className="packaging-price">MGA {parseFloat(product.packaging_price_display).toFixed(2)}</span>
                           )}
                         </span>
                       ) : (
@@ -1180,33 +1192,27 @@ const Inventory = () => {
 
               {/* Packaging Consignation Section */}
               <div className="form-section">
-                <h3>Packaging Consignation</h3>
-                <div className="form-group checkbox-group">
-                  <label className="checkbox-label">
-                    <input
-                      type="checkbox"
-                      checked={productFormData.has_packaging}
-                      onChange={(e) => setProductFormData({ ...productFormData, has_packaging: e.target.checked })}
-                    />
-                    <span className="checkmark"></span>
-                    This product has packaging consignation (e.g., bottle deposit)
-                  </label>
+                <h3>Packaging</h3>
+                <div className="form-group">
+                  <label htmlFor="packaging">Packaging Type</label>
+                  <select
+                    id="packaging"
+                    value={productFormData.packaging || ''}
+                    onChange={(e) => setProductFormData({ ...productFormData, packaging: e.target.value })}
+                  >
+                    <option value="">No Packaging</option>
+                    {packagings.filter(p => p.is_active).map(packaging => (
+                      <option key={packaging.id} value={packaging.id}>
+                        {packaging.name} - {parseFloat(packaging.price).toFixed(2)} MGA
+                      </option>
+                    ))}
+                  </select>
+                  {productFormData.packaging && (
+                    <small className="form-help">
+                      Selected packaging will be used for this product
+                    </small>
+                  )}
                 </div>
-                
-                {productFormData.has_packaging && (
-                  <div className="form-group">
-                    <label htmlFor="packaging_price">Packaging Price (MGA)</label>
-                    <input
-                      type="number"
-                      id="packaging_price"
-                      value={productFormData.packaging_price}
-                      onChange={(e) => setProductFormData({ ...productFormData, packaging_price: e.target.value })}
-                      min="0"
-                      step="0.01"
-                      placeholder="e.g., 500 for bottle deposit"
-                    />
-                  </div>
-                )}
               </div>
 
               {/* Storage Section */}
