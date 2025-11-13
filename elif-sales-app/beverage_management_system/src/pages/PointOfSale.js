@@ -1137,7 +1137,7 @@ const PointOfSale = () => {
     
     return {
       sale_number: saleNumber,
-      customer_name: customerInfo.name || 'Walk-in Customer',
+      customer_name: customerInfo.name || t('customer.walk_in'),
       customer_phone: customerInfo.phone || '',
       customer_email: customerInfo.email || '',
       user_name: user?.username || 'Unknown User',

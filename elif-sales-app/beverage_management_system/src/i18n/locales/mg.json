@@ -305,7 +305,9 @@
     "pending_sale_created": "Noforona miandry ny fivarotana! Laharana fivarotana: {{saleNumber}}\nAzonao atao ny hamita azy any aoriana ao amin'ny Fitantanana ny fivarotana.",
     "dont_have_account": "Tsy manana kaonty?",
     "contact_administrator": "Mifandraisa amin'ny mpitantana",
-    "terms_of_sales" : "TERMS: Tsy misy fifanakalozana, famerenam-bola na famerenan'entana."
+    "terms_of_sales" : "TERMS: Tsy misy fifanakalozana, famerenam-bola na famerenan'entana.",
+    "failed_to_load_users": "Tsy nety ny fampidirana ny mpampiasa",
+    "failed_to_delete_user": "Tsy nety ny famafana ny mpampiasa"
   },
   "titles": {
     "sales_management": "Fitantanana ny fivarotana",
@@ -392,10 +394,6 @@
     "recent_sales": "Fivarotana vao haingana",
     "no_sales_found": "Tsy hita fivarotana"
   },
-  "messages": {
-    "failed_to_load_users": "Tsy nety ny fampidirana ny mpampiasa",
-    "failed_to_delete_user": "Tsy nety ny famafana ny mpampiasa"
-  },
   "alerts": {
     "sale_will_be_completed": "Ho vita avy hatrany ny fivarotana ary ho esorina ny stock",
     "sale_will_be_created_pending": "Ho foronina miandry ny fivarotana ary azonao atao ny hamita azy any aoriana",
@@ -473,7 +471,16 @@
     "generated_by": "Noforonin'ny rafitra ______ANTATSIMO______"
   },
   "print": {
-    "no_data": "Tsy misy angon-drakitra azo printy."
+    "no_data": "Tsy misy angon-drakitra azo printy.",
+    "sale_information" : "INFO DU VENTE",
+    "sale_status" : "Status du vente",
+    "phone" : "Contact",
+    "peyment_status" : "Status de paiement",
+    "item_sold" : "ARTICLES VENDUS",
+    "packagings" : "EMBALLAGES",
+    "thankings" : "Misaotra!",
+    "sale_no" : "Varotra laharana"
+
   },
   "pagination": {
     "page": "Pejy",

@@ -471,7 +471,16 @@
     "generated_by": "Généré par le système ______ANTATSIMO______"
   },
   "print": {
-    "no_data": "Aucune donnée disponible à imprimer."
+    "no_data": "Aucune donnée disponible à imprimer.",
+    "sale_information" : "INFO DU VENTE",
+    "sale_status" : "Status du vente",
+    "phone" : "Contact",
+    "peyment_status" : "Status de paiement",
+    "item_sold" : "ARTICLES VENDUS",
+    "packagings" : "EMBALLAGES",
+    "thankings" : "Merci!",
+    "sale_no" : "Vente Numero"
+
   },
   "pagination": {
     "page": "Page",

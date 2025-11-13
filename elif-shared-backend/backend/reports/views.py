@@ -43,8 +43,8 @@ class DashboardWidgetDetailView(generics.RetrieveUpdateDestroyAPIView):
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def generate_sales_report(request):
-    # if request.user.role not in ['admin', 'manager']:
-    #     return Response({'error': 'Permission denied'}, status=status.HTTP_403_FORBIDDEN)
+    if request.user.role not in ['admin', 'manager']:
+        return Response({'error': 'Permission denied'}, status=status.HTTP_403_FORBIDDEN)
 
     """Generate sales report with role-based access"""
     # Get user role
