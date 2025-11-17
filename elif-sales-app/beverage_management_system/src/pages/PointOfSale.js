@@ -1157,7 +1157,7 @@ const PointOfSale = () => {
 
   // Prepare print data for printing
   const preparePrintData = (saleNumber, saleStatus = 'completed') => {
-    const total = calculateSubtotal();
+    const subtotal = calculateSubtotal();
     
     // Calculate packaging total only for "consignation" items
     const packagingTotal = packagingCart.reduce((total, item) => {
@@ -1167,7 +1167,7 @@ const PointOfSale = () => {
       return total;
     }, 0);
     
-    const grandTotal = total + packagingTotal;
+    const grandTotal = subtotal + packagingTotal;
     const remaining = grandTotal - paidAmount;
     
     return {
@@ -1181,7 +1181,8 @@ const PointOfSale = () => {
       print_timestamp: new Date().toISOString(),
       print_id: `PRINT-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
       status: saleStatus,
-      total_amount: total,
+      subtotal : subtotal,
+      total_amount: grandTotal,
       packaging_total: packagingTotal,
       grand_total: grandTotal,
       paid_amount: paidAmount,

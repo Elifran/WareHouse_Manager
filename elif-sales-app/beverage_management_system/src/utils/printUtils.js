@@ -1891,7 +1891,7 @@ const generateSaleContent = (data, t) => {
             return `
             <div class="no-data">¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯</div>         
             <div class="packaging-item">
-              <div class="item-name">${(item.product_name || 'N/A').substring(0, 25)} </div>
+              <div class="item-name">${(item.packaging_name || 'N/A').substring(0, 25)} </div>
               <div class="item-details">
                 <span>
                   ${unitPriceDisplay.padEnd(26, '\u00A0')}
@@ -1909,7 +1909,7 @@ const generateSaleContent = (data, t) => {
       <div class="receipt-totals">
         <div class="receipt-row">
           <span>Subtotal:</span>
-          <span>${parseFloat(data.total_amount || 0).toFixed(2)} MGA</span>
+          <span>${parseFloat(data.subtotal || 0).toFixed(2)} MGA</span>
         </div>
         ${data.packaging_total && data.packaging_total > 0 ? `
           <div class="receipt-row">
