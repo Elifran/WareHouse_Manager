@@ -15,6 +15,9 @@ import {
 import {formatCurrency} from '../utils/helpers';
 import './PointOfSale.css';
 
+const POS_ACTIVE_DRAFT_KEY = 'posActiveDraftSale';
+const POS_SAVED_DRAFTS_KEY = 'posSavedDraftSales';
+
 const PointOfSale = () => {
   const { t } = useTranslation();
   const { user } = useAuth();
@@ -62,6 +65,11 @@ const PointOfSale = () => {
   
   // Packaging state
   const [packagingCart, setPackagingCart] = useState([]);
+  const [draftInfo, setDraftInfo] = useState({ hasDraft: false, savedAt: null });
+  const [savedDrafts, setSavedDrafts] = useState([]);
+  const [showDraftsModal, setShowDraftsModal] = useState(false);
+  const draftRestoreInProgressRef = useRef(false);
+  const draftSaveTimeoutRef = useRef(null);
 
   // React Query hooks for data fetching with enhanced caching (localStorage persistence)
   const { data: categoriesData = [], isLoading: categoriesLoading, refetch: refetchCategories } = useCategoriesPOS();
@@ -152,6 +160,257 @@ const PointOfSale = () => {
       return isSellable;
     });
   }, [allProductsData, categories]);
+
+  const clearActiveDraftStorage = useCallback(() => {
+    sessionStorage.removeItem(POS_ACTIVE_DRAFT_KEY);
+    setDraftInfo({ hasDraft: false, savedAt: null });
+  }, []);
+
+  const loadSavedDraftsFromStorage = useCallback(() => {
+    try {
+      const stored = sessionStorage.getItem(POS_SAVED_DRAFTS_KEY);
+      if (!stored) {
+        setSavedDrafts([]);
+        return [];
+      }
+      const parsed = JSON.parse(stored);
+      if (Array.isArray(parsed)) {
+        setSavedDrafts(parsed);
+        return parsed;
+      }
+      setSavedDrafts([]);
+      return [];
+    } catch (error) {
+      console.error('Failed to load saved drafts:', error);
+      setSavedDrafts([]);
+      return [];
+    }
+  }, []);
+
+  const persistSavedDrafts = useCallback((drafts) => {
+    try {
+      sessionStorage.setItem(POS_SAVED_DRAFTS_KEY, JSON.stringify(drafts));
+      setSavedDrafts(drafts);
+    } catch (error) {
+      console.error('Failed to persist saved drafts:', error);
+    }
+  }, []);
+
+  const applyDraftState = useCallback((draft) => {
+    if (!draft) return;
+    draftRestoreInProgressRef.current = true;
+    
+    setCart(Array.isArray(draft.cart) ? draft.cart : []);
+    setPackagingCart(Array.isArray(draft.packagingCart) ? draft.packagingCart : []);
+    setCustomerInfo({
+      name: draft.customerInfo?.name || '',
+      phone: draft.customerInfo?.phone || '',
+      email: draft.customerInfo?.email || ''
+    });
+    setPaymentMethod(draft.paymentMethod || 'cash');
+    setPaymentType(draft.paymentType || 'full');
+    setPaidAmount(typeof draft.paidAmount === 'number' ? draft.paidAmount : 0);
+    setPriceMode(draft.priceMode || 'standard');
+    setSaleMode(draft.saleMode || 'complete');
+    setFilters(draft.filters ? {
+      category: draft.filters.category || '',
+      search: draft.filters.search || ''
+    } : { category: '', search: '' });
+    setSearchInput(draft.searchInput || '');
+    setSelectedUnits(draft.selectedUnits || {});
+    setShowSellableToggle(!!draft.showSellableToggle);
+    
+    setTimeout(() => {
+      draftRestoreInProgressRef.current = false;
+    }, 0);
+  }, [
+    setCart,
+    setPackagingCart,
+    setCustomerInfo,
+    setPaymentMethod,
+    setPaymentType,
+    setPaidAmount,
+    setPriceMode,
+    setSaleMode,
+    setFilters,
+    setSearchInput,
+    setSelectedUnits,
+    setShowSellableToggle
+  ]);
+
+  const getCurrentDraftState = useCallback(() => ({
+    cart,
+    packagingCart,
+    customerInfo,
+    paymentMethod,
+    paymentType,
+    paidAmount,
+    priceMode,
+    saleMode,
+    filters,
+    searchInput,
+    selectedUnits,
+    showSellableToggle
+  }), [
+    cart,
+    packagingCart,
+    customerInfo,
+    paymentMethod,
+    paymentType,
+    paidAmount,
+    priceMode,
+    saleMode,
+    filters,
+    searchInput,
+    selectedUnits,
+    showSellableToggle
+  ]);
+
+  const hasMeaningfulDraftData = useCallback(() => {
+    return cart.length > 0 ||
+      packagingCart.length > 0 ||
+      customerInfo.name ||
+      customerInfo.phone ||
+      customerInfo.email ||
+      paidAmount > 0 ||
+      paymentType === 'partial';
+  }, [cart, packagingCart, customerInfo, paidAmount, paymentType]);
+
+  const restoreDraftFromStorage = useCallback((options = { silent: true }) => {
+    const { silent } = options;
+    try {
+      const stored = sessionStorage.getItem(POS_ACTIVE_DRAFT_KEY);
+      if (!stored) {
+        clearActiveDraftStorage();
+        if (!silent) {
+          setError('No draft sale found to restore');
+        }
+        return false;
+      }
+      const parsed = JSON.parse(stored);
+      if (!parsed) {
+        clearActiveDraftStorage();
+        if (!silent) {
+          setError('Draft data is corrupted');
+        }
+        return false;
+      }
+      applyDraftState(parsed);
+      const savedAt = parsed.savedAt || new Date().toISOString();
+      setDraftInfo({ hasDraft: true, savedAt });
+      if (!silent) {
+        setSuccess('Draft sale restored');
+      }
+      return true;
+    } catch (draftError) {
+      console.error('Failed to restore draft sale:', draftError);
+      if (!silent) {
+        setError('Failed to restore draft sale');
+      }
+      return false;
+    }
+  }, [applyDraftState, clearActiveDraftStorage]);
+
+  const draftTimestampLabel = useMemo(() => {
+    if (!draftInfo.savedAt) return '';
+    try {
+      return new Date(draftInfo.savedAt).toLocaleString();
+    } catch (err) {
+      return '';
+    }
+  }, [draftInfo.savedAt]);
+
+  const handleDiscardDraft = useCallback(() => {
+    const shouldDiscard = window.confirm('Discard the saved draft sale? This will clear the current cart and customer information.');
+    if (!shouldDiscard) {
+      return;
+    }
+
+    setCart([]);
+    setPackagingCart([]);
+    setCustomerInfo({ name: '', phone: '', email: '' });
+    setPaymentMethod('cash');
+    setPaymentType('full');
+    setPaidAmount(0);
+    setPriceMode('standard');
+    setSaleMode('complete');
+    setSelectedUnits({});
+    setFilters({ category: '', search: '' });
+    setSearchInput('');
+    setShowSellableToggle(false);
+    clearActiveDraftStorage();
+    setError('');
+    setSuccess('');
+  }, [clearActiveDraftStorage]);
+
+  const handleSaveCurrentAsDraft = useCallback(() => {
+    if (!hasMeaningfulDraftData()) {
+      setError('Add items or customer details before saving a draft.');
+      return;
+    }
+
+    const defaultName = `Draft ${new Date().toLocaleString()}`;
+    const name = window.prompt('Enter a name for this draft sale:', defaultName);
+    if (!name) {
+      return;
+    }
+
+    const snapshot = getCurrentDraftState();
+    const trimmedName = name.trim();
+    if (!trimmedName) {
+      setError('Draft name cannot be empty');
+      return;
+    }
+
+    const newDraft = {
+      id: `draft-${Date.now()}`,
+      name: trimmedName,
+      savedAt: new Date().toISOString(),
+      data: snapshot
+    };
+
+    const updatedDrafts = [newDraft, ...savedDrafts];
+    persistSavedDrafts(updatedDrafts);
+    setSuccess('Draft saved successfully');
+  }, [getCurrentDraftState, hasMeaningfulDraftData, persistSavedDrafts, savedDrafts, setError, setSuccess]);
+
+  const handleRestoreSavedDraft = useCallback((draftId) => {
+    const target = savedDrafts.find(d => d.id === draftId);
+    if (!target) {
+      setError('Draft not found');
+      return;
+    }
+    applyDraftState(target.data);
+    setDraftInfo({ hasDraft: true, savedAt: target.savedAt });
+    setSuccess(`Draft "${target.name}" restored`);
+    setShowDraftsModal(false);
+    const updated = savedDrafts.filter(d => d.id !== draftId);
+    persistSavedDrafts(updated);
+  }, [savedDrafts, applyDraftState, setError, setSuccess]);
+
+  const handleDeleteSavedDraft = useCallback((draftId) => {
+    const target = savedDrafts.find(d => d.id === draftId);
+    if (!target) return;
+    const confirmDelete = window.confirm(`Delete draft "${target.name}"?`);
+    if (!confirmDelete) return;
+
+    const updated = savedDrafts.filter(d => d.id !== draftId);
+    persistSavedDrafts(updated);
+  }, [savedDrafts, persistSavedDrafts]);
+
+  useEffect(() => {
+    restoreDraftFromStorage({ silent: true });
+    
+    return () => {
+      if (draftSaveTimeoutRef.current) {
+        clearTimeout(draftSaveTimeoutRef.current);
+      }
+    };
+  }, [restoreDraftFromStorage]);
+
+  useEffect(() => {
+    loadSavedDraftsFromStorage();
+  }, [loadSavedDraftsFromStorage]);
 
   // Update allProducts when sellableProducts change
   useEffect(() => {
@@ -439,6 +698,42 @@ const PointOfSale = () => {
       }
     };
   }, [searchInput]); // Only depend on searchInput to prevent re-renders
+
+  useEffect(() => {
+    if (draftRestoreInProgressRef.current) {
+      return;
+    }
+
+    if (draftSaveTimeoutRef.current) {
+      clearTimeout(draftSaveTimeoutRef.current);
+    }
+
+    draftSaveTimeoutRef.current = setTimeout(() => {
+      if (!hasMeaningfulDraftData()) {
+        clearActiveDraftStorage();
+        return;
+      }
+
+      const draftPayload = {
+        ...getCurrentDraftState(),
+        savedAt: new Date().toISOString()
+      };
+
+      sessionStorage.setItem(POS_ACTIVE_DRAFT_KEY, JSON.stringify(draftPayload));
+      setDraftInfo({ hasDraft: true, savedAt: draftPayload.savedAt });
+    }, 400);
+
+    return () => {
+      if (draftSaveTimeoutRef.current) {
+        clearTimeout(draftSaveTimeoutRef.current);
+        draftSaveTimeoutRef.current = null;
+      }
+    };
+  }, [
+    getCurrentDraftState,
+    hasMeaningfulDraftData,
+    clearActiveDraftStorage
+  ]);
 
   useEffect(() => {
     // Fetch stock availability for ALL products in bulk to improve performance
@@ -1291,6 +1586,7 @@ const PointOfSale = () => {
       
           // Reset price mode to standard after sale
           setPriceMode('standard');
+          clearActiveDraftStorage();
           
           // Wait a moment for the backend to process stock movements
           await new Promise(resolve => setTimeout(resolve, 500)); // Wait 1 second
@@ -1328,6 +1624,7 @@ const PointOfSale = () => {
           await refetchProducts();
           await new Promise(resolve => setTimeout(resolve, 250));
           refreshStockAvailability();
+          clearActiveDraftStorage();
         }
       } else {
         // Create pending sale (don't complete it)
@@ -1347,6 +1644,7 @@ const PointOfSale = () => {
         
         // Reset price mode to standard after sale
         setPriceMode('standard');
+        clearActiveDraftStorage();
         
         alert(`Pending sale created successfully! Sale Number: ${saleNumber}`);
       }
@@ -1372,6 +1670,7 @@ const PointOfSale = () => {
     setCart([]);
     setPackagingCart([]);
     setError('');
+    clearActiveDraftStorage();
   };
 
   const handleFilterChange = useCallback((filterType, value) => {
@@ -1562,6 +1861,52 @@ const PointOfSale = () => {
           <span>Cashier: {user?.username}</span>
         </div>
       </div>
+
+      <div className="pos-draft-actions" style={{
+        display: 'flex',
+        flexWrap: 'wrap',
+        gap: '0.75rem',
+        marginBottom: '0.75rem'
+      }}>
+        <Button
+          variant="primary"
+          size="small"
+          onClick={handleSaveCurrentAsDraft}
+        >
+          Save Draft
+        </Button>
+        <Button
+          variant="outline"
+          size="small"
+          onClick={() => setShowDraftsModal(true)}
+        >
+          Manage Drafts ({savedDrafts.length})
+        </Button>
+      </div>
+
+      {draftInfo.hasDraft && (
+        <div className="pos-draft-banner" style={{
+          backgroundColor: '#fef9c3',
+          border: '1px solid #fcd34d',
+          borderRadius: '0.5rem',
+          padding: '0.75rem 1rem',
+          marginBottom: '1rem',
+          display: 'flex',
+          flexWrap: 'wrap',
+          justifyContent: 'space-between',
+          gap: '0.5rem'
+        }}>
+          <div>
+            <strong>Draft sale in progress</strong>
+            {draftTimestampLabel && (
+              <span style={{ marginLeft: '0.5rem', fontSize: '0.875rem', color: '#92400e' }}>
+                Last saved: {draftTimestampLabel}
+              </span>
+            )}
+          </div>
+
+        </div>
+      )}
 
       <div className="pos-content">
         {/* Product Grid */}
@@ -2304,6 +2649,93 @@ const PointOfSale = () => {
           )}
         </div>
       </div>
+
+      {showDraftsModal && (
+        <div
+          className="drafts-modal-backdrop"
+          style={{
+            position: 'fixed',
+            inset: 0,
+            backgroundColor: 'rgba(0,0,0,0.4)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1000
+          }}
+          onClick={() => setShowDraftsModal(false)}
+        >
+          <div
+            className="drafts-modal"
+            style={{
+              backgroundColor: 'white',
+              borderRadius: '0.75rem',
+              width: 'min(90vw, 600px)',
+              maxHeight: '80vh',
+              overflowY: 'auto',
+              padding: '1.5rem',
+              boxShadow: '0 10px 25px rgba(0,0,0,0.2)'
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+              <h3 style={{ margin: 0 }}>Saved Drafts</h3>
+              <button
+                onClick={() => setShowDraftsModal(false)}
+                style={{
+                  background: 'transparent',
+                  border: 'none',
+                  fontSize: '1.25rem',
+                  cursor: 'pointer'
+                }}
+              >
+                ×
+              </button>
+            </div>
+            {savedDrafts.length === 0 ? (
+              <p style={{ marginBottom: 0 }}>No saved drafts yet. Use "Save Draft" to store the current sale.</p>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                {savedDrafts.map(draft => (
+                  <div
+                    key={draft.id}
+                    style={{
+                      border: '1px solid #e5e7eb',
+                      borderRadius: '0.5rem',
+                      padding: '0.75rem',
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      gap: '0.5rem'
+                    }}
+                  >
+                    <div>
+                      <strong>{draft.name}</strong>
+                      <div style={{ fontSize: '0.85rem', color: '#6b7280' }}>
+                        Saved: {new Date(draft.savedAt).toLocaleString()}
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', gap: '0.5rem' }}>
+                      <Button
+                        size="small"
+                        onClick={() => handleRestoreSavedDraft(draft.id)}
+                      >
+                        Restore
+                      </Button>
+                      <Button
+                        size="small"
+                        variant="danger"
+                        onClick={() => handleDeleteSavedDraft(draft.id)}
+                      >
+                        Delete
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 };
