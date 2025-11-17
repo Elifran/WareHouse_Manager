@@ -30,6 +30,11 @@ print_error() {
     echo -e "${RED}[ERROR]${NC} $1"
 }
 
+# Stop nginx proxy
+docker stop nginx-proxy 2>/dev/null && echo "✅ Nginx Proxy stopped"
+docker rm nginx-proxy 2>/dev/null
+
+
 # Stop Backend
 print_status "Stopping Backend..."
 cd elif-shared-backend

@@ -63,6 +63,17 @@ const SystemManagement = () => {
     is_active: true
   });
 
+  // Packagings State
+  const [packagings, setPackagings] = useState([]);
+  const [showPackagingModal, setShowPackagingModal] = useState(false);
+  const [editingPackaging, setEditingPackaging] = useState(null);
+  const [packagingFormData, setPackagingFormData] = useState({
+    name: '',
+    price: '',
+    description: '',
+    is_active: true
+  });
+
   // Check if user has permission to manage
   const canManage = user?.role === 'admin' || user?.role === 'manager';
 
@@ -117,7 +128,8 @@ const SystemManagement = () => {
         fetchTaxClasses(),
         fetchCategories(),
         fetchUnits(),
-        fetchUnitConversions()
+        fetchUnitConversions(),
+        fetchPackagings()
       ]);
     } catch (err) {
       setError('Failed to load data');
@@ -600,6 +612,105 @@ const SystemManagement = () => {
     }
   };
 
+  // Packagings Functions
+  const fetchPackagings = async () => {
+    try {
+      const response = await api.get('/api/products/packagings/');
+      setPackagings(response.data.results || response.data);
+    } catch (err) {
+      console.error('Packagings error:', err);
+    }
+  };
+
+  const validatePackaging = (data) => {
+    const errors = [];
+
+    // Check if name is provided
+    if (!data.name || data.name.trim() === '') {
+      errors.push('Packaging name is required');
+    }
+
+    // Check if price is provided and valid
+    if (!data.price || data.price === '') {
+      errors.push('Packaging price is required');
+    } else {
+      const price = parseFloat(data.price);
+      if (isNaN(price)) {
+        errors.push('Packaging price must be a valid number');
+      } else if (price <= 0) {
+        errors.push('Packaging price must be greater than 0');
+      }
+    }
+
+    // Check for duplicate name (only for new packagings)
+    if (!editingPackaging) {
+      const existingPackaging = packagings.find(packaging => 
+        packaging.name.toLowerCase() === data.name.toLowerCase()
+      );
+      if (existingPackaging) {
+        errors.push('A packaging with this name already exists');
+      }
+    }
+
+    return errors;
+  };
+
+  const handlePackagingSubmit = async (e) => {
+    e.preventDefault();
+    setError('');
+
+    try {
+      // Validate the packaging data
+      const validationErrors = validatePackaging(packagingFormData);
+      if (validationErrors.length > 0) {
+        setError(validationErrors.join('. '));
+        return;
+      }
+
+      const data = {
+        ...packagingFormData,
+        price: parseFloat(packagingFormData.price)
+      };
+
+      if (editingPackaging) {
+        await api.put(`/api/products/packagings/${editingPackaging.id}/`, data);
+      } else {
+        await api.post('/api/products/packagings/', data);
+      }
+      
+      setShowPackagingModal(false);
+      setEditingPackaging(null);
+      setPackagingFormData({ name: '', price: '', description: '', is_active: true });
+      fetchPackagings();
+    } catch (err) {
+      // Handle specific backend errors
+      const errorData = err.response?.data;
+      let errorMessage = 'Failed to save packaging';
+      
+      if (errorData) {
+        if (errorData.detail) {
+          errorMessage = errorData.detail;
+        } else if (errorData.non_field_errors) {
+          errorMessage = errorData.non_field_errors.join('. ');
+        } else if (errorData.name) {
+          errorMessage = `Name: ${errorData.name.join('. ')}`;
+        } else if (errorData.price) {
+          errorMessage = `Price: ${errorData.price.join('. ')}`;
+        } else {
+          // Try to extract error from any field
+          const firstError = Object.values(errorData)[0];
+          if (Array.isArray(firstError)) {
+            errorMessage = firstError.join('. ');
+          } else if (typeof firstError === 'string') {
+            errorMessage = firstError;
+          }
+        }
+      }
+      
+      setError(errorMessage);
+    }
+  };
+
   // Delete Functions
   const handleDelete = async (type, item) => {
     if (!window.confirm(`Are you sure you want to delete "${item.name}"?`)) {
@@ -611,7 +722,8 @@ const SystemManagement = () => {
         tax: `/api/products/tax-classes/${item.id}/`,
         category: `/api/products/categories/${item.id}/`,
         unit: `/api/products/units/${item.id}/`,
-        conversion: `/api/products/unit-conversions/${item.id}/`
+        conversion: `/api/products/unit-conversions/${item.id}/`,
+        packaging: `/api/products/packagings/${item.id}/`
       };
       
       await api.delete(endpoints[type]);
@@ -628,6 +740,9 @@ const SystemManagement = () => {
           break;
         case 'conversion':
           fetchUnitConversions();
+          break;
+        case 'packaging':
+          fetchPackagings();
           break;
         default:
           console.warn('Unknown delete type:', type);
@@ -768,6 +883,37 @@ const SystemManagement = () => {
     }
   ];
 
+  const packagingColumns = [
+    { key: 'name', label: 'Name' },
+    { key: 'price', label: 'Price (MGA)', render: (value) => `${parseFloat(value).toFixed(2)} MGA` },
+    { key: 'description', label: 'Description' },
+    { key: 'products_count', label: 'Products' },
+    { key: 'is_active', label: 'Status', render: (value) => value ? 'Active' : 'Inactive' },
+    { 
+      key: 'actions', 
+      label: 'Actions', 
+      render: (_, item) => (
+        <div className="action-buttons">
+          <Button size="small" variant="outline" onClick={() => {
+            setEditingPackaging(item);
+            setPackagingFormData({
+              name: item.name,
+              price: item.price.toString(),
+              description: item.description || '',
+              is_active: item.is_active
+            });
+            setShowPackagingModal(true);
+          }}>
+            Edit
+          </Button>
+          <Button size="small" variant="danger" onClick={() => handleDelete('packaging', item)}>
+            Delete
+          </Button>
+        </div>
+      )
+    }
+  ];
+
   if (!canManage) {
     return (
       <div className="system-management">
@@ -783,7 +929,7 @@ const SystemManagement = () => {
     <div className="system-management">
       <div className="system-header">
         <h1>{t('titles.system_management')}</h1>
-        <p>Manage taxes, categories, units, and unit conversions</p>
+        <p>Manage taxes, categories, units, unit conversions, and packagings</p>
       </div>
 
       {error && (
@@ -816,6 +962,12 @@ const SystemManagement = () => {
           onClick={() => setActiveTab('conversions')}
         >
           Unit Conversions
+        </button>
+        <button 
+          className={`tab-button ${activeTab === 'packagings' ? 'active' : ''}`}
+          onClick={() => setActiveTab('packagings')}
+        >
+          Packagings
         </button>
       </div>
 
@@ -924,6 +1076,27 @@ const SystemManagement = () => {
               columns={conversionColumns}
               loading={loading}
               emptyMessage={conversionSearchTerm ? "No conversions found matching your search" : "No unit conversions found"}
+            />
+          </div>
+        )}
+
+        {activeTab === 'packagings' && (
+          <div className="tab-content">
+            <div className="content-header">
+              <h2>Packagings</h2>
+              <Button onClick={() => {
+                setEditingPackaging(null);
+                setPackagingFormData({ name: '', price: '', description: '', is_active: true });
+                setShowPackagingModal(true);
+              }}>
+                Add New Packaging
+              </Button>
+            </div>
+            <Table
+              data={packagings}
+              columns={packagingColumns}
+              loading={loading}
+              emptyMessage="No packagings found"
             />
           </div>
         )}
@@ -1238,6 +1411,82 @@ const SystemManagement = () => {
                 </Button>
                 <Button type="submit">
                   {editingConversion ? 'Update' : 'Create'} Conversion
+                </Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Packaging Modal */}
+      {showPackagingModal && (
+        <div className="modal-overlay" onClick={() => setShowPackagingModal(false)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h2>{editingPackaging ? 'Edit Packaging' : 'Add New Packaging'}</h2>
+              <button className="modal-close" onClick={() => setShowPackagingModal(false)}>
+                <svg viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
+                </svg>
+              </button>
+            </div>
+
+            <form onSubmit={handlePackagingSubmit} className="system-form">
+              <div className="form-group">
+                <label htmlFor="packaging_name">Name *</label>
+                <input
+                  type="text"
+                  id="packaging_name"
+                  value={packagingFormData.name}
+                  onChange={(e) => setPackagingFormData({ ...packagingFormData, name: e.target.value })}
+                  required
+                  placeholder="e.g., Bottle, Can, Box"
+                />
+              </div>
+
+              <div className="form-group">
+                <label htmlFor="packaging_price">Price (MGA) *</label>
+                <input
+                  type="number"
+                  id="packaging_price"
+                  value={packagingFormData.price}
+                  onChange={(e) => setPackagingFormData({ ...packagingFormData, price: e.target.value })}
+                  required
+                  min="0.01"
+                  step="0.01"
+                  placeholder="e.g., 500.00"
+                />
+              </div>
+
+              <div className="form-group">
+                <label htmlFor="packaging_description">Description</label>
+                <textarea
+                  id="packaging_description"
+                  value={packagingFormData.description}
+                  onChange={(e) => setPackagingFormData({ ...packagingFormData, description: e.target.value })}
+                  placeholder="Brief description of this packaging type"
+                  rows="3"
+                />
+              </div>
+
+              <div className="form-group checkbox-group">
+                <label className="checkbox-label">
+                  <input
+                    type="checkbox"
+                    checked={packagingFormData.is_active}
+                    onChange={(e) => setPackagingFormData({ ...packagingFormData, is_active: e.target.checked })}
+                  />
+                  <span className="checkmark"></span>
+                  Active
+                </label>
+              </div>
+
+              <div className="form-actions">
+                <Button type="button" variant="outline" onClick={() => setShowPackagingModal(false)}>
+                  Cancel
+                </Button>
+                <Button type="submit">
+                  {editingPackaging ? 'Update' : 'Create'} Packaging
                 </Button>
               </div>
             </form>

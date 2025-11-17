@@ -919,6 +919,96 @@ export const openPrintWindow = (printContent, title = 'Document') => {
 };
 
 /**
+ * Print directly without preview or dialogs
+ * @param {string} printContent - HTML content to print
+ * @param {string} title - Document title
+ * @returns {Promise<boolean>} Success status
+ */
+export const openPrintWindow_ = (printContent, title = 'Document') => {
+  return new Promise((resolve) => {
+    try {
+      // Create a hidden iframe for printing
+      const iframe = document.createElement('iframe');
+      iframe.style.position = 'fixed';
+      iframe.style.right = '0';
+      iframe.style.bottom = '0';
+      iframe.style.width = '0';
+      iframe.style.height = '0';
+      iframe.style.border = 'none';
+      iframe.style.opacity = '0';
+      iframe.style.pointerEvents = 'none';
+      
+      document.body.appendChild(iframe);
+      
+      const iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
+      
+      // Write content to iframe
+      iframeDoc.open();
+      iframeDoc.write(printContent);
+      iframeDoc.close();
+      
+      // Set title
+      iframeDoc.title = title;
+      
+      // Wait for iframe content to load
+      iframe.onload = () => {
+        try {
+          // Get the iframe window
+          const iframeWindow = iframe.contentWindow;
+          
+          // Print directly without dialog
+          iframeWindow.focus();
+          
+          // Use setTimeout to ensure content is fully rendered
+          setTimeout(() => {
+            try {
+              // Direct print command
+              iframeWindow.print();
+              
+              // Resolve immediately after calling print()
+              resolve(true);
+              
+              // Clean up iframe after a delay
+              setTimeout(() => {
+                if (document.body.contains(iframe)) {
+                  document.body.removeChild(iframe);
+                }
+              }, 1000);
+              
+            } catch (printError) {
+              console.error('Print failed:', printError);
+              // Clean up on error
+              if (document.body.contains(iframe)) {
+                document.body.removeChild(iframe);
+              }
+              resolve(false);
+            }
+          }, 100);
+          
+        } catch (error) {
+          console.error('Error in iframe print process:', error);
+          if (document.body.contains(iframe)) {
+            document.body.removeChild(iframe);
+          }
+          resolve(false);
+        }
+      };
+      
+      // Fallback in case onload doesn't fire
+      setTimeout(() => {
+        if (iframe.contentDocument && iframe.contentDocument.readyState === 'complete') {
+          iframe.onload(); // Manually trigger onload
+        }
+      }, 500);
+      
+    } catch (error) {
+      console.error('Failed to setup direct printing:', error);
+      resolve(false);
+    }
+  });
+};
+
+/**
  * Open print preview window (visible, doesn't auto-close)
  * @param {string} printContent - HTML content to print
  * @param {string} title - Document title
@@ -1476,11 +1566,6 @@ export const generateMobilePrintContent = (data, title, type, t) => {
   `;
 };
 
-
-
-
-
-// Print content from print button
 // Helper functions for generating print content optimized for 80mm thermal printers
 const generateInventoryContent = (data, t) => {
   // Handle different data structures
@@ -1723,34 +1808,34 @@ const generateSaleContent = (data, t) => {
       </div>
       <div class="receipt-section">
         <div class="no-data">${'\u00A0'}</div>
-        <div class="section-title">SALE INFO</div>
+        <div class="section-title">${t('print.sale_information')}</div>
         <div class="receipt-row">
-          <span>Sale No:</span>
+          <span>${t('print.sale_no')}:</span>
           <span>${data.sale_number || 'N/A'}</span>
         </div>
         <div class="receipt-row">
-          <span>Sale Status:</span>
+          <span>${t('print.sale_status')}:</span>
           <span>${data.status || 'N/A'}</span>
         </div>
         <div class="receipt-row">
-          <span>Customer:</span>
-          <span>${(data.customer_name || 'Walk-in Customer').substring(0, 25)}</span>
+          <span>${t('sales.customer_name')}:</span>
+          <span>${(data.customer_name || t('customer.walk_in')).substring(0, 25)}</span>
         </div>
         ${data.customer_phone ? `
           <div class="receipt-row">
-            <span>Phone:</span>
+            <span>${t('sales.customer_phone')}:</span>
             <span>${data.customer_phone}</span>
           </div>
         ` : ''}
         <div class="receipt-row">
-          <span>Peyment Status:</span>
+          <span>${t('print.peyment_status')}:</span>
           <span>${paymentStatusText}</span>
         </div>
 
         <div class="no-data">${'\u00A0'}</div>
       </div>
       <div class="receipt-section">
-        <div class="section-title">ITEMS SOLD</div>    
+        <div class="section-title">${t('print.item_sold')}</div>    
         <div class="no-data">__________________________________________________</div>
         <div class="item-details">
           <span>Info</span>
@@ -1777,7 +1862,7 @@ const generateSaleContent = (data, t) => {
       </div>
       ${data.packaging_items && data.packaging_items.length > 0 ? `
         <div class="receipt-section">
-          <div class="section-title">PACKAGINGS</div>    
+          <div class="section-title">${t('print.packagings')}</div>    
           <div class="no-data">__________________________________________________</div>
           <div class="item-details">
             <span>Info</span>
@@ -1806,7 +1891,7 @@ const generateSaleContent = (data, t) => {
             return `
             <div class="no-data">¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯</div>         
             <div class="packaging-item">
-              <div class="item-name">${(item.product_name || 'N/A').substring(0, 25)} </div>
+              <div class="item-name">${(item.packaging_name || 'N/A').substring(0, 25)} </div>
               <div class="item-details">
                 <span>
                   ${unitPriceDisplay.padEnd(26, '\u00A0')}
@@ -1824,7 +1909,7 @@ const generateSaleContent = (data, t) => {
       <div class="receipt-totals">
         <div class="receipt-row">
           <span>Subtotal:</span>
-          <span>${parseFloat(data.total_amount || 0).toFixed(2)} MGA</span>
+          <span>${parseFloat(data.subtotal || 0).toFixed(2)} MGA</span>
         </div>
         ${data.packaging_total && data.packaging_total > 0 ? `
           <div class="receipt-row">
@@ -1850,8 +1935,9 @@ const generateSaleContent = (data, t) => {
         <div class="no-data">${'\u00A0'}</div>
       </div>
       <div class="receipt-footer">
-        <div class="thank-you">Thank you!</div>
-        <div class="footer-text" style="text-align: center;">Created by: ${(data.created_by_name || data.sold_by_name || data.user_name || 'N/A')} -- ${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}</div>
+        <div class="thank-you">${t('print.thankings')}</div>
+        <div class="footer-text" style="text-align: center;">${t('common.created_by')}: ${(data.created_by_name || data.sold_by_name || data.user_name || 'N/A')} -- ${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}</div>
+        <div class="terms">${t('messages.terms_of_sales')}</div>
       </div>
   `;
 };

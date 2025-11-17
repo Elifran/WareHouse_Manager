@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from django.db import models
-from .models import Category, Product, StockMovement, TaxClass, Unit, UnitConversion, ProductUnit
+from .models import Category, Product, StockMovement, TaxClass, Unit, UnitConversion, ProductUnit, Packaging
 
 class CategorySerializer(serializers.ModelSerializer):
     products_count = serializers.SerializerMethodField()
@@ -28,6 +28,17 @@ class TaxClassSerializer(serializers.ModelSerializer):
         if value < 0 or value > 100:
             raise serializers.ValidationError("Tax rate must be between 0 and 100 percent.")
         return value
+
+class PackagingSerializer(serializers.ModelSerializer):
+    products_count = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = Packaging
+        fields = ['id', 'name', 'price', 'description', 'is_active', 'products_count', 'created_at', 'updated_at']
+        read_only_fields = ['id', 'created_at', 'updated_at']
+    
+    def get_products_count(self, obj):
+        return obj.products.filter(is_active=True).count()
 
 class UnitSerializer(serializers.ModelSerializer):
     products_count = serializers.SerializerMethodField()
@@ -234,6 +245,10 @@ class ProductSerializer(serializers.ModelSerializer):
     compatible_units = ProductUnitSerializer(many=True, read_only=True)
     stock_in_units = serializers.SerializerMethodField()
     
+    # Packaging fields
+    packaging_name = serializers.CharField(source='packaging.name', read_only=True)
+    packaging_price_display = serializers.DecimalField(source='packaging.price', max_digits=10, decimal_places=2, read_only=True)
+    
     # New pricing structure fields
     standard_prices_list = serializers.SerializerMethodField()
     available_standard_prices = serializers.SerializerMethodField()
@@ -254,7 +269,8 @@ class ProductSerializer(serializers.ModelSerializer):
             'sku', 'price', 'wholesale_price', 'cost_price', 'stock_quantity', 'min_stock_level', 
             'max_stock_level', 'unit', 'base_unit', 'base_unit_name', 'base_unit_symbol', 
             'available_units', 'compatible_units', 'stock_in_units', 'is_active', 'profit_margin', 
-            'is_low_stock', 'is_out_of_stock', 'has_packaging', 'packaging_price', 'storage_type', 
+            'is_low_stock', 'is_out_of_stock', 'packaging', 'packaging_name', 'packaging_price_display',
+            'has_packaging', 'packaging_price', 'storage_type', 
             'storage_section', 'standard_price_1', 'standard_price_2', 'standard_price_3', 
             'standard_price_4', 'standard_price_5', 'standard_prices_list', 'available_standard_prices',
             'available_wholesale_prices', 'created_at', 'updated_at'

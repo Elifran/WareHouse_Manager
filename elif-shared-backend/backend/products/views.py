@@ -5,10 +5,10 @@ from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
 from django.db.models import Q
 from django.http import Http404
-from .models import Category, Product, StockMovement, TaxClass, Unit, UnitConversion, ProductUnit
+from .models import Category, Product, StockMovement, TaxClass, Unit, UnitConversion, ProductUnit, Packaging
 from .serializers import (
     CategorySerializer, ProductSerializer, 
-    StockMovementSerializer, TaxClassSerializer, UnitSerializer, UnitConversionSerializer, ProductUnitSerializer
+    StockMovementSerializer, TaxClassSerializer, UnitSerializer, UnitConversionSerializer, ProductUnitSerializer, PackagingSerializer
 )
 from .utils import get_unit_conversion_factor, get_price_conversion_factor
 
@@ -135,6 +135,21 @@ class TaxClassListCreateView(generics.ListCreateAPIView):
 class TaxClassDetailView(generics.RetrieveUpdateDestroyAPIView):
     queryset = TaxClass.objects.all()
     serializer_class = TaxClassSerializer
+    permission_classes = [IsAuthenticated]
+
+class PackagingListCreateView(generics.ListCreateAPIView):
+    queryset = Packaging.objects.all()
+    serializer_class = PackagingSerializer
+    permission_classes = [IsAuthenticated]
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filterset_fields = ['is_active']
+    search_fields = ['name', 'description']
+    ordering_fields = ['name', 'price', 'created_at']
+    ordering = ['name']
+
+class PackagingDetailView(generics.RetrieveUpdateDestroyAPIView):
+    queryset = Packaging.objects.all()
+    serializer_class = PackagingSerializer
     permission_classes = [IsAuthenticated]
     
     def get_permissions(self):

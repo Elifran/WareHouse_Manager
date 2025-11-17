@@ -140,17 +140,28 @@ class PaymentSerializer(serializers.ModelSerializer):
         read_only_fields = ['id', 'created_at']
 
 class SalePackagingSerializer(serializers.ModelSerializer):
-    product_name = serializers.CharField(source='product.name', read_only=True)
-    product_sku = serializers.CharField(source='product.sku', read_only=True)
-    unit_name = serializers.CharField(source='unit.name', read_only=True)
-    unit_symbol = serializers.CharField(source='unit.symbol', read_only=True)
+    packaging_name = serializers.SerializerMethodField()
+    packaging_price = serializers.SerializerMethodField()
+    # Legacy fields for backward compatibility
+    product_name = serializers.CharField(source='product.name', read_only=True, allow_null=True)
+    product_sku = serializers.CharField(source='product.sku', read_only=True, allow_null=True)
+    unit_name = serializers.CharField(source='unit.name', read_only=True, allow_null=True)
+    unit_symbol = serializers.CharField(source='unit.symbol', read_only=True, allow_null=True)
+    
+    def get_packaging_name(self, obj):
+        return obj.packaging.name if obj.packaging else None
+    
+    def get_packaging_price(self, obj):
+        return float(obj.packaging.price) if obj.packaging else None
     
     class Meta:
         model = SalePackaging
         fields = [
-            'id', 'sale', 'product', 'product_name', 'product_sku', 'quantity', 
-            'unit', 'unit_name', 'unit_symbol', 'unit_price', 'total_price', 
-            'status', 'customer_name', 'customer_phone', 'notes', 'created_at', 'updated_at'
+            'id', 'sale', 'packaging', 'packaging_name', 'packaging_price', 'quantity', 
+            'unit_price', 'total_price', 'status', 'customer_name', 'customer_phone', 
+            'notes', 'created_at', 'updated_at',
+            # Legacy fields
+            'product', 'product_name', 'product_sku', 'unit', 'unit_name', 'unit_symbol'
         ]
         read_only_fields = ['id', 'total_price', 'created_at', 'updated_at']
     
@@ -160,19 +171,27 @@ class SalePackagingSerializer(serializers.ModelSerializer):
         return value
 
 class SalePackagingCreateSerializer(serializers.Serializer):
-    product = serializers.IntegerField()
-    quantity = serializers.FloatField()
-    unit = serializers.IntegerField()
-    unit_price = serializers.DecimalField(max_digits=10, decimal_places=2)
+    packaging = serializers.IntegerField(required=False, allow_null=True, help_text="Packaging ID (preferred)")
+    quantity = serializers.FloatField(help_text="Total quantity of packaging items (aggregated from all products)")
     status = serializers.ChoiceField(choices=[('exchange', 'Exchange'), ('consignation', 'Consignation (Paid)'), ('due', 'Due (To be returned)')], default='consignation')
     customer_name = serializers.CharField(required=False, allow_blank=True)
     customer_phone = serializers.CharField(required=False, allow_blank=True)
     notes = serializers.CharField(required=False, allow_blank=True)
+    # Legacy fields for backward compatibility
+    product = serializers.IntegerField(required=False, allow_null=True)
+    unit = serializers.IntegerField(required=False, allow_null=True)
+    unit_price = serializers.DecimalField(max_digits=10, decimal_places=2, required=False, allow_null=True)
     
     def validate_quantity(self, value):
         if value <= 0:
             raise serializers.ValidationError("Quantity must be greater than 0.")
         return value
+    
+    def validate(self, data):
+        # Either packaging or product must be provided (for backward compatibility)
+        if not data.get('packaging') and not data.get('product'):
+            raise serializers.ValidationError("Either packaging or product must be provided.")
+        return data
 
 class PackagingReturnSerializer(serializers.ModelSerializer):
     sale_packaging_product = serializers.CharField(source='sale_packaging.product.name', read_only=True)
@@ -387,33 +406,61 @@ class SaleCreateSerializer(serializers.ModelSerializer):
                 # No tax or 0% tax rate, use the stored total cost
                 total_cost += item.total_cost
         
-        # Create packaging items
+        # Create packaging items - group by packaging_id
         packaging_total = Decimal('0.00')
+        from products.models import Packaging
+        from collections import defaultdict
+        
+        # Group packaging items by packaging_id
+        packaging_groups = defaultdict(lambda: {'quantity': 0, 'data': {}})
+        
         for packaging_data in packaging_items_data:
-            # Convert product ID to Product object for the ForeignKey
-            product_id = packaging_data.pop('product')
-            product = Product.objects.get(id=product_id)
+            packaging_id = packaging_data.get('packaging')
+            if not packaging_id:
+                # Legacy support: try to get packaging from product
+                product_id = packaging_data.get('product')
+                if product_id:
+                    try:
+                        product = Product.objects.get(id=product_id)
+                        if product.packaging:
+                            packaging_id = product.packaging.id
+                    except Product.DoesNotExist:
+                        pass
             
-            # Convert unit ID to Unit object for the ForeignKey
-            unit_id = packaging_data.pop('unit')
+            if packaging_id:
+                try:
+                    packaging_obj = Packaging.objects.get(id=packaging_id)
+                    # Aggregate quantities for the same packaging
+                    packaging_groups[packaging_id]['quantity'] += float(packaging_data.get('quantity', 0))
+                    # Store other data (use first occurrence for status, customer info, etc.)
+                    if not packaging_groups[packaging_id]['data']:
+                        packaging_groups[packaging_id]['data'] = {
+                            'status': packaging_data.get('status', 'consignation'),
+                            'customer_name': packaging_data.get('customer_name', sale.customer_name),
+                            'customer_phone': packaging_data.get('customer_phone', sale.customer_phone),
+                            'notes': packaging_data.get('notes', ''),
+                            'unit_price': packaging_obj.price  # Get price from packaging model
+                        }
+                except Packaging.DoesNotExist:
+                    continue
+        
+        # Create SalePackaging records (one per packaging type)
+        for packaging_id, group_data in packaging_groups.items():
             try:
-                unit = Unit.objects.get(id=unit_id)
-            except Unit.DoesNotExist:
-                # Fallback to piece unit if the specified unit doesn't exist
-                unit = Unit.objects.get(symbol='pc', is_base_unit=True)
-            
-            # Ensure unit_price is set from product if not provided
-            if 'unit_price' not in packaging_data or not packaging_data['unit_price']:
-                packaging_data['unit_price'] = product.packaging_price or Decimal('0.00')
-            
-            # Set customer info from sale if not provided
-            if not packaging_data.get('customer_name'):
-                packaging_data['customer_name'] = sale.customer_name
-            if not packaging_data.get('customer_phone'):
-                packaging_data['customer_phone'] = sale.customer_phone
-            
-            packaging = SalePackaging.objects.create(sale=sale, product=product, unit=unit, **packaging_data)
-            packaging_total += packaging.total_price
+                packaging_obj = Packaging.objects.get(id=packaging_id)
+                packaging_record = SalePackaging.objects.create(
+                    sale=sale,
+                    packaging=packaging_obj,
+                    quantity=group_data['quantity'],
+                    unit_price=group_data['data']['unit_price'],
+                    status=group_data['data']['status'],
+                    customer_name=group_data['data']['customer_name'],
+                    customer_phone=group_data['data']['customer_phone'],
+                    notes=group_data['data']['notes']
+                )
+                packaging_total += packaging_record.total_price
+            except Packaging.DoesNotExist:
+                continue
         
         # Calculate totals (tax-inclusive pricing)
         sale.subtotal = subtotal  # This is the total amount including tax

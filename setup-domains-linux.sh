@@ -12,20 +12,24 @@ if [ "$EUID" -ne 0 ]; then
     exit 1
 fi
 
-# Check if domains already exist
-if grep -q "orders.elif" /etc/hosts; then
-    echo "ELIF domains already configured in /etc/hosts"
-    echo "Current configuration:"
-    grep "elif" /etc/hosts
-    exit 0
+# Get current IP
+CURRENT_IP=$(ip route | grep default | awk '{print $9}' | head -1)
+if [ -z "$CURRENT_IP" ]; then
+    CURRENT_IP=$(hostname -I | awk '{print $1}')
 fi
 
-# Add ELIF domains to hosts file
+echo "Current IP: $CURRENT_IP"
+
+# Remove existing ELIF domains
+echo "Cleaning up existing ELIF domains..."
+sed -i.bak '/\.elif$/d' /etc/hosts
+
+# Add all ELIF domains to hosts file with current IP
 echo "Adding ELIF domains to /etc/hosts..."
-echo "10.10.1.1 orders.elif" >> /etc/hosts
-echo "10.10.1.1 sales.elif" >> /etc/hosts
-echo "10.10.1.1 admin.elif" >> /etc/hosts
-echo "10.10.1.1 api.elif" >> /etc/hosts
+echo "$CURRENT_IP orders.elif" >> /etc/hosts
+echo "$CURRENT_IP sales.elif" >> /etc/hosts
+echo "$CURRENT_IP admin.elif" >> /etc/hosts
+echo "$CURRENT_IP api.elif" >> /etc/hosts
 
 echo "✅ ELIF domains added successfully!"
 echo ""

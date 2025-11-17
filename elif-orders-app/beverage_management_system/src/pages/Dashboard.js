@@ -1,17 +1,14 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../contexts/AuthContext';
-import api from '../services/api';
 import SaleDetailModal from '../components/SaleDetailModal';
 import PrintButton from '../components/PrintButton';
+import { useDashboard } from '../hooks/useDashboard';
 import './Dashboard.css';
 
 const Dashboard = () => {
   const { t } = useTranslation();
   const { user } = useAuth();
-  const [dashboardData, setDashboardData] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
   const [selectedPeriod, setSelectedPeriod] = useState('month');
   const [selectedSale, setSelectedSale] = useState(null);
   const [showSaleModal, setShowSaleModal] = useState(false);
@@ -20,24 +17,7 @@ const Dashboard = () => {
   // Check if user is sales team (limited access)
   const isSalesTeam = user?.role === 'sales';
 
-  useEffect(() => {
-    fetchDashboardData();
-  }, [selectedPeriod, isSalesTeam]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const fetchDashboardData = async () => {
-    try {
-      setLoading(true);
-      // For sales teams, don't send period parameter (backend will default to daily)
-      const url = isSalesTeam ? '/reports/dashboard/' : `/reports/dashboard/?period=${selectedPeriod}`;
-      const response = await api.get(url);
-      setDashboardData(response.data);
-    } catch (err) {
-      setError(t('dashboard.failed_to_load'));
-      console.error('Dashboard error:', err);
-    } finally {
-      setLoading(false);
-    }
-  };
+  const { data: dashboardData, isLoading: loading, isError, error, refetch } = useDashboard(selectedPeriod, isSalesTeam);
 
   const handlePeriodChange = (period) => {
     // Only allow period changes for non-sales users
@@ -58,11 +38,11 @@ const Dashboard = () => {
       }
       
       // Fetch detailed sale information
-      const response = await api.get(`/api/sales/${saleId}/`);
-      setSelectedSale(response.data);
+      const response = await fetch(`/api/sales/${saleId}/`, { headers: { 'Authorization': `Bearer ${localStorage.getItem('accessToken') || ''}` } });
+      const data = await response.json();
+      setSelectedSale(data);
     } catch (err) {
       console.error('Failed to fetch sale details:', err);
-      setError(`Failed to load sale details: ${err.message}`);
       setShowSaleModal(false);
     } finally {
       setSaleDetailLoading(false);
@@ -85,13 +65,13 @@ const Dashboard = () => {
     );
   }
 
-  if (error) {
+  if (isError) {
     return (
       <div className="dashboard">
         <div className="dashboard-error">
           <h2>{t('dashboard.error')}</h2>
-          <p>{error}</p>
-          <button onClick={fetchDashboardData}>{t('common.retry')}</button>
+          <p>{t('dashboard.failed_to_load')}</p>
+          <button onClick={() => refetch()}>{t('common.retry')}</button>
         </div>
       </div>
     );

@@ -194,7 +194,7 @@ class Payment(models.Model):
         return f"Payment {self.amount} - {self.payment_method}"
 
 class SalePackaging(models.Model):
-    """Packaging consignation items for sales"""
+    """Packaging consignation items for sales - grouped by packaging type"""
     PACKAGING_STATUS_CHOICES = [
         ('exchange', 'Exchange'),
         ('consignation', 'Consignation (Paid)'),
@@ -202,10 +202,9 @@ class SalePackaging(models.Model):
     ]
     
     sale = models.ForeignKey(Sale, on_delete=models.CASCADE, related_name='packaging_items')
-    product = models.ForeignKey('products.Product', on_delete=models.CASCADE, help_text="Product that has packaging")
-    quantity = models.FloatField(validators=[MinValueValidator(0.001)], help_text="Quantity of packaging items")
-    unit = models.ForeignKey('products.Unit', on_delete=models.PROTECT, null=True, blank=True, help_text="Unit used for this packaging item")
-    unit_price = models.DecimalField(max_digits=10, decimal_places=2, validators=[MinValueValidator(Decimal('0.01'))], help_text="Packaging price per unit")
+    packaging = models.ForeignKey('products.Packaging', on_delete=models.PROTECT, null=True, blank=True, help_text="Packaging type (e.g., bottle, can)")
+    quantity = models.FloatField(validators=[MinValueValidator(0.001)], help_text="Total quantity of packaging items (aggregated from all products)")
+    unit_price = models.DecimalField(max_digits=10, decimal_places=2, validators=[MinValueValidator(Decimal('0.01'))], help_text="Packaging price per unit (from packaging model)")
     total_price = models.DecimalField(max_digits=15, decimal_places=2, validators=[MinValueValidator(Decimal('0.01'))], help_text="Total packaging price")
     status = models.CharField(max_length=20, choices=PACKAGING_STATUS_CHOICES, default='consignation', help_text="Packaging status")
     customer_name = models.CharField(max_length=200, blank=True, help_text="Customer name for due packaging tracking")
@@ -214,11 +213,19 @@ class SalePackaging(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     
+    # Legacy fields for backward compatibility
+    product = models.ForeignKey('products.Product', on_delete=models.SET_NULL, null=True, blank=True, help_text="Legacy field - kept for backward compatibility")
+    unit = models.ForeignKey('products.Unit', on_delete=models.SET_NULL, null=True, blank=True, help_text="Legacy field - kept for backward compatibility")
+    
     def __str__(self):
-        return f"{self.product.name} packaging x {self.quantity} = {self.total_price} ({self.status})"
+        packaging_name = self.packaging.name if self.packaging else (self.product.name if self.product else "Unknown")
+        return f"{packaging_name} packaging x {self.quantity} = {self.total_price} ({self.status})"
     
     def save(self, *args, **kwargs):
         from decimal import Decimal, ROUND_HALF_UP
+        # Get unit_price from packaging if not set
+        if not self.unit_price and self.packaging:
+            self.unit_price = self.packaging.price
         # Calculate total price
         if self.unit_price:
             unit_price_decimal = Decimal(str(self.unit_price))
@@ -228,7 +235,7 @@ class SalePackaging(models.Model):
         super().save(*args, **kwargs)
     
     class Meta:
-        unique_together = ['sale', 'product', 'unit']
+        unique_together = ['sale', 'packaging']  # Changed: now unique by sale and packaging (not product)
         ordering = ['created_at']
 
 class PackagingReturn(models.Model):

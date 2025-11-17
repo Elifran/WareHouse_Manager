@@ -6,11 +6,11 @@ import './AllPages.css';
 const AllPages = () => {
   const { t } = useTranslation();
 
-  // App port mappings
-  const appPorts = {
-    'elif-orders-app': 3000,
-    'elif-sales-app': 3001,
-    'elif-admin-app': 3002
+  // App subdomain mappings
+  const appDomains = {
+    'elif-orders-app': 'orders.elif',
+    'elif-sales-app': 'sales.elif',
+    'elif-admin-app': 'admin.elif'
   };
 
   // Get current app based on port or path
@@ -52,18 +52,11 @@ const AllPages = () => {
   const basePath = getBasePath();
   const currentHostname = window.location.hostname;
   
-  // Construct URL for other apps with correct port
+  // Construct URL for other apps using subdomains
   const getOtherAppUrl = (appName) => {
-    const targetPort = appPorts[appName];
-    const hostname = currentHostname || 'localhost';
-    
-    // If we have a base path, use it; otherwise just use root
-    const path = basePath ? basePath.replace(`/${currentApp}`, `/${appName}`) : `/${appName}`;
-    
-    // Construct URL with port
     const protocol = window.location.protocol;
-    // return `${protocol}//${hostname}:${targetPort}${path}`;
-    return `${protocol}//${hostname}:${targetPort}`;
+    const domain = appDomains[appName];
+    return `${protocol}//${domain}`;
   };
 
   // Other apps links

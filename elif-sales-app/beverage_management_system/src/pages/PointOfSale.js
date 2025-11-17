@@ -15,6 +15,9 @@ import {
 import {formatCurrency} from '../utils/helpers';
 import './PointOfSale.css';
 
+const POS_ACTIVE_DRAFT_KEY = 'posActiveDraftSale';
+const POS_SAVED_DRAFTS_KEY = 'posSavedDraftSales';
+
 const PointOfSale = () => {
   const { t } = useTranslation();
   const { user } = useAuth();
@@ -62,6 +65,11 @@ const PointOfSale = () => {
   
   // Packaging state
   const [packagingCart, setPackagingCart] = useState([]);
+  const [draftInfo, setDraftInfo] = useState({ hasDraft: false, savedAt: null });
+  const [savedDrafts, setSavedDrafts] = useState([]);
+  const [showDraftsModal, setShowDraftsModal] = useState(false);
+  const draftRestoreInProgressRef = useRef(false);
+  const draftSaveTimeoutRef = useRef(null);
 
   // React Query hooks for data fetching with enhanced caching (localStorage persistence)
   const { data: categoriesData = [], isLoading: categoriesLoading, refetch: refetchCategories } = useCategoriesPOS();
@@ -153,6 +161,257 @@ const PointOfSale = () => {
     });
   }, [allProductsData, categories]);
 
+  const clearActiveDraftStorage = useCallback(() => {
+    sessionStorage.removeItem(POS_ACTIVE_DRAFT_KEY);
+    setDraftInfo({ hasDraft: false, savedAt: null });
+  }, []);
+
+  const loadSavedDraftsFromStorage = useCallback(() => {
+    try {
+      const stored = sessionStorage.getItem(POS_SAVED_DRAFTS_KEY);
+      if (!stored) {
+        setSavedDrafts([]);
+        return [];
+      }
+      const parsed = JSON.parse(stored);
+      if (Array.isArray(parsed)) {
+        setSavedDrafts(parsed);
+        return parsed;
+      }
+      setSavedDrafts([]);
+      return [];
+    } catch (error) {
+      console.error('Failed to load saved drafts:', error);
+      setSavedDrafts([]);
+      return [];
+    }
+  }, []);
+
+  const persistSavedDrafts = useCallback((drafts) => {
+    try {
+      sessionStorage.setItem(POS_SAVED_DRAFTS_KEY, JSON.stringify(drafts));
+      setSavedDrafts(drafts);
+    } catch (error) {
+      console.error('Failed to persist saved drafts:', error);
+    }
+  }, []);
+
+  const applyDraftState = useCallback((draft) => {
+    if (!draft) return;
+    draftRestoreInProgressRef.current = true;
+    
+    setCart(Array.isArray(draft.cart) ? draft.cart : []);
+    setPackagingCart(Array.isArray(draft.packagingCart) ? draft.packagingCart : []);
+    setCustomerInfo({
+      name: draft.customerInfo?.name || '',
+      phone: draft.customerInfo?.phone || '',
+      email: draft.customerInfo?.email || ''
+    });
+    setPaymentMethod(draft.paymentMethod || 'cash');
+    setPaymentType(draft.paymentType || 'full');
+    setPaidAmount(typeof draft.paidAmount === 'number' ? draft.paidAmount : 0);
+    setPriceMode(draft.priceMode || 'standard');
+    setSaleMode(draft.saleMode || 'complete');
+    setFilters(draft.filters ? {
+      category: draft.filters.category || '',
+      search: draft.filters.search || ''
+    } : { category: '', search: '' });
+    setSearchInput(draft.searchInput || '');
+    setSelectedUnits(draft.selectedUnits || {});
+    setShowSellableToggle(!!draft.showSellableToggle);
+    
+    setTimeout(() => {
+      draftRestoreInProgressRef.current = false;
+    }, 0);
+  }, [
+    setCart,
+    setPackagingCart,
+    setCustomerInfo,
+    setPaymentMethod,
+    setPaymentType,
+    setPaidAmount,
+    setPriceMode,
+    setSaleMode,
+    setFilters,
+    setSearchInput,
+    setSelectedUnits,
+    setShowSellableToggle
+  ]);
+
+  const getCurrentDraftState = useCallback(() => ({
+    cart,
+    packagingCart,
+    customerInfo,
+    paymentMethod,
+    paymentType,
+    paidAmount,
+    priceMode,
+    saleMode,
+    filters,
+    searchInput,
+    selectedUnits,
+    showSellableToggle
+  }), [
+    cart,
+    packagingCart,
+    customerInfo,
+    paymentMethod,
+    paymentType,
+    paidAmount,
+    priceMode,
+    saleMode,
+    filters,
+    searchInput,
+    selectedUnits,
+    showSellableToggle
+  ]);
+
+  const hasMeaningfulDraftData = useCallback(() => {
+    return cart.length > 0 ||
+      packagingCart.length > 0 ||
+      customerInfo.name ||
+      customerInfo.phone ||
+      customerInfo.email ||
+      paidAmount > 0 ||
+      paymentType === 'partial';
+  }, [cart, packagingCart, customerInfo, paidAmount, paymentType]);
+
+  const restoreDraftFromStorage = useCallback((options = { silent: true }) => {
+    const { silent } = options;
+    try {
+      const stored = sessionStorage.getItem(POS_ACTIVE_DRAFT_KEY);
+      if (!stored) {
+        clearActiveDraftStorage();
+        if (!silent) {
+          setError('No draft sale found to restore');
+        }
+        return false;
+      }
+      const parsed = JSON.parse(stored);
+      if (!parsed) {
+        clearActiveDraftStorage();
+        if (!silent) {
+          setError('Draft data is corrupted');
+        }
+        return false;
+      }
+      applyDraftState(parsed);
+      const savedAt = parsed.savedAt || new Date().toISOString();
+      setDraftInfo({ hasDraft: true, savedAt });
+      if (!silent) {
+        setSuccess('Draft sale restored');
+      }
+      return true;
+    } catch (draftError) {
+      console.error('Failed to restore draft sale:', draftError);
+      if (!silent) {
+        setError('Failed to restore draft sale');
+      }
+      return false;
+    }
+  }, [applyDraftState, clearActiveDraftStorage]);
+
+  const draftTimestampLabel = useMemo(() => {
+    if (!draftInfo.savedAt) return '';
+    try {
+      return new Date(draftInfo.savedAt).toLocaleString();
+    } catch (err) {
+      return '';
+    }
+  }, [draftInfo.savedAt]);
+
+  const handleDiscardDraft = useCallback(() => {
+    const shouldDiscard = window.confirm('Discard the saved draft sale? This will clear the current cart and customer information.');
+    if (!shouldDiscard) {
+      return;
+    }
+
+    setCart([]);
+    setPackagingCart([]);
+    setCustomerInfo({ name: '', phone: '', email: '' });
+    setPaymentMethod('cash');
+    setPaymentType('full');
+    setPaidAmount(0);
+    setPriceMode('standard');
+    setSaleMode('complete');
+    setSelectedUnits({});
+    setFilters({ category: '', search: '' });
+    setSearchInput('');
+    setShowSellableToggle(false);
+    clearActiveDraftStorage();
+    setError('');
+    setSuccess('');
+  }, [clearActiveDraftStorage]);
+
+  const handleSaveCurrentAsDraft = useCallback(() => {
+    if (!hasMeaningfulDraftData()) {
+      setError('Add items or customer details before saving a draft.');
+      return;
+    }
+
+    const defaultName = `Draft ${new Date().toLocaleString()}`;
+    const name = window.prompt('Enter a name for this draft sale:', defaultName);
+    if (!name) {
+      return;
+    }
+
+    const snapshot = getCurrentDraftState();
+    const trimmedName = name.trim();
+    if (!trimmedName) {
+      setError('Draft name cannot be empty');
+      return;
+    }
+
+    const newDraft = {
+      id: `draft-${Date.now()}`,
+      name: trimmedName,
+      savedAt: new Date().toISOString(),
+      data: snapshot
+    };
+
+    const updatedDrafts = [newDraft, ...savedDrafts];
+    persistSavedDrafts(updatedDrafts);
+    setSuccess('Draft saved successfully');
+  }, [getCurrentDraftState, hasMeaningfulDraftData, persistSavedDrafts, savedDrafts, setError, setSuccess]);
+
+  const handleRestoreSavedDraft = useCallback((draftId) => {
+    const target = savedDrafts.find(d => d.id === draftId);
+    if (!target) {
+      setError('Draft not found');
+      return;
+    }
+    applyDraftState(target.data);
+    setDraftInfo({ hasDraft: true, savedAt: target.savedAt });
+    setSuccess(`Draft "${target.name}" restored`);
+    setShowDraftsModal(false);
+    const updated = savedDrafts.filter(d => d.id !== draftId);
+    persistSavedDrafts(updated);
+  }, [savedDrafts, applyDraftState, setError, setSuccess]);
+
+  const handleDeleteSavedDraft = useCallback((draftId) => {
+    const target = savedDrafts.find(d => d.id === draftId);
+    if (!target) return;
+    const confirmDelete = window.confirm(`Delete draft "${target.name}"?`);
+    if (!confirmDelete) return;
+
+    const updated = savedDrafts.filter(d => d.id !== draftId);
+    persistSavedDrafts(updated);
+  }, [savedDrafts, persistSavedDrafts]);
+
+  useEffect(() => {
+    restoreDraftFromStorage({ silent: true });
+    
+    return () => {
+      if (draftSaveTimeoutRef.current) {
+        clearTimeout(draftSaveTimeoutRef.current);
+      }
+    };
+  }, [restoreDraftFromStorage]);
+
+  useEffect(() => {
+    loadSavedDraftsFromStorage();
+  }, [loadSavedDraftsFromStorage]);
+
   // Update allProducts when sellableProducts change
   useEffect(() => {
     if (sellableProducts.length > 0) {
@@ -207,7 +466,7 @@ const PointOfSale = () => {
       
       // Generate optimized content for thermal printers
       // const printContent = generateThermalOptimizedContent(printData, title, 'sale');
-      const printContent = generatePrintContent(printData, title, 'sale');
+      const printContent = generatePrintContent(printData, title, 'sale', t);
 
       // Handle print preview
       if (usePreview) {
@@ -441,6 +700,42 @@ const PointOfSale = () => {
   }, [searchInput]); // Only depend on searchInput to prevent re-renders
 
   useEffect(() => {
+    if (draftRestoreInProgressRef.current) {
+      return;
+    }
+
+    if (draftSaveTimeoutRef.current) {
+      clearTimeout(draftSaveTimeoutRef.current);
+    }
+
+    draftSaveTimeoutRef.current = setTimeout(() => {
+      if (!hasMeaningfulDraftData()) {
+        clearActiveDraftStorage();
+        return;
+      }
+
+      const draftPayload = {
+        ...getCurrentDraftState(),
+        savedAt: new Date().toISOString()
+      };
+
+      sessionStorage.setItem(POS_ACTIVE_DRAFT_KEY, JSON.stringify(draftPayload));
+      setDraftInfo({ hasDraft: true, savedAt: draftPayload.savedAt });
+    }, 400);
+
+    return () => {
+      if (draftSaveTimeoutRef.current) {
+        clearTimeout(draftSaveTimeoutRef.current);
+        draftSaveTimeoutRef.current = null;
+      }
+    };
+  }, [
+    getCurrentDraftState,
+    hasMeaningfulDraftData,
+    clearActiveDraftStorage
+  ]);
+
+  useEffect(() => {
     // Fetch stock availability for ALL products in bulk to improve performance
     if (allProducts.length > 0) {
       fetchBulkStockAvailability();
@@ -643,24 +938,21 @@ const PointOfSale = () => {
     try {
       setCategoryUpdating(true);
       
-      // Create a sellable status object with all categories set to true
-      const allSellableStatus = {};
-      categoriesRef.current.forEach(cat => {
-        allSellableStatus[cat.id] = true;
-      });
+      // Clear session storage to reset to database defaults
+      sessionStorage.removeItem('sellableCategories');
       
-      // Save to session storage
-      sessionStorage.setItem('sellableCategories', JSON.stringify(allSellableStatus));
+      // Refetch categories from database (which will use DB defaults since sessionStorage is cleared)
+      const freshCategories = await refetchCategories();
       
-      // Update categories state immediately
-      setCategories(prevCategories => 
-        prevCategories.map(cat => ({ ...cat, is_sellable: true }))
-      );
+      // Update categories state with fresh data from database
+      if (freshCategories.data && freshCategories.data.length > 0) {
+        setCategories(freshCategories.data);
+      }
       
       // Immediately refetch products to apply the new filter
       refetchProducts(); // React Query handles caching
       
-      setSuccess('All categories have been set to sellable');
+      setSuccess('Categories have been reset to database defaults');
       
       // Reset updating state after a short delay
       setTimeout(() => setCategoryUpdating(false), 500);
@@ -669,7 +961,7 @@ const PointOfSale = () => {
       console.error('Category reset error:', err);
       setCategoryUpdating(false);
     }
-  }, [categories]); // Only depend on categories
+  }, [refetchCategories, refetchProducts]); // Depend on refetch functions
 
   const fetchStockAvailability = async (productId) => {
     try {
@@ -819,7 +1111,7 @@ const PointOfSale = () => {
     }
 
     // Automatically add packaging if product has packaging - use setTimeout to ensure cart is updated first
-    if (product.has_packaging && product.packaging_price) {
+    if (product.packaging) {
       setTimeout(() => {
         addPackagingAutomatically(product, unit);
       }, 0);
@@ -831,8 +1123,18 @@ const PointOfSale = () => {
   const updateQuantity = (productId, unitId, quantity, priceMode = null) => {
     if (quantity <= 0) {
       setCart(cart.filter(item => !(item.id === productId && item.unit_id === unitId && item.price_mode === priceMode)));
-      // Also remove packaging if sales item is removed
-      setPackagingCart(packagingCart.filter(item => item.id !== productId));
+      // Also remove packaging if sales item is removed - check if any other products with same packaging remain
+      const removedProduct = allProducts.find(p => p.id === productId);
+      if (removedProduct && removedProduct.packaging) {
+        // Check if any other products in cart have the same packaging
+        const hasOtherProductsWithSamePackaging = cart.some(item => 
+          item.id !== productId && 
+          allProducts.find(p => p.id === item.id)?.packaging === removedProduct.packaging
+        );
+        if (!hasOtherProductsWithSamePackaging) {
+          setPackagingCart(packagingCart.filter(item => item.packaging_id !== removedProduct.packaging));
+        }
+      }
     } else {
       // Skip stock validation for pending sales since stock won't be removed until completion
       if (saleMode === 'complete') {
@@ -867,7 +1169,7 @@ const PointOfSale = () => {
 
       // Update packaging quantity automatically if product has packaging
       const product = products.find(p => p.id === productId);
-      if (product && product.has_packaging && product.packaging_price) {
+      if (product && product.packaging) {
         const unit = { id: unitId };
         updatePackagingQuantityAutomatically(product, unit, quantity);
       }
@@ -880,9 +1182,9 @@ const PointOfSale = () => {
     setCart(cart.filter(item => !(item.id === productId && item.unit_id === unitId && item.price_mode === priceMode)));
   };
 
-  // Packaging functions
+  // Packaging functions - now groups by packaging_id instead of product_id
   const addPackagingAutomatically = (product, unit) => {
-    if (!product.has_packaging || !product.packaging_price) {
+    if (!product.packaging) {
       return;
     }
 
@@ -910,18 +1212,25 @@ const PointOfSale = () => {
         packagingQuantity = salesItem.quantity * unitStockInfo.conversion_factor;
       }
 
-      // Update packaging cart
+      // Update packaging cart - group by packaging_id
       setPackagingCart(currentPackagingCart => {
-        // Look for existing packaging for the same product (regardless of unit)
-        const existingPackaging = currentPackagingCart.find(item => item.id === product.id);
+        const packagingId = product.packaging;
+        // Look for existing packaging with the same packaging_id (not product_id)
+        const existingPackaging = currentPackagingCart.find(item => item.packaging_id === packagingId);
         
         if (existingPackaging) {
-          // Calculate total packaging quantity from all units of this product in cart
+          // Calculate total packaging quantity from all products with the same packaging in cart
           const totalSalesQuantity = currentCart
-            .filter(item => item.id === product.id)
+            .filter(item => {
+              const cartProduct = allProducts.find(p => p.id === item.id);
+              return cartProduct && cartProduct.packaging === packagingId;
+            })
             .reduce((sum, item) => {
               // Get unit information for conversion
-              const updatedStockInfo = getUpdatedStockAvailability(product.id);
+              const cartProduct = allProducts.find(p => p.id === item.id);
+              if (!cartProduct) return sum;
+              
+              const updatedStockInfo = getUpdatedStockAvailability(cartProduct.id);
               const unitStockInfo = updatedStockInfo?.find(u => u.id === item.unit_id);
               
               let quantity = item.quantity;
@@ -934,27 +1243,26 @@ const PointOfSale = () => {
           
           // Update existing packaging quantity to match total sales quantity
           return currentPackagingCart.map(item =>
-            item.id === product.id
+            item.packaging_id === packagingId
               ? { 
                   ...item, 
                   quantity: totalSalesQuantity,
-                  total_price: parseFloat(product.packaging_price) * totalSalesQuantity
+                  total_price: parseFloat(item.unit_price) * totalSalesQuantity
                 }
               : item
           );
         } else {
-          // Create new packaging item
+          // Create new packaging item - use packaging info instead of product info
+          const packagingPrice = product.packaging_price_display || product.packaging_price || 0;
           const newPackagingItem = {
-            ...product,
+            packaging_id: packagingId,
+            packaging_name: product.packaging_name || 'Packaging',
             quantity: packagingQuantity,
-            unit_price: parseFloat(product.packaging_price),
-            total_price: parseFloat(product.packaging_price) * packagingQuantity,
+            unit_price: parseFloat(packagingPrice),
+            total_price: parseFloat(packagingPrice) * packagingQuantity,
             status: 'consignation', // Default status
             customer_name: customerInfo.name,
-            customer_phone: customerInfo.phone,
-            sales_unit_id: unit.id, // Track which sales unit this packaging is for
-            sales_unit_name: unit.name,
-            sales_unit_symbol: unit.symbol
+            customer_phone: customerInfo.phone
           };
           return [...currentPackagingCart, newPackagingItem];
         }
@@ -965,7 +1273,7 @@ const PointOfSale = () => {
   };
 
   const updatePackagingQuantityAutomatically = (product, unit, salesQuantity) => {
-    if (!product.has_packaging || !product.packaging_price) {
+    if (!product.packaging) {
       return;
     }
 
@@ -982,16 +1290,23 @@ const PointOfSale = () => {
     }
 
     setPackagingCart(currentPackagingCart => {
-      // Look for existing packaging for the same product (regardless of unit)
-      const existingPackaging = currentPackagingCart.find(item => item.id === product.id);
+      const packagingId = product.packaging;
+      // Look for existing packaging with the same packaging_id (not product_id)
+      const existingPackaging = currentPackagingCart.find(item => item.packaging_id === packagingId);
       
       if (existingPackaging) {
-        // Calculate total packaging quantity from all units of this product in cart
+        // Calculate total packaging quantity from all products with the same packaging in cart
         const totalSalesQuantity = cart
-          .filter(item => item.id === product.id)
+          .filter(item => {
+            const cartProduct = allProducts.find(p => p.id === item.id);
+            return cartProduct && cartProduct.packaging === packagingId;
+          })
           .reduce((sum, item) => {
             // Get unit information for conversion
-            const updatedStockInfo = getUpdatedStockAvailability(product.id);
+            const cartProduct = allProducts.find(p => p.id === item.id);
+            if (!cartProduct) return sum;
+            
+            const updatedStockInfo = getUpdatedStockAvailability(cartProduct.id);
             const unitStockInfo = updatedStockInfo?.find(u => u.id === item.unit_id);
             
             let quantity = item.quantity;
@@ -1004,77 +1319,89 @@ const PointOfSale = () => {
         
         // Update existing packaging quantity to match total sales quantity
         return currentPackagingCart.map(item =>
-          item.id === product.id
+          item.packaging_id === packagingId
             ? { 
                 ...item, 
                 quantity: totalSalesQuantity,
-                total_price: parseFloat(product.packaging_price) * totalSalesQuantity
+                total_price: parseFloat(item.unit_price) * totalSalesQuantity
               }
             : item
         );
       } else {
         // Create new packaging item if it doesn't exist
+        const packagingPrice = product.packaging_price_display || product.packaging_price || 0;
         const newPackagingItem = {
-          ...product,
+          packaging_id: packagingId,
+          packaging_name: product.packaging_name || 'Packaging',
           quantity: packagingQuantity,
-          unit_price: parseFloat(product.packaging_price),
-          total_price: parseFloat(product.packaging_price) * packagingQuantity,
+          unit_price: parseFloat(packagingPrice),
+          total_price: parseFloat(packagingPrice) * packagingQuantity,
           status: 'consignation', // Default status
           customer_name: customerInfo.name,
-          customer_phone: customerInfo.phone,
-          sales_unit_id: unit.id,
-          sales_unit_name: unit.name,
-          sales_unit_symbol: unit.symbol
+          customer_phone: customerInfo.phone
         };
         return [...currentPackagingCart, newPackagingItem];
       }
     });
   };
 
-  const updatePackagingStatus = (productId, status) => {
+  const updatePackagingStatus = (packagingId, status) => {
     setPackagingCart(packagingCart.map(item =>
-      item.id === productId
+      item.packaging_id === packagingId
         ? { ...item, status }
         : item
     ));
   };
 
-  const removeFromPackagingCart = (productId) => {
-    setPackagingCart(packagingCart.filter(item => item.id !== productId));
+  const removeFromPackagingCart = (packagingId) => {
+    setPackagingCart(packagingCart.filter(item => item.packaging_id !== packagingId));
   };
 
-  // Function to recalculate packaging quantities for all products
+  // Function to recalculate packaging quantities - now groups by packaging_id
   const recalculateAllPackagingQuantities = () => {
     setPackagingCart(currentPackagingCart => {
-      return currentPackagingCart.map(packagingItem => {
-        // Find all cart items for this product
-        const productCartItems = cart.filter(item => item.id === packagingItem.id);
-        
-        if (productCartItems.length === 0) {
-          // If product is no longer in cart, remove its packaging
-          return null;
-        }
-        
-        // Calculate total packaging quantity from all units of this product
-        const totalSalesQuantity = productCartItems.reduce((sum, item) => {
-          // Get unit information for conversion
-          const updatedStockInfo = getUpdatedStockAvailability(packagingItem.id);
-          const unitStockInfo = updatedStockInfo?.find(u => u.id === item.unit_id);
+      // Group cart items by packaging_id
+      const packagingGroups = {};
+      
+      cart.forEach(cartItem => {
+        const cartProduct = allProducts.find(p => p.id === cartItem.id);
+        if (cartProduct && cartProduct.packaging) {
+          const packagingId = cartProduct.packaging;
           
-          let quantity = item.quantity;
+          if (!packagingGroups[packagingId]) {
+            packagingGroups[packagingId] = {
+              packaging_id: packagingId,
+              packaging_name: cartProduct.packaging_name || 'Packaging',
+              unit_price: parseFloat(cartProduct.packaging_price_display || cartProduct.packaging_price || 0),
+              quantity: 0
+            };
+          }
+          
+          // Get unit information for conversion
+          const updatedStockInfo = getUpdatedStockAvailability(cartProduct.id);
+          const unitStockInfo = updatedStockInfo?.find(u => u.id === cartItem.unit_id);
+          
+          let quantity = cartItem.quantity;
           // Convert to base unit (pieces) if needed
           if (unitStockInfo && !unitStockInfo.is_base_unit && unitStockInfo.conversion_factor) {
-            quantity = item.quantity * unitStockInfo.conversion_factor;
+            quantity = cartItem.quantity * unitStockInfo.conversion_factor;
           }
-          return sum + quantity;
-        }, 0);
-        
+          
+          packagingGroups[packagingId].quantity += quantity;
+        }
+      });
+      
+      // Convert groups to array and preserve status/customer info from existing items
+      return Object.values(packagingGroups).map(group => {
+        const existingItem = currentPackagingCart.find(item => item.packaging_id === group.packaging_id);
         return {
-          ...packagingItem,
-          quantity: totalSalesQuantity,
-          total_price: parseFloat(packagingItem.unit_price) * totalSalesQuantity
+          ...group,
+          total_price: group.unit_price * group.quantity,
+          status: existingItem?.status || 'consignation',
+          customer_name: existingItem?.customer_name || customerInfo.name,
+          customer_phone: existingItem?.customer_phone || customerInfo.phone
         };
-      }).filter(item => item !== null); // Remove null items
+      });
     });
   };
 
@@ -1122,7 +1449,7 @@ const PointOfSale = () => {
 
   // Prepare print data for printing
   const preparePrintData = (saleNumber, saleStatus = 'completed') => {
-    const total = calculateSubtotal();
+    const subtotal = calculateSubtotal();
     
     // Calculate packaging total only for "consignation" items
     const packagingTotal = packagingCart.reduce((total, item) => {
@@ -1132,12 +1459,12 @@ const PointOfSale = () => {
       return total;
     }, 0);
     
-    const grandTotal = total + packagingTotal;
+    const grandTotal = subtotal + packagingTotal;
     const remaining = grandTotal - paidAmount;
     
     return {
       sale_number: saleNumber,
-      customer_name: customerInfo.name || 'Walk-in Customer',
+      customer_name: customerInfo.name || t('customer.walk_in'),
       customer_phone: customerInfo.phone || '',
       customer_email: customerInfo.email || '',
       user_name: user?.username || 'Unknown User',
@@ -1146,7 +1473,8 @@ const PointOfSale = () => {
       print_timestamp: new Date().toISOString(),
       print_id: `PRINT-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
       status: saleStatus,
-      total_amount: total,
+      subtotal : subtotal,
+      total_amount: grandTotal,
       packaging_total: packagingTotal,
       grand_total: grandTotal,
       paid_amount: paidAmount,
@@ -1162,10 +1490,10 @@ const PointOfSale = () => {
         total_price: item.unit_price * item.quantity
       })),
       packaging_items: packagingCart.map(item => ({
-        product_name: item.name,
+        packaging_name: item.packaging_name || 'Packaging',
         quantity: item.quantity,
         unit_price: item.unit_price,
-        total_price: item.total_price,
+        total_price: item.total_price || (item.quantity * item.unit_price),
         status: item.status
       }))
     };
@@ -1225,10 +1553,8 @@ const PointOfSale = () => {
           };
         }),
         packaging_items: packagingCart.map(item => ({
-          product: item.id,
+          packaging: item.packaging_id, // Use packaging_id instead of product
           quantity: parseFloat(item.quantity),
-          unit: 7, // Use the correct piece unit ID (7) for packaging
-          unit_price: parseFloat(item.unit_price),
           status: item.status || 'consignation',
           customer_name: item.customer_name || customerInfo.name,
           customer_phone: item.customer_phone || customerInfo.phone,
@@ -1244,8 +1570,7 @@ const PointOfSale = () => {
       if (saleMode === 'complete') {
         // Complete the sale immediately
         try {
-          const completionResponse = await api.post(`/api/sales/${saleId}/complete/`);
-          
+          const completionResponse = await api.post(`/api/sales/${saleId}/complete/`);          
           // Auto-print the receipt after successful sale completion (only if printReceipt is true)
           if (printReceipt) {
             // Use the improved printing logic for completed sale
@@ -1261,6 +1586,7 @@ const PointOfSale = () => {
       
           // Reset price mode to standard after sale
           setPriceMode('standard');
+          clearActiveDraftStorage();
           
           // Wait a moment for the backend to process stock movements
           await new Promise(resolve => setTimeout(resolve, 500)); // Wait 1 second
@@ -1298,6 +1624,7 @@ const PointOfSale = () => {
           await refetchProducts();
           await new Promise(resolve => setTimeout(resolve, 250));
           refreshStockAvailability();
+          clearActiveDraftStorage();
         }
       } else {
         // Create pending sale (don't complete it)
@@ -1317,6 +1644,7 @@ const PointOfSale = () => {
         
         // Reset price mode to standard after sale
         setPriceMode('standard');
+        clearActiveDraftStorage();
         
         alert(`Pending sale created successfully! Sale Number: ${saleNumber}`);
       }
@@ -1342,6 +1670,7 @@ const PointOfSale = () => {
     setCart([]);
     setPackagingCart([]);
     setError('');
+    clearActiveDraftStorage();
   };
 
   const handleFilterChange = useCallback((filterType, value) => {
@@ -1532,6 +1861,52 @@ const PointOfSale = () => {
           <span>Cashier: {user?.username}</span>
         </div>
       </div>
+
+      <div className="pos-draft-actions" style={{
+        display: 'flex',
+        flexWrap: 'wrap',
+        gap: '0.75rem',
+        marginBottom: '0.75rem'
+      }}>
+        <Button
+          variant="primary"
+          size="small"
+          onClick={handleSaveCurrentAsDraft}
+        >
+          Save Draft
+        </Button>
+        <Button
+          variant="outline"
+          size="small"
+          onClick={() => setShowDraftsModal(true)}
+        >
+          Manage Drafts ({savedDrafts.length})
+        </Button>
+      </div>
+
+      {draftInfo.hasDraft && (
+        <div className="pos-draft-banner" style={{
+          backgroundColor: '#fef9c3',
+          border: '1px solid #fcd34d',
+          borderRadius: '0.5rem',
+          padding: '0.75rem 1rem',
+          marginBottom: '1rem',
+          display: 'flex',
+          flexWrap: 'wrap',
+          justifyContent: 'space-between',
+          gap: '0.5rem'
+        }}>
+          <div>
+            <strong>Draft sale in progress</strong>
+            {draftTimestampLabel && (
+              <span style={{ marginLeft: '0.5rem', fontSize: '0.875rem', color: '#92400e' }}>
+                Last saved: {draftTimestampLabel}
+              </span>
+            )}
+          </div>
+
+        </div>
+      )}
 
       <div className="pos-content">
         {/* Product Grid */}
@@ -1894,10 +2269,10 @@ const PointOfSale = () => {
                   )}
                   
                   {/* Packaging Info - Show for products with packaging */}
-                  {product.has_packaging && product.packaging_price && (
+                  {product.packaging_name && (
                     <div className="packaging-info">
                       <small className="packaging-price">
-                        Packaging: {formatCurrency(product.packaging_price)} (Auto-added)
+                        Packaging: {product.packaging_name} - {formatCurrency(product.packaging_price_display || product.packaging_price || 0)} (Auto-added)
                       </small>
                     </div>
                   )}
@@ -2069,15 +2444,10 @@ const PointOfSale = () => {
                       <h4>Packaging Items (Auto-calculated)</h4>
                     </div>
                     {packagingCart.map(item => (
-                      <div key={`packaging-${item.id}`} className="cart-item packaging-item">
+                      <div key={`packaging-${item.packaging_id}`} className="cart-item packaging-item">
                         <div className="item-product">
-                          <h4>{item.name} (Packaging)</h4>
-                          <p className="item-sku">SKU: {item.sku}</p>
-                          {item.sales_unit_name && (
-                            <p className="packaging-source">
-                              From: {item.quantity} {item.sales_unit_symbol || 'piece'}
-                            </p>
-                          )}
+                          <h4>{item.packaging_name || 'Packaging'}</h4>
+                          <p className="item-sku">Packaging Type</p>
                         </div>
                         <div className="item-unit">
                           piece
@@ -2094,7 +2464,7 @@ const PointOfSale = () => {
                         <div className="item-status">
                           <select
                             value={item.status}
-                            onChange={(e) => updatePackagingStatus(item.id, e.target.value)}
+                            onChange={(e) => updatePackagingStatus(item.packaging_id, e.target.value)}
                             className="packaging-status-select"
                           >
                             <option value="consignation">Consigned (Paid)</option>
@@ -2103,13 +2473,13 @@ const PointOfSale = () => {
                           </select>
                         </div>
                         <div className="item-total">
-                          {formatCurrency(item.quantity * item.unit_price)}
+                          {formatCurrency(item.total_price || (item.quantity * item.unit_price))}
                         </div>
                         <div className="item-actions">
                           <Button
                             size="small"
                             variant="danger"
-                            onClick={() => removeFromPackagingCart(item.id)}
+                            onClick={() => removeFromPackagingCart(item.packaging_id)}
                             title="Remove packaging item"
                           >
                             ×
@@ -2279,6 +2649,93 @@ const PointOfSale = () => {
           )}
         </div>
       </div>
+
+      {showDraftsModal && (
+        <div
+          className="drafts-modal-backdrop"
+          style={{
+            position: 'fixed',
+            inset: 0,
+            backgroundColor: 'rgba(0,0,0,0.4)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1000
+          }}
+          onClick={() => setShowDraftsModal(false)}
+        >
+          <div
+            className="drafts-modal"
+            style={{
+              backgroundColor: 'white',
+              borderRadius: '0.75rem',
+              width: 'min(90vw, 600px)',
+              maxHeight: '80vh',
+              overflowY: 'auto',
+              padding: '1.5rem',
+              boxShadow: '0 10px 25px rgba(0,0,0,0.2)'
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+              <h3 style={{ margin: 0 }}>Saved Drafts</h3>
+              <button
+                onClick={() => setShowDraftsModal(false)}
+                style={{
+                  background: 'transparent',
+                  border: 'none',
+                  fontSize: '1.25rem',
+                  cursor: 'pointer'
+                }}
+              >
+                ×
+              </button>
+            </div>
+            {savedDrafts.length === 0 ? (
+              <p style={{ marginBottom: 0 }}>No saved drafts yet. Use "Save Draft" to store the current sale.</p>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                {savedDrafts.map(draft => (
+                  <div
+                    key={draft.id}
+                    style={{
+                      border: '1px solid #e5e7eb',
+                      borderRadius: '0.5rem',
+                      padding: '0.75rem',
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      gap: '0.5rem'
+                    }}
+                  >
+                    <div>
+                      <strong>{draft.name}</strong>
+                      <div style={{ fontSize: '0.85rem', color: '#6b7280' }}>
+                        Saved: {new Date(draft.savedAt).toLocaleString()}
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', gap: '0.5rem' }}>
+                      <Button
+                        size="small"
+                        onClick={() => handleRestoreSavedDraft(draft.id)}
+                      >
+                        Restore
+                      </Button>
+                      <Button
+                        size="small"
+                        variant="danger"
+                        onClick={() => handleDeleteSavedDraft(draft.id)}
+                      >
+                        Delete
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 };
