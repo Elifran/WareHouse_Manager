@@ -643,24 +643,21 @@ const PointOfSale = () => {
     try {
       setCategoryUpdating(true);
       
-      // Create a sellable status object with all categories set to true
-      const allSellableStatus = {};
-      categoriesRef.current.forEach(cat => {
-        allSellableStatus[cat.id] = true;
-      });
+      // Clear session storage to reset to database defaults
+      sessionStorage.removeItem('sellableCategories');
       
-      // Save to session storage
-      sessionStorage.setItem('sellableCategories', JSON.stringify(allSellableStatus));
+      // Refetch categories from database (which will use DB defaults since sessionStorage is cleared)
+      const freshCategories = await refetchCategories();
       
-      // Update categories state immediately
-      setCategories(prevCategories => 
-        prevCategories.map(cat => ({ ...cat, is_sellable: true }))
-      );
+      // Update categories state with fresh data from database
+      if (freshCategories.data && freshCategories.data.length > 0) {
+        setCategories(freshCategories.data);
+      }
       
       // Immediately refetch products to apply the new filter
       refetchProducts(); // React Query handles caching
       
-      setSuccess('All categories have been set to sellable');
+      setSuccess('Categories have been reset to database defaults');
       
       // Reset updating state after a short delay
       setTimeout(() => setCategoryUpdating(false), 500);
@@ -669,7 +666,7 @@ const PointOfSale = () => {
       console.error('Category reset error:', err);
       setCategoryUpdating(false);
     }
-  }, [categories]); // Only depend on categories
+  }, [refetchCategories, refetchProducts]); // Depend on refetch functions
 
   const fetchStockAvailability = async (productId) => {
     try {

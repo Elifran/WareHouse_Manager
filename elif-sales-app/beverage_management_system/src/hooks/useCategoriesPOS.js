@@ -39,6 +39,28 @@ const saveCategoriesToCache = (categories) => {
 };
 
 /**
+ * Apply session-based sellable overrides to a categories list
+ */
+const applySessionSellableStatus = (categories) => {
+  if (!categories || categories.length === 0) {
+    return categories;
+  }
+
+  try {
+    const sellableStatus = JSON.parse(sessionStorage.getItem('sellableCategories') || '{}');
+    return categories.map(cat => ({
+      ...cat,
+      is_sellable: Object.prototype.hasOwnProperty.call(sellableStatus, cat.id)
+        ? sellableStatus[cat.id]
+        : cat.is_sellable
+    }));
+  } catch (error) {
+    console.error('Error applying session sellable status:', error);
+    return categories;
+  }
+};
+
+/**
  * Enhanced categories hook for POS with localStorage persistence
  * @returns {Object} Query result with categories data
  */
@@ -46,6 +68,7 @@ export const useCategoriesPOS = () => {
   // Get cached data for initial state
   const cachedCategories = getCachedCategories();
   const hasValidCache = !!cachedCategories;
+  const cachedWithSession = hasValidCache ? applySessionSellableStatus(cachedCategories) : undefined;
   
   return useQuery(
     ['categories-pos'],
@@ -61,7 +84,7 @@ export const useCategoriesPOS = () => {
         }).catch(() => {
           // Ignore errors in background fetch
         });
-        return cached;
+        return applySessionSellableStatus(cached);
       }
       
       // Fetch fresh data
@@ -72,7 +95,7 @@ export const useCategoriesPOS = () => {
         saveCategoriesToCache(categories);
       }
       
-      return categories;
+      return applySessionSellableStatus(categories);
     },
     {
       staleTime: 60 * 60 * 1000, // 1 hour - categories change very rarely
@@ -81,7 +104,7 @@ export const useCategoriesPOS = () => {
       refetchOnMount: !hasValidCache, // Don't refetch on mount if we have valid cache
       refetchOnReconnect: true,
       // Use cached data as initial data if available
-      initialData: hasValidCache ? cachedCategories : undefined,
+      initialData: cachedWithSession,
     }
   );
 };
@@ -92,23 +115,8 @@ export const useCategoriesPOS = () => {
 const fetchFreshCategories = async () => {
   try {
     const response = await api.get('/api/products/categories/');
-    let categoriesData = response.data.results || response.data;
-    
-    // Load session-based sellable status from sessionStorage
-    const sellableStatus = JSON.parse(sessionStorage.getItem('sellableCategories') || '{}');
-    
-    // Apply session-based sellable status
-    categoriesData = categoriesData.map(cat => {
-      const isSellable = sellableStatus.hasOwnProperty(cat.id) 
-        ? sellableStatus[cat.id] 
-        : cat.is_sellable;
-      return {
-        ...cat,
-        is_sellable: isSellable
-      };
-    });
-    
-    return categoriesData;
+    const categoriesData = response.data.results || response.data;
+    return applySessionSellableStatus(categoriesData);
   } catch (error) {
     console.error('Error fetching categories:', error);
     // Return cached data if fetch fails
