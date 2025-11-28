@@ -54,7 +54,6 @@ print_status "  HOST_IP=$HOST_IP"
 # Update Django settings with current IP
 print_status "Updating Django settings with current IP..."
 if [ -f "elif-shared-backend/backend/config/settings.py" ]; then
-    # The settings.py now automatically detects IP, but we can also update ALLOWED_HOSTS
     print_success "Django settings will automatically use current IP: $CURRENT_IP"
 fi
 
