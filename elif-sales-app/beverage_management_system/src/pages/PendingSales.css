@@ -398,6 +398,27 @@
   gap: 0.25rem;
 }
 
+/* Per-item stock status in sale details modal */
+.item-stock-status {
+  margin-top: 0.5rem;
+  font-size: 0.95rem;
+  color: #374151;
+}
+
+.item-stock-status .stock-sufficient {
+  color: #059669;
+  font-weight: 500;
+}
+
+.item-stock-status .stock-insufficient {
+  color: #dc2626;
+  font-weight: 600;
+}
+
+.item-stock-status .stock-unknown {
+  color: #6b7280;
+}
+
 .info-label {
   font-size: 0.875rem;
   color: #6b7280;
@@ -446,7 +467,7 @@
   border-radius: 0.5rem;
   padding: 1.25rem;
   transition: all 0.2s ease;
-  min-height: 80px;
+  /* min-height: 80px; */
   display: flex;
   flex-direction: column;
   justify-content: space-between;
@@ -462,7 +483,7 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 0.75rem;
+  /* margin-bottom: 0.75rem; */
   padding-bottom: 0.5rem;
   border-bottom: 1px solid #e5e7eb;
 }

@@ -96,22 +96,34 @@ const PendingSales = () => {
       // Validate each sale using the bulk stock data
       for (const sale of pendingSales) {
         let hasInsufficientStock = false;
+        const itemStatuses = {};
 
-        for (const item of sale.items || []) {
+        for (let i = 0; i < (sale.items || []).length; i++) {
+          const item = sale.items[i];
           // Backend returns data keyed by product ID (as number or string)
           const productId = item.product;
           const productStock = stockData[productId] || stockData[String(productId)] || stockData[Number(productId)];
-          
+          let availableQty = null;
+
           if (productStock && productStock.available_units) {
             const unitData = productStock.available_units.find(unit => unit.id === item.unit);
-            if (unitData && unitData.available_quantity < item.quantity_display) {
-              hasInsufficientStock = true;
-              break;
+            if (unitData) {
+              availableQty = unitData.available_quantity;
+              if (availableQty < (item.quantity_display || item.quantity || 0)) {
+                hasInsufficientStock = true;
+              }
             }
           }
+
+          // Save per-item status keyed by item index (stable within this sale render)
+          itemStatuses[i] = {
+            sufficient: availableQty === null ? null : (availableQty >= (item.quantity_display || item.quantity || 0)),
+            required: item.quantity_display || item.quantity || 0,
+            available: availableQty
+          };
         }
 
-        validationStatus[sale.id] = { hasInsufficientStock };
+        validationStatus[sale.id] = { hasInsufficientStock, itemStatuses };
       }
 
       setStockValidationStatus(validationStatus);
@@ -671,6 +683,28 @@ const PendingSales = () => {
                           <span className="unit-price">{item.unit_price ? formatCurrency(item.unit_price) : 'N/A'} each</span>
                           <span className="total-price">{item.total_price ? formatCurrency(item.total_price) : 'N/A'}</span>
                         </div>
+                      </div>
+
+                      {/* Per-item stock status (added) */}
+                      <div className="item-stock-status">
+                        {(() => {
+                          const status = stockValidationStatus[selectedSale.id]?.itemStatuses?.[index];
+                          if (!status) {
+                            return <div className="stock-unknown">ℹ️ Availability unknown</div>;
+                          }
+
+                          if (status.sufficient === null) {
+                            return <div className="stock-unknown">ℹ️ Availability unknown</div>;
+                          }
+
+                          if (status.sufficient) {
+                            return <div className="stock-sufficient">✅ ({status.available})</div>;
+                          }
+
+                          return (
+                            <div className="stock-insufficient">⚠️ (rq {status.required}, av {status.available ?? 0})</div>
+                          );
+                        })()}
                       </div>
                     </div>
                   ))}
