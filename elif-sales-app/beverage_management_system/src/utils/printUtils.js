@@ -2073,7 +2073,7 @@ const generateSalesReportContent = (data, t) => {
     ${chartData.length > 0 ? `
       <div class="receipt-section">
         <div class="section-title">DAILY BREAKDOWN</div>
-        ${chartData.slice(0, 10).map(day => {
+        ${chartData.slice(0, 30).reverse().map(day => {
           const dayProfit = (day.total || 0) - (day.cost || 0);
           return `
             <div class="sale-summary" style="margin-bottom: 4px; padding: 2px 0; border-bottom: 1px dotted #ccc;">
@@ -2088,8 +2088,8 @@ const generateSalesReportContent = (data, t) => {
             </div>
           `;
         }).join('')}
-        ${chartData.length > 10 ? `
-          <div class="truncated-warning">... and ${chartData.length - 10} more days</div>
+        ${chartData.length > 30 ? `
+          <div class="truncated-warning">... and ${chartData.length - 30} more days</div>
         ` : ''}
       </div>
     ` : ''}
@@ -2123,7 +2123,7 @@ const generateSalesReportContent = (data, t) => {
     ${details.length > 0 ? `
       <div class="receipt-section">
         <div class="section-title">RECENT SALES (${Math.min(details.length, 5)} of ${details.length})</div>
-        ${details.slice(0, 5).map(sale => `
+        ${details.slice(0, 10).map(sale => `
           <div class="sale-summary" style="margin-bottom: 3px; padding: 2px 0;">
             <div class="sale-info">
               <span>${sale.sale_number || 'N/A'}</span>
@@ -2135,8 +2135,8 @@ const generateSalesReportContent = (data, t) => {
             </div>
           </div>
         `).join('')}
-        ${details.length > 5 ? `
-          <div class="truncated-warning">... and ${details.length - 5} more sales</div>
+        ${details.length > 10 ? `
+          <div class="truncated-warning">... and ${details.length - 10} more sales</div>
         ` : ''}
       </div>
     ` : ''}
