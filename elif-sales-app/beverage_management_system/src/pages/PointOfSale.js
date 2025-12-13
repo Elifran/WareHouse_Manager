@@ -1715,8 +1715,8 @@ const PointOfSale = () => {
     
     // Enforce: minimum 1, at most one digit after decimal
     const isValidFormat = /^\d+(?:\.\d)?$/.test(normalized);
-    if (tempQuantity === '' || isNaN(newQuantity) || newQuantity < 1 || !isValidFormat) {
-      setError('Quantity must be >= 1 and have at most 1 decimal digit');
+    if (tempQuantity === '' || isNaN(newQuantity) || newQuantity < .5 || !isValidFormat) {
+      setError('Quantity must be >= 0.5 and have at most 1 decimal digit');
       setEditingQuantity(null);
       return;
     }
