@@ -2,10 +2,12 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import api from '../services/api';
 import Button from '../components/Button';
+import { useAuth } from '../contexts/AuthContext';
 import './Inventory.css';
 
 const Inventory = () => {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const { user } = useAuth();
   const [products, setProducts] = useState([]);
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -50,6 +52,14 @@ const Inventory = () => {
   const [stockFilter, setStockFilter] = useState('all');
   const [availableUnits, setAvailableUnits] = useState([]);
   const [isMobile, setIsMobile] = useState(false);
+
+  // Price export state
+  const [showPriceExportModal, setShowPriceExportModal] = useState(false);
+  const [priceExportType, setPriceExportType] = useState('standard'); // 'standard' | 'wholesale' | 'both'
+  const [selectedPriceProductIds, setSelectedPriceProductIds] = useState([]);
+  const [isExportingPrices, setIsExportingPrices] = useState(false);
+  const [priceExportSearch, setPriceExportSearch] = useState('');
+  const [priceExportPreviewProducts, setPriceExportPreviewProducts] = useState([]);
 
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
@@ -554,6 +564,300 @@ const Inventory = () => {
     setCurrentPage(1);
   };
 
+  // Only active products should be exportable
+  const exportableProducts = filteredProducts.filter((product) => product.is_active);
+
+  // Price export helpers
+  const handleToggleProductForExport = (productId) => {
+    setSelectedPriceProductIds((prev) =>
+      prev.includes(productId)
+        ? prev.filter((id) => id !== productId)
+        : [...prev, productId]
+    );
+  };
+
+  const handleSelectAllProductsForExport = () => {
+    if (!window.confirm('Are you sure you want to select all products for price export?')) {
+      return;
+    }
+    const allIds = exportableProducts.map((p) => p.id);
+    setSelectedPriceProductIds(allIds);
+  };
+
+  const handleClearSelectedProductsForExport = () => {
+    setSelectedPriceProductIds([]);
+  };
+
+  const buildStandardTableHtml = (productsToExport) => {
+    const tableHeader = `
+        <tr>
+          <th>Product</th>
+          <th>SKU</th>
+          <th>Unit</th>
+          <th>Standard Price 1</th>
+          <th>Standard Price 2</th>
+          <th>Standard Price 3</th>
+          <th>Standard Price 4</th>
+          <th>Standard Price 5</th>
+        </tr>
+      `;
+
+    const tableBody = productsToExport
+      .map((product) => {
+        const prices = product.standard_prices_list || [];
+        const [p1, p2, p3, p4, p5] = [
+          prices[0],
+          prices[1],
+          prices[2],
+          prices[3],
+          prices[4],
+        ];
+        const unitLabel = `${product.base_unit_name || product.base_unit?.name || 'N/A'} (${product.base_unit_symbol || product.base_unit?.symbol || ''})`;
+
+        const fmt = (v) =>
+          v || v === 0
+            ? `${parseFloat(v).toFixed(2)} MGA`
+            : '';
+
+        return `
+            <tr>
+              <td>${product.name || ''}</td>
+              <td>${product.sku || ''}</td>
+              <td>${unitLabel}</td>
+              <td>${fmt(p1)}</td>
+              <td>${fmt(p2)}</td>
+              <td>${fmt(p3)}</td>
+              <td>${fmt(p4)}</td>
+              <td>${fmt(p5)}</td>
+            </tr>
+          `;
+      })
+      .join('');
+
+    return {
+      header: tableHeader,
+      body: tableBody,
+    };
+  };
+
+  const buildWholesaleTableHtml = (productsToExport) => {
+    const tableHeader = `
+        <tr>
+          <th>Product</th>
+          <th>SKU</th>
+          <th>Unit</th>
+          <th>Wholesale Price</th>
+        </tr>
+      `;
+
+    const tableBody = productsToExport
+      .map((product) => {
+        const wholesalePrices = product.available_wholesale_prices || [];
+        if (!wholesalePrices.length) {
+          return `
+              <tr>
+                <td>${product.name || ''}</td>
+                <td>${product.sku || ''}</td>
+                <td>-</td>
+                <td>-</td>
+              </tr>
+            `;
+        }
+
+        return wholesalePrices
+          .map((wp, index) => {
+            const unit = wp.unit || {};
+            const unitLabel = `${unit.name || ''} (${unit.symbol || ''})`;
+            const priceLabel =
+              wp.price || wp.price === 0
+                ? `${parseFloat(wp.price).toFixed(2)} MGA`
+                : '';
+
+            return `
+                <tr>
+                  <td>${index === 0 ? product.name || '' : ''}</td>
+                  <td>${index === 0 ? product.sku || '' : ''}</td>
+                  <td>${unitLabel}</td>
+                  <td>${priceLabel}</td>
+                </tr>
+              `;
+          })
+          .join('');
+      })
+      .join('');
+
+    return {
+      header: tableHeader,
+      body: tableBody,
+    };
+  };
+
+  const buildPriceExportHtml = (productsToExport, type) => {
+    const title =
+      type === 'standard'
+        ? 'Standard Price List'
+        : type === 'wholesale'
+        ? 'Wholesale Price List'
+        : 'Standard & Wholesale Price List';
+    const currentDate = new Date().toLocaleDateString();
+    const currentTime = new Date().toLocaleTimeString();
+    const locale = i18n.language || 'en';
+    const companyName = t('app.title');
+    const createdByLabel = t('common.created_by');
+    const generatedBy =
+      user?.full_name || user?.username || t('app.unknown_user');
+    const noteText = t(
+      'price_export.note',
+      'The prices listed below may change in the future based on market conditions and company policy.'
+    );
+
+    const standardTable = buildStandardTableHtml(productsToExport);
+    const wholesaleTable = buildWholesaleTableHtml(productsToExport);
+
+    return `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8" />
+        <title>${title}</title>
+        <style>
+          body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            color: #333;
+            line-height: 1.4;
+          }
+          h1 {
+            margin-bottom: 4px;
+          }
+          h2 {
+            margin-top: 24px;
+            margin-bottom: 8px;
+            font-size: 16px;
+            color: #2c3e50;
+          }
+          .meta {
+            color: #666;
+            font-size: 12px;
+            margin-bottom: 16px;
+          }
+          .meta span {
+            display: inline-block;
+            margin-right: 12px;
+          }
+          table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+            font-size: 12px;
+          }
+          th, td {
+            border: 1px solid #ddd;
+            padding: 6px 8px;
+            text-align: left;
+          }
+          th {
+            background-color: #f2f2f2;
+            font-weight: bold;
+          }
+          .footer-note {
+            margin-top: 24px;
+            padding-top: 10px;
+            border-top: 1px solid #ddd;
+            font-size: 11px;
+            color: #666;
+          }
+          .footer-note strong {
+            color: #333;
+          }
+        </style>
+      </head>
+      <body>
+        <h1>${companyName}</h1>
+        <div class="meta">
+          <span><strong>${title}</strong></span>
+          <span>${currentDate} - ${currentTime}</span>
+          <span>${createdByLabel}: ${generatedBy}</span>
+          <span>Locale: ${locale}</span>
+        </div>
+        ${
+          type === 'standard' || type === 'both'
+            ? `
+        <h2>Standard Prices</h2>
+        <table>
+          <thead>${standardTable.header}</thead>
+          <tbody>${standardTable.body}</tbody>
+        </table>`
+            : ''
+        }
+        ${
+          type === 'wholesale' || type === 'both'
+            ? `
+        <h2>Wholesale Prices</h2>
+        <table>
+          <thead>${wholesaleTable.header}</thead>
+          <tbody>${wholesaleTable.body}</tbody>
+        </table>`
+            : ''
+        }
+        <div class="footer-note">
+          <strong>${t('common.notes')}:</strong><br/>
+          ${noteText}
+        </div>
+      </body>
+      </html>
+    `;
+  };
+
+  const handlePreparePriceExport = () => {
+    const baseList = exportableProducts;
+    const productsToExport =
+      selectedPriceProductIds.length > 0
+        ? baseList.filter((p) => selectedPriceProductIds.includes(p.id))
+        : baseList;
+
+    if (!productsToExport.length) {
+      alert('No products selected for export.');
+      return;
+    }
+
+    setPriceExportPreviewProducts(productsToExport);
+  };
+
+  const handleExportPrices = () => {
+    if (!priceExportPreviewProducts || priceExportPreviewProducts.length === 0) {
+      alert('Please generate the list of products to export first.');
+      return;
+    }
+
+    setIsExportingPrices(true);
+    try {
+      const html = buildPriceExportHtml(priceExportPreviewProducts, priceExportType);
+      const printWindow = window.open('', '_blank', 'width=900,height=700');
+      if (!printWindow) {
+        throw new Error('Failed to open export window. Please check popup blockers.');
+      }
+      printWindow.document.write(html);
+      printWindow.document.close();
+
+      const doPrint = () => {
+        printWindow.focus();
+        printWindow.print();
+      };
+
+      if (printWindow.document.readyState === 'complete') {
+        doPrint();
+      } else {
+        printWindow.onload = doPrint;
+      }
+    } catch (e) {
+      console.error('Price export error:', e);
+      alert('Failed to export prices. Please try again.');
+    } finally {
+      setIsExportingPrices(false);
+    }
+  };
+
   // Mobile card view component
   const ProductCard = ({ product }) => {
     const defaultUnit = product.compatible_units?.find(cu => cu.is_default);
@@ -669,9 +973,19 @@ const Inventory = () => {
     <div className="inventory">
       <div className="inventory-header">
         <h1>{t('titles.inventory_management')}</h1>
-        <Button onClick={handleAddProduct} size={isMobile ? "small" : "medium"}>
-          Add Product
-        </Button>
+          <div className="inventory-header-actions">
+            <Button onClick={handleAddProduct} size={isMobile ? "small" : "medium"}>
+              Add Product
+            </Button>
+            <Button
+              variant="outline"
+              size={isMobile ? "small" : "medium"}
+              onClick={() => setShowPriceExportModal(true)}
+              style={{ marginLeft: '8px' }}
+            >
+              Export Prices
+            </Button>
+          </div>
       </div>
 
       {error && (
@@ -1458,6 +1772,163 @@ const Inventory = () => {
               >
                 Add Unit
               </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showPriceExportModal && (
+        <div className="modal-overlay">
+          <div className={`modal inventory-modal ${isMobile ? 'mobile-modal' : ''}`}>
+            <div className="modal-header">
+              <h2>Export Prices</h2>
+              <button
+                className="modal-close"
+                onClick={() => setShowPriceExportModal(false)}
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="product-form">
+              <div className={`form-layout ${isMobile ? 'mobile' : 'desktop'}`}>
+                <div className="form-group">
+                  <label htmlFor="price_export_type">Price Type</label>
+                  <select
+                    id="price_export_type"
+                    value={priceExportType}
+                    onChange={(e) => setPriceExportType(e.target.value)}
+                  >
+                    <option value="standard">Standard Prices</option>
+                    <option value="wholesale">Wholesale Prices</option>
+                    <option value="both">Standard & Wholesale</option>
+                  </select>
+                  <small className="form-help">
+                    Choose which type of prices you want to export.
+                  </small>
+                </div>
+
+                <div className="form-group full-width">
+                  <label>Products to Export</label>
+                  <div className="form-help">
+                    Use the search and filters in the inventory screen to narrow the list if needed.
+                    Only the selected products will be included in the export.
+                  </div>
+                  <div className="form-group" style={{ marginTop: '8px' }}>
+                    <label htmlFor="price_export_search">Search (name or SKU)</label>
+                    <input
+                      id="price_export_search"
+                      type="text"
+                      value={priceExportSearch}
+                      onChange={(e) => setPriceExportSearch(e.target.value)}
+                      placeholder="Type keywords to filter products..."
+                    />
+                  </div>
+                  <div className="price-export-actions">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="small"
+                      onClick={handleSelectAllProductsForExport}
+                    >
+                      Select All Products
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="small"
+                      onClick={handleClearSelectedProductsForExport}
+                      style={{ marginLeft: '8px' }}
+                    >
+                      Clear Selection
+                    </Button>
+                  </div>
+
+                  <div className="price-export-products-list">
+                    {exportableProducts.length === 0 ? (
+                      <p>No products available with current filters.</p>
+                    ) : (
+                      (() => {
+                        const keyword = priceExportSearch.toLowerCase();
+                        const visibleProducts = exportableProducts.filter((product) => {
+                          if (!keyword) return true;
+                          const name = (product.name || '').toLowerCase();
+                          const sku = (product.sku || '').toLowerCase();
+                          return name.includes(keyword) || sku.includes(keyword);
+                        });
+                        if (visibleProducts.length === 0) {
+                          return <p>No products match the search keywords.</p>;
+                        }
+                        return (
+                      <table>
+                        <thead>
+                          <tr>
+                            <th style={{ width: '40px' }}>#</th>
+                            <th>Name</th>
+                            <th>SKU</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {visibleProducts.map((product) => (
+                            <tr key={product.id}>
+                              <td>
+                                <input
+                                  type="checkbox"
+                                  checked={selectedPriceProductIds.includes(product.id)}
+                                  onChange={() => handleToggleProductForExport(product.id)}
+                                />
+                              </td>
+                              <td>{product.name}</td>
+                              <td>{product.sku || 'N/A'}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                        );
+                      })()
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <div className="form-actions">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setShowPriceExportModal(false)}
+                >
+                  Close
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={handlePreparePriceExport}
+                  disabled={exportableProducts.length === 0}
+                  style={{ marginLeft: '8px' }}
+                >
+                  Generate
+                </Button>
+                <Button
+                  type="button"
+                  onClick={handleExportPrices}
+                  disabled={isExportingPrices || !priceExportPreviewProducts.length}
+                >
+                  {isExportingPrices ? 'Exporting…' : 'Export as PDF'}
+                </Button>
+              </div>
+
+              {priceExportPreviewProducts.length > 0 && (
+                <div className="price-export-preview">
+                  <h3>Selected products ({priceExportPreviewProducts.length})</h3>
+                  <ul>
+                    {priceExportPreviewProducts.map((product) => (
+                      <li key={product.id}>
+                        {product.name} {product.sku ? `- ${product.sku}` : ''}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
             </div>
           </div>
         </div>

@@ -508,5 +508,8 @@
     "no_pending_deliveries": "No pending deliveries",
     "no_delivery_history": "No delivery history found",
     "no_printers_found": "No printers found"
+  },
+  "price_export": {
+    "note": "The prices listed below may change in the future based on market conditions and company policy."
   }
 }
