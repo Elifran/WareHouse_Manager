@@ -592,7 +592,6 @@ const Inventory = () => {
     const tableHeader = `
         <tr>
           <th>Product</th>
-          <th>SKU</th>
           <th>Unit</th>
           <th>Standard Price 1</th>
           <th>Standard Price 2</th>
@@ -622,7 +621,6 @@ const Inventory = () => {
         return `
             <tr>
               <td>${product.name || ''}</td>
-              <td>${product.sku || ''}</td>
               <td>${unitLabel}</td>
               <td>${fmt(p1)}</td>
               <td>${fmt(p2)}</td>
@@ -644,7 +642,6 @@ const Inventory = () => {
     const tableHeader = `
         <tr>
           <th>Product</th>
-          <th>SKU</th>
           <th>Unit</th>
           <th>Wholesale Price</th>
         </tr>
@@ -657,7 +654,6 @@ const Inventory = () => {
           return `
               <tr>
                 <td>${product.name || ''}</td>
-                <td>${product.sku || ''}</td>
                 <td>-</td>
                 <td>-</td>
               </tr>
@@ -676,8 +672,89 @@ const Inventory = () => {
             return `
                 <tr>
                   <td>${index === 0 ? product.name || '' : ''}</td>
-                  <td>${index === 0 ? product.sku || '' : ''}</td>
                   <td>${unitLabel}</td>
+                  <td>${priceLabel}</td>
+                </tr>
+              `;
+          })
+          .join('');
+      })
+      .join('');
+
+    return {
+      header: tableHeader,
+      body: tableBody,
+    };
+  };
+
+  const buildCombinedTableHtml = (productsToExport) => {
+    // Determine which standard price columns have at least one value
+    let showStd = [false, false, false, false, false];
+    productsToExport.forEach((product) => {
+      const prices = product.standard_prices_list || [];
+      prices.forEach((p, idx) => {
+        if (p || p === 0) {
+          showStd[idx] = true;
+        }
+      });
+    });
+
+    const stdHeaders = showStd
+      .map((show, idx) =>
+        show ? `<th>Standard Price ${idx + 1}</th>` : ''
+      )
+      .join('');
+
+    const tableHeader = `
+        <tr>
+          <th>Product</th>
+          <th>Unit</th>
+          ${stdHeaders}
+          <th>Wholesale Price</th>
+        </tr>
+      `;
+
+    const tableBody = productsToExport
+      .map((product) => {
+        const prices = product.standard_prices_list || [];
+        const wholesalePrices = product.available_wholesale_prices || [];
+
+        const makeStdCells = () =>
+          showStd
+            .map((show, idx) => {
+              if (!show) return '';
+              const v = prices[idx];
+              if (!(v || v === 0)) return '<td></td>';
+              return `<td>${parseFloat(v).toFixed(2)} MGA</td>`;
+            })
+            .join('');
+
+        if (!wholesalePrices.length) {
+          const unitLabel = `${product.base_unit_name || product.base_unit?.name || 'N/A'} (${product.base_unit_symbol || product.base_unit?.symbol || ''})`;
+          return `
+              <tr>
+                <td>${product.name || ''}</td>
+                <td>${unitLabel}</td>
+                ${makeStdCells()}
+                <td>-</td>
+              </tr>
+            `;
+        }
+
+        return wholesalePrices
+          .map((wp, index) => {
+            const unit = wp.unit || {};
+            const unitLabel = `${unit.name || ''} (${unit.symbol || ''})`;
+            const priceLabel =
+              wp.price || wp.price === 0
+                ? `${parseFloat(wp.price).toFixed(2)} MGA`
+                : '';
+
+            return `
+                <tr>
+                  <td>${index === 0 ? product.name || '' : ''}</td>
+                  <td>${unitLabel}</td>
+                  ${index === 0 ? makeStdCells() : showStd.map((show) => (show ? '<td></td>' : '')).join('')}
                   <td>${priceLabel}</td>
                 </tr>
               `;
@@ -702,7 +779,7 @@ const Inventory = () => {
     const currentDate = new Date().toLocaleDateString();
     const currentTime = new Date().toLocaleTimeString();
     const locale = i18n.language || 'en';
-    const companyName = t('app.title');
+    const companyName = t('company.name');
     const createdByLabel = t('common.created_by');
     const generatedBy =
       user?.full_name || user?.username || t('app.unknown_user');
@@ -711,8 +788,15 @@ const Inventory = () => {
       'The prices listed below may change in the future based on market conditions and company policy.'
     );
 
-    const standardTable = buildStandardTableHtml(productsToExport);
-    const wholesaleTable = buildWholesaleTableHtml(productsToExport);
+    const standardTable = type === 'standard' || type === 'both'
+      ? buildStandardTableHtml(productsToExport)
+      : null;
+    const wholesaleTable = type === 'wholesale' || type === 'both'
+      ? buildWholesaleTableHtml(productsToExport)
+      : null;
+    const combinedTable = type === 'both'
+      ? buildCombinedTableHtml(productsToExport)
+      : null;
 
     return `
       <!DOCTYPE html>
@@ -723,23 +807,33 @@ const Inventory = () => {
         <style>
           body {
             font-family: Arial, sans-serif;
-            margin: 20px;
+            margin: 8mm 10mm;
             color: #333;
-            line-height: 1.4;
+            line-height: 1.3;
+            font-size: 10px;
+          }
+          .page {
+            border: 1px solid #ccc;
+            padding: 8mm 8mm 10mm 8mm;
+            box-sizing: border-box;
+            min-height: 240mm;
           }
           h1 {
-            margin-bottom: 4px;
+            margin-bottom: 2px;
+            text-align: center;
+            font-size: 14px;
           }
           h2 {
-            margin-top: 24px;
-            margin-bottom: 8px;
-            font-size: 16px;
+            margin-top: 16px;
+            margin-bottom: 6px;
+            font-size: 12px;
             color: #2c3e50;
           }
           .meta {
             color: #666;
-            font-size: 12px;
-            margin-bottom: 16px;
+            font-size: 9px;
+            margin-bottom: 10px;
+            text-align: center;
           }
           .meta span {
             display: inline-block;
@@ -748,12 +842,12 @@ const Inventory = () => {
           table {
             width: 100%;
             border-collapse: collapse;
-            margin-top: 10px;
-            font-size: 12px;
+            margin-top: 6px;
+            font-size: 9px;
           }
           th, td {
             border: 1px solid #ddd;
-            padding: 6px 8px;
+            padding: 4px 6px;
             text-align: left;
           }
           th {
@@ -761,10 +855,10 @@ const Inventory = () => {
             font-weight: bold;
           }
           .footer-note {
-            margin-top: 24px;
-            padding-top: 10px;
+            margin-top: 16px;
+            padding-top: 8px;
             border-top: 1px solid #ddd;
-            font-size: 11px;
+            font-size: 9px;
             color: #666;
           }
           .footer-note strong {
@@ -773,36 +867,48 @@ const Inventory = () => {
         </style>
       </head>
       <body>
-        <h1>${companyName}</h1>
-        <div class="meta">
-          <span><strong>${title}</strong></span>
-          <span>${currentDate} - ${currentTime}</span>
-          <span>${createdByLabel}: ${generatedBy}</span>
-          <span>Locale: ${locale}</span>
-        </div>
+        <div class="page">
+          <h1>${companyName}</h1>
+          <div class="meta">
+            <span><strong>${title}</strong></span>
+            <span>${currentDate} - ${currentTime}</span>
+            <span>${createdByLabel}: ${generatedBy}</span>
+            <span>Locale: ${locale}</span>
+          </div>
         ${
-          type === 'standard' || type === 'both'
+          type === 'standard'
             ? `
         <h2>Standard Prices</h2>
         <table>
-          <thead>${standardTable.header}</thead>
-          <tbody>${standardTable.body}</tbody>
+          <thead>${standardTable?.header || ''}</thead>
+          <tbody>${standardTable?.body || ''}</tbody>
         </table>`
             : ''
         }
         ${
-          type === 'wholesale' || type === 'both'
+          type === 'wholesale'
             ? `
         <h2>Wholesale Prices</h2>
         <table>
-          <thead>${wholesaleTable.header}</thead>
-          <tbody>${wholesaleTable.body}</tbody>
+          <thead>${wholesaleTable?.header || ''}</thead>
+          <tbody>${wholesaleTable?.body || ''}</tbody>
         </table>`
             : ''
         }
-        <div class="footer-note">
-          <strong>${t('common.notes')}:</strong><br/>
-          ${noteText}
+        ${
+          type === 'both'
+            ? `
+        <h2>Standard & Wholesale Prices</h2>
+        <table>
+          <thead>${combinedTable?.header || ''}</thead>
+          <tbody>${combinedTable?.body || ''}</tbody>
+        </table>`
+            : ''
+        }
+          <div class="footer-note">
+            <strong>${t('common.notes')}:</strong><br/>
+            ${noteText}
+          </div>
         </div>
       </body>
       </html>

@@ -511,5 +511,8 @@
   },
   "price_export": {
     "note": "The prices listed below may change in the future based on market conditions and company policy."
+  },
+  "company": {
+    "name": "______ANTATSIMO______"
   }
 }
