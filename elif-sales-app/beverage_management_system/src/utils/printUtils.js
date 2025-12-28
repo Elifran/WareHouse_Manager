@@ -714,7 +714,7 @@ export const generatePDFContent = (data, title) => {
           <span>Paid:</span>
           <span>${parseFloat(data.paid_amount || 0).toFixed(2)} MGA</span>
         </div>
-        ${data.payment_status === 'partial' ? `
+        ${data.payment_status === 'partial' ||'pending' ? `
           <div class="total-row">
             <span>Due:</span>
             <span>${parseFloat(data.remaining_amount || 0).toFixed(2)} MGA</span>
@@ -1313,7 +1313,7 @@ export const generateXprinterPrintContent = (data, title, type, t) => {
           <span>Paid:</span>
           <span>${parseFloat(data.paid_amount || 0).toFixed(2)} MGA</span>
         </div>
-        ${data.payment_status === 'partial' ? `
+        ${data.payment_status === 'partial' || 'pending' ? `
           <div class="receipt-row">
             <span>Due:</span>
             <span>${parseFloat(data.remaining_amount || 0).toFixed(2)} MGA</span>
@@ -1547,7 +1547,7 @@ export const generateMobilePrintContent = (data, title, type, t) => {
           <span>Paid:</span>
           <span>${parseFloat(data.paid_amount || 0).toFixed(2)} MGA</span>
         </div>
-        ${data.payment_status === 'partial' ? `
+        ${data.payment_status === 'partial' || 'pending' ? `
           <div class="receipt-row">
             <span>Due:</span>
             <span>${parseFloat(data.remaining_amount || 0).toFixed(2)} MGA</span>
@@ -1920,12 +1920,16 @@ const generateSaleContent = (data, t) => {
         <div class="receipt-row">
           <span>Total:</span>
           <span>${parseFloat(data.grand_total || data.total_amount || 0).toFixed(2)} MGA</span>
+        </div>        
+        <div class="receipt-row">
+          <span>----</span>
+          <span>(${5*parseFloat(data.grand_total || data.total_amount || 0).toFixed(0)} fmg)</span> 
         </div>
         <div class="receipt-row">
           <span>Paid:</span>
           <span>${parseFloat(data.paid_amount || 0).toFixed(2)} MGA</span>
         </div>
-        ${data.payment_status === 'partial' ? `
+        ${data.payment_status === 'partial' || 'pending' ? `
           <div class="receipt-row">
             <span>Due:</span>
             <span>${parseFloat(data.remaining_amount || 0).toFixed(2)} MGA</span>
