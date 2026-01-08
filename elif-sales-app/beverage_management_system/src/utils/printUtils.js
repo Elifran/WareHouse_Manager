@@ -665,7 +665,7 @@ export const generatePDFContent = (data, title) => {
       <div class="receipt-header">
         <div class="company-name">______ANTATSIMO______</div>
         <div class="document-title">${title.toUpperCase()}</div>
-        <div class="receipt-date">${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}</div>
+        <div class="receipt-date">${data.created_at ? new Date(data.created_at).toLocaleDateString() + ' ' + new Date(data.created_at).toLocaleTimeString() : new Date().toLocaleDateString() + ' ' + new Date().toLocaleTimeString()}</div>
       </div>
       
       <div class="receipt-section">
@@ -724,7 +724,8 @@ export const generatePDFContent = (data, title) => {
       
       <div class="receipt-footer">
         <div>Thank you for your business!</div>
-        <div>Created by: ${(data.created_by_name || data.sold_by_name || 'N/A')}</div>
+        <div>Created by: ${(data.created_by_name || data.sold_by_name || 'N/A')} -- ${data.created_at ? new Date(data.created_at).toLocaleDateString() + ' ' + new Date(data.created_at).toLocaleTimeString() : 'N/A'}</div>
+        <div>Printed: ${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}</div>
       </div>
     </body>
     </html>
@@ -1246,7 +1247,7 @@ export const generateXprinterPrintContent = (data, title, type, t) => {
         <div class="company-name" style="text-align: center;">________ANTATSIMO_______</div>
         <div class="company-name" style="text-align: center;">${'\u00A0'}</div>
         <div class="document-title" style="text-align: center;">SALE RECEIPT</div>
-        <div class="receipt-date" style="text-align: center;">${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}</div>
+        <div class="receipt-date" style="text-align: center;">${data.created_at ? new Date(data.created_at).toLocaleDateString() + ' ' + new Date(data.created_at).toLocaleTimeString() : new Date().toLocaleDateString() + ' ' + new Date().toLocaleTimeString()}</div>
       </div>
       <div class="receipt-section">
         <div class="no-data">${'\u00A0'}</div>
@@ -1325,7 +1326,8 @@ export const generateXprinterPrintContent = (data, title, type, t) => {
       </div>
       <div class="receipt-footer">
         <div class="thank-you">Thank you!</div>
-        <div class="footer-text" style="text-align: center;">Created by: ${(data.created_by_name || data.sold_by_name || 'N/A')}</div>
+        <div class="footer-text" style="text-align: center;">Created by: ${(data.created_by_name || data.sold_by_name || 'N/A')} -- ${data.created_at ? new Date(data.created_at).toLocaleDateString() + ' ' + new Date(data.created_at).toLocaleTimeString() : 'N/A'}</div>
+        <div class="footer-text" style="text-align: center;">Printed: ${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}</div>
       </div>
     </body>
     </html>
@@ -1479,7 +1481,7 @@ export const generateMobilePrintContent = (data, title, type, t) => {
         <div class="company-name" style="text-align: center;">________ANTATSIMO_______</div>
         <div class="company-name" style="text-align: center;">${'\u00A0'}</div>
         <div class="document-title" style="text-align: center;">SALE RECEIPT</div>
-        <div class="receipt-date" style="text-align: center;">${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}</div>
+        <div class="receipt-date" style="text-align: center;">${data.created_at ? new Date(data.created_at).toLocaleDateString() + ' ' + new Date(data.created_at).toLocaleTimeString() : new Date().toLocaleDateString() + ' ' + new Date().toLocaleTimeString()}</div>
       </div>
       <div class="receipt-section">
         <div class="no-data">${'\u00A0'}</div>
@@ -1559,7 +1561,8 @@ export const generateMobilePrintContent = (data, title, type, t) => {
       </div>
       <div class="receipt-footer">
         <div class="thank-you">Thank you!</div>
-        <div class="footer-text" style="text-align: center;">Created by: ${(data.created_by_name || data.sold_by_name || 'N/A')}</div>
+        <div class="footer-text" style="text-align: center;">Created by: ${(data.created_by_name || data.sold_by_name || 'N/A')} -- ${data.created_at ? new Date(data.created_at).toLocaleDateString() + ' ' + new Date(data.created_at).toLocaleTimeString() : 'N/A'}</div>
+        <div class="footer-text" style="text-align: center;">Printed: ${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}</div>
       </div>
     </body>
     </html>
@@ -1940,7 +1943,8 @@ const generateSaleContent = (data, t) => {
       </div>
       <div class="receipt-footer">
         <div class="thank-you">${t('print.thankings')}</div>
-        <div class="footer-text" style="text-align: center;">${t('common.created_by')}: ${(data.created_by_name || data.sold_by_name || data.user_name || 'N/A')} -- ${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}</div>
+        <div class="footer-text" style="text-align: center;">${t('common.created_by')}: ${(data.created_by_name || data.sold_by_name || data.user_name || 'N/A')} -- ${data.created_at ? new Date(data.created_at).toLocaleDateString() + ' ' + new Date(data.created_at).toLocaleTimeString() : 'N/A'}</div>
+        <div class="footer-text" style="text-align: center;">Printed: ${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}</div>
         <div class="terms">${t('messages.terms_of_sales')}</div>
       </div>
   `;
