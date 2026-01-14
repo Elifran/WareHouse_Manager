@@ -1,0 +1,81 @@
+GIT USING SSH – BASIC COMMANDS
+
+--------------------------------
+CHECK REPOSITORY STATUS (LOCAL CHANGES)
+--------------------------------
+git status
+
+Shows:
+- Modified files
+- New (untracked) files
+- Deleted files
+- Whether your branch is ahead/behind
+
+--------------------------------
+CHECK DIFFERENCES (LOCAL)
+--------------------------------
+See unstaged changes:
+git diff
+
+See staged changes:
+git diff --staged
+
+--------------------------------
+CHECK REMOTE CHANGES (WITHOUT MERGING)
+--------------------------------
+git fetch
+
+After fetch, check status:
+git status
+
+Or see commits not pulled yet:
+git log HEAD..origin/main
+
+--------------------------------
+PULL LATEST CHANGES
+--------------------------------
+git pull
+
+--------------------------------
+ADD & COMMIT CHANGES
+--------------------------------
+git add .
+git commit -m "Your commit message"
+
+--------------------------------
+PUSH CHANGES
+--------------------------------
+git push
+
+--------------------------------
+CHECK REMOTE (SSH)
+--------------------------------
+git remote -v
+
+Expected format:
+git@github.com:username/repository.git
+
+--------------------------------
+TEST SSH CONNECTION
+--------------------------------
+ssh -T git@github.com
+(or git@gitlab.com)
+
+--------------------------------
+COMMON FIXES
+--------------------------------
+
+Permission denied (publickey):
+ssh-add ~/.ssh/id_ed25519
+
+Switch HTTPS remote to SSH:
+git remote set-url origin git@github.com:username/repository.git
+
+--------------------------------
+SUMMARY
+--------------------------------
+- git status → check local changes
+- git diff → see what changed
+- git fetch → check remote updates
+- git pull → update local branch
+- SSH enables password-less access
