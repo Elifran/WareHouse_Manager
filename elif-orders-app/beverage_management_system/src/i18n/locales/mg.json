@@ -499,5 +499,8 @@
     "no_pending_deliveries": "Tsy misy fandefasana miandry",
     "no_delivery_history": "Tsy hita tantara fandefasana",
     "no_printers_found": "Tsy hita mpanonta"
+  },
+  "company": {
+    "name": "______ANTATSIMO______"
   }
 }

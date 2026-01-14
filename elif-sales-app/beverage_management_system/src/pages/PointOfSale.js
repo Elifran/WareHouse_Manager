@@ -70,6 +70,12 @@ const PointOfSale = () => {
   const [showDraftsModal, setShowDraftsModal] = useState(false);
   const draftRestoreInProgressRef = useRef(false);
   const draftSaveTimeoutRef = useRef(null);
+  const [showSavedSalesModal, setShowSavedSalesModal] = useState(false);
+  const [salesSearchTerm, setSalesSearchTerm] = useState('');
+  const [salesSearchResults, setSalesSearchResults] = useState([]);
+  const [salesSearchLoading, setSalesSearchLoading] = useState(false);
+  const [salesSearchError, setSalesSearchError] = useState('');
+  const [importingSaleId, setImportingSaleId] = useState(null);
 
   // React Query hooks for data fetching with enhanced caching (localStorage persistence)
   const { data: categoriesData = [], isLoading: categoriesLoading, refetch: refetchCategories } = useCategoriesPOS();
@@ -398,6 +404,125 @@ const PointOfSale = () => {
     persistSavedDrafts(updated);
   }, [savedDrafts, persistSavedDrafts]);
 
+  const fetchSavedSales = useCallback(async (query = '') => {
+    setSalesSearchLoading(true);
+    setSalesSearchError('');
+    try {
+      const params = new URLSearchParams();
+      params.append('page', '1');
+      params.append('page_size', '15');
+      params.append('status', 'completed');
+      if (query) {
+        params.append('search', query);
+        params.append('sale_number', query);
+      }
+
+      const response = await api.get(`/api/sales/?${params.toString()}`);
+      const salesData = response.data.results || response.data;
+      setSalesSearchResults(Array.isArray(salesData) ? salesData : []);
+    } catch (err) {
+      console.error('Failed to search saved sales:', err);
+      setSalesSearchError('Could not search saved sales. Please try again.');
+    } finally {
+      setSalesSearchLoading(false);
+    }
+  }, []);
+
+  const mapSaleItemToCartItem = useCallback((saleItem) => {
+    const productId = saleItem.product || saleItem.product_id || saleItem.id;
+    const product =
+      allProducts.find(p => p.id === productId) ||
+      products.find(p => p.id === productId);
+
+    const unitId = saleItem.unit || saleItem.unit_id || saleItem.unit?.id;
+    const unitFromProduct = product?.available_units?.find(u => u.id === unitId);
+    const unitSymbol = unitFromProduct?.symbol ||
+      product?.base_unit?.symbol ||
+      saleItem.unit_symbol ||
+      saleItem.unit_name ||
+      'unit';
+    const quantityValue = parseFloat(
+      saleItem.quantity_display ?? saleItem.quantity ?? 0
+    ) || 0;
+
+    return {
+      ...(product || {}),
+      id: productId,
+      name: product?.name || saleItem.product_name || 'Product',
+      sku: product?.sku || saleItem.product_sku || '',
+      quantity: quantityValue,
+      unit_id: unitId,
+      unit_name: saleItem.unit_name || unitFromProduct?.name || unitSymbol,
+      unit_symbol: unitSymbol,
+      unit_price: parseFloat(saleItem.unit_price || saleItem.price || 0) || 0,
+      price_mode: saleItem.price_mode || 'standard'
+    };
+  }, [allProducts, products]);
+
+  const handleImportSaleIntoPOS = useCallback(async (saleId) => {
+    if (cart.length > 0 || packagingCart.length > 0) {
+      setSalesSearchError('Clear the POS items before copying a saved sale.');
+      return;
+    }
+
+    setImportingSaleId(saleId);
+    setSalesSearchError('');
+
+    try {
+      const response = await api.get(`/api/sales/${saleId}/`);
+      const sale = response.data;
+
+      const mappedCart = (sale.items || [])
+        .map(mapSaleItemToCartItem)
+        .filter(item => item.quantity > 0);
+
+      if (mappedCart.length === 0) {
+        setSalesSearchError('Selected sale has no items to copy.');
+        return;
+      }
+
+      setCart(mappedCart);
+      setPackagingCart([]);
+      setCustomerInfo({
+        name: sale.customer_name || '',
+        phone: sale.customer_phone || '',
+        email: sale.customer_email || ''
+      });
+      setPaymentMethod(sale.payment_method || 'cash');
+
+      const totalAmount = parseFloat(sale.total_amount || sale.subtotal || 0) || 0;
+      const paid = parseFloat(sale.paid_amount || 0) || 0;
+      if (paid > 0 && paid < totalAmount) {
+        setPaymentType('partial');
+        setPaidAmount(paid);
+      } else {
+        setPaymentType('full');
+        setPaidAmount(totalAmount || 0);
+      }
+
+      setSaleMode(sale.status === 'pending' ? 'pending' : 'complete');
+      setShowSavedSalesModal(false);
+      setSuccess('Sale copied into POS. Review items before completing.');
+      setError('');
+    } catch (err) {
+      console.error('Failed to import sale into POS:', err);
+      setSalesSearchError('Failed to load sale details. Please try again.');
+    } finally {
+      setImportingSaleId(null);
+    }
+  }, [
+    cart.length,
+    packagingCart.length,
+    mapSaleItemToCartItem,
+    setCart,
+    setPackagingCart,
+    setCustomerInfo,
+    setPaymentMethod,
+    setPaymentType,
+    setPaidAmount,
+    setSaleMode
+  ]);
+
   useEffect(() => {
     restoreDraftFromStorage({ silent: true });
     
@@ -411,6 +536,12 @@ const PointOfSale = () => {
   useEffect(() => {
     loadSavedDraftsFromStorage();
   }, [loadSavedDraftsFromStorage]);
+
+  useEffect(() => {
+    if (showSavedSalesModal && salesSearchResults.length === 0 && !salesSearchLoading) {
+      fetchSavedSales();
+    }
+  }, [showSavedSalesModal, salesSearchResults.length, salesSearchLoading, fetchSavedSales]);
 
   // Update allProducts when sellableProducts change
   useEffect(() => {
@@ -1715,8 +1846,8 @@ const PointOfSale = () => {
     
     // Enforce: minimum 1, at most one digit after decimal
     const isValidFormat = /^\d+(?:\.\d)?$/.test(normalized);
-    if (tempQuantity === '' || isNaN(newQuantity) || newQuantity < 1 || !isValidFormat) {
-      setError('Quantity must be >= 1 and have at most 1 decimal digit');
+    if (tempQuantity === '' || isNaN(newQuantity) || newQuantity < .5 || !isValidFormat) {
+      setError('Quantity must be >= 0.5 and have at most 1 decimal digit');
       setEditingQuantity(null);
       return;
     }
@@ -1881,6 +2012,16 @@ const PointOfSale = () => {
           onClick={() => setShowDraftsModal(true)}
         >
           Manage Drafts ({savedDrafts.length})
+        </Button>
+        <Button
+          variant="secondary"
+          size="small"
+          onClick={() => {
+            setSalesSearchError('');
+            setShowSavedSalesModal(true);
+          }}
+        >
+          Copy Saved Sale
         </Button>
       </div>
 
@@ -2527,6 +2668,7 @@ const PointOfSale = () => {
                 <div className="summary-row total">
                   <span>Total (Products Only):</span>
                   <span>{formatCurrency(calculateTotal())}</span>
+                  <span>{parseFloat(calculateTotal()*5)}(fmg)</span>
                 </div>
               </div>
 
@@ -2649,6 +2791,164 @@ const PointOfSale = () => {
           )}
         </div>
       </div>
+
+      {showSavedSalesModal && (
+        <div
+          className="drafts-modal-backdrop"
+          style={{
+            position: 'fixed',
+            inset: 0,
+            backgroundColor: 'rgba(0,0,0,0.4)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1000
+          }}
+          onClick={() => setShowSavedSalesModal(false)}
+        >
+          <div
+            className="drafts-modal"
+            style={{
+              backgroundColor: 'white',
+              borderRadius: '0.75rem',
+              width: 'min(95vw, 720px)',
+              maxHeight: '85vh',
+              overflowY: 'auto',
+              padding: '1.5rem',
+              boxShadow: '0 10px 25px rgba(0,0,0,0.2)'
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+              <h3 style={{ margin: 0 }}>Copy a Saved Sale</h3>
+              <button
+                onClick={() => setShowSavedSalesModal(false)}
+                style={{
+                  background: 'transparent',
+                  border: 'none',
+                  fontSize: '1.25rem',
+                  cursor: 'pointer'
+                }}
+              >
+                ×
+              </button>
+            </div>
+
+            <p style={{ marginTop: 0, marginBottom: '0.75rem', color: '#374151' }}>
+              Search a saved sale and copy its items into POS. This action is available only when the cart is empty.
+            </p>
+
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                fetchSavedSales(salesSearchTerm.trim());
+              }}
+              style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}
+            >
+              <input
+                type="text"
+                placeholder="Sale number or customer name"
+                value={salesSearchTerm}
+                onChange={(e) => setSalesSearchTerm(e.target.value)}
+                style={{
+                  flex: 1,
+                  minWidth: '240px',
+                  padding: '0.55rem 0.75rem',
+                  borderRadius: '0.5rem',
+                  border: '1px solid #d1d5db'
+                }}
+              />
+              <div style={{ display: 'flex', gap: '0.5rem' }}>
+                <Button
+                  type="submit"
+                  size="small"
+                  variant="primary"
+                  loading={salesSearchLoading}
+                >
+                  Search
+                </Button>
+                <Button
+                  type="button"
+                  size="small"
+                  variant="outline"
+                  onClick={() => {
+                    setSalesSearchTerm('');
+                    fetchSavedSales('');
+                  }}
+                  disabled={salesSearchLoading}
+                >
+                  Reset
+                </Button>
+              </div>
+            </form>
+
+            {salesSearchError && (
+              <div className="error-message" style={{ marginTop: '0.75rem' }}>
+                {salesSearchError}
+              </div>
+            )}
+
+            {salesSearchLoading ? (
+              <p style={{ marginTop: '0.75rem' }}>Searching sales...</p>
+            ) : (
+              <div style={{ marginTop: '0.75rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                {salesSearchResults.length === 0 ? (
+                  <p style={{ marginBottom: 0 }}>No sales found. Try a different search.</p>
+                ) : (
+                  salesSearchResults.map((sale) => {
+                    const saleDateLabel = sale.created_at
+                      ? new Date(sale.created_at).toLocaleString()
+                      : '—';
+                    const cartNotEmpty = cart.length > 0 || packagingCart.length > 0;
+                    return (
+                      <div
+                        key={sale.id}
+                        style={{
+                          border: '1px solid #e5e7eb',
+                          borderRadius: '0.5rem',
+                          padding: '0.75rem',
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          gap: '0.5rem'
+                        }}
+                      >
+                        <div style={{ minWidth: 0 }}>
+                          <div style={{ display: 'flex', gap: '0.35rem', alignItems: 'center', flexWrap: 'wrap' }}>
+                            <strong>{sale.sale_number || `Sale #${sale.id}`}</strong>
+                            <span style={{ fontSize: '0.85rem', color: '#4b5563' }}>
+                              {saleDateLabel}
+                            </span>
+                          </div>
+                          <div style={{ fontSize: '0.95rem', color: '#111827' }}>
+                            {sale.customer_name || 'Walk-in Customer'}
+                          </div>
+                          <div style={{ fontSize: '0.9rem', color: '#6b7280' }}>
+                            Total: {formatCurrency(sale.total_amount || sale.subtotal || 0)}
+                          </div>
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.35rem' }}>
+                          <Button
+                            size="small"
+                            variant="primary"
+                            onClick={() => handleImportSaleIntoPOS(sale.id)}
+                            disabled={cartNotEmpty}
+                            loading={importingSaleId === sale.id}
+                          >
+                            Copy to POS
+                          </Button>
+                          {cartNotEmpty && (
+                            <small style={{ color: '#b91c1c' }}>Clear POS items first</small>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {showDraftsModal && (
         <div

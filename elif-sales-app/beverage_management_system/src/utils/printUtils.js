@@ -665,7 +665,7 @@ export const generatePDFContent = (data, title) => {
       <div class="receipt-header">
         <div class="company-name">______ANTATSIMO______</div>
         <div class="document-title">${title.toUpperCase()}</div>
-        <div class="receipt-date">${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}</div>
+        <div class="receipt-date">${data.created_at ? new Date(data.created_at).toLocaleDateString() + ' ' + new Date(data.created_at).toLocaleTimeString() : new Date().toLocaleDateString() + ' ' + new Date().toLocaleTimeString()}</div>
       </div>
       
       <div class="receipt-section">
@@ -714,7 +714,7 @@ export const generatePDFContent = (data, title) => {
           <span>Paid:</span>
           <span>${parseFloat(data.paid_amount || 0).toFixed(2)} MGA</span>
         </div>
-        ${data.payment_status === 'partial' ? `
+        ${data.payment_status === 'partial' ||'pending' ? `
           <div class="total-row">
             <span>Due:</span>
             <span>${parseFloat(data.remaining_amount || 0).toFixed(2)} MGA</span>
@@ -724,7 +724,8 @@ export const generatePDFContent = (data, title) => {
       
       <div class="receipt-footer">
         <div>Thank you for your business!</div>
-        <div>Created by: ${(data.created_by_name || data.sold_by_name || 'N/A')}</div>
+        <div>Created by: ${(data.created_by_name || data.sold_by_name || 'N/A')} -- ${data.created_at ? new Date(data.created_at).toLocaleDateString() + ' ' + new Date(data.created_at).toLocaleTimeString() : 'N/A'}</div>
+        <div>Printed: ${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}</div>
       </div>
     </body>
     </html>
@@ -1246,7 +1247,7 @@ export const generateXprinterPrintContent = (data, title, type, t) => {
         <div class="company-name" style="text-align: center;">________ANTATSIMO_______</div>
         <div class="company-name" style="text-align: center;">${'\u00A0'}</div>
         <div class="document-title" style="text-align: center;">SALE RECEIPT</div>
-        <div class="receipt-date" style="text-align: center;">${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}</div>
+        <div class="receipt-date" style="text-align: center;">${data.created_at ? new Date(data.created_at).toLocaleDateString() + ' ' + new Date(data.created_at).toLocaleTimeString() : new Date().toLocaleDateString() + ' ' + new Date().toLocaleTimeString()}</div>
       </div>
       <div class="receipt-section">
         <div class="no-data">${'\u00A0'}</div>
@@ -1313,7 +1314,7 @@ export const generateXprinterPrintContent = (data, title, type, t) => {
           <span>Paid:</span>
           <span>${parseFloat(data.paid_amount || 0).toFixed(2)} MGA</span>
         </div>
-        ${data.payment_status === 'partial' ? `
+        ${data.payment_status === 'partial' || 'pending' ? `
           <div class="receipt-row">
             <span>Due:</span>
             <span>${parseFloat(data.remaining_amount || 0).toFixed(2)} MGA</span>
@@ -1325,7 +1326,8 @@ export const generateXprinterPrintContent = (data, title, type, t) => {
       </div>
       <div class="receipt-footer">
         <div class="thank-you">Thank you!</div>
-        <div class="footer-text" style="text-align: center;">Created by: ${(data.created_by_name || data.sold_by_name || 'N/A')}</div>
+        <div class="footer-text" style="text-align: center;">Created by: ${(data.created_by_name || data.sold_by_name || 'N/A')} -- ${data.created_at ? new Date(data.created_at).toLocaleDateString() + ' ' + new Date(data.created_at).toLocaleTimeString() : 'N/A'}</div>
+        <div class="footer-text" style="text-align: center;">Printed: ${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}</div>
       </div>
     </body>
     </html>
@@ -1479,7 +1481,7 @@ export const generateMobilePrintContent = (data, title, type, t) => {
         <div class="company-name" style="text-align: center;">________ANTATSIMO_______</div>
         <div class="company-name" style="text-align: center;">${'\u00A0'}</div>
         <div class="document-title" style="text-align: center;">SALE RECEIPT</div>
-        <div class="receipt-date" style="text-align: center;">${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}</div>
+        <div class="receipt-date" style="text-align: center;">${data.created_at ? new Date(data.created_at).toLocaleDateString() + ' ' + new Date(data.created_at).toLocaleTimeString() : new Date().toLocaleDateString() + ' ' + new Date().toLocaleTimeString()}</div>
       </div>
       <div class="receipt-section">
         <div class="no-data">${'\u00A0'}</div>
@@ -1547,7 +1549,7 @@ export const generateMobilePrintContent = (data, title, type, t) => {
           <span>Paid:</span>
           <span>${parseFloat(data.paid_amount || 0).toFixed(2)} MGA</span>
         </div>
-        ${data.payment_status === 'partial' ? `
+        ${data.payment_status === 'partial' || 'pending' ? `
           <div class="receipt-row">
             <span>Due:</span>
             <span>${parseFloat(data.remaining_amount || 0).toFixed(2)} MGA</span>
@@ -1559,7 +1561,8 @@ export const generateMobilePrintContent = (data, title, type, t) => {
       </div>
       <div class="receipt-footer">
         <div class="thank-you">Thank you!</div>
-        <div class="footer-text" style="text-align: center;">Created by: ${(data.created_by_name || data.sold_by_name || 'N/A')}</div>
+        <div class="footer-text" style="text-align: center;">Created by: ${(data.created_by_name || data.sold_by_name || 'N/A')} -- ${data.created_at ? new Date(data.created_at).toLocaleDateString() + ' ' + new Date(data.created_at).toLocaleTimeString() : 'N/A'}</div>
+        <div class="footer-text" style="text-align: center;">Printed: ${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}</div>
       </div>
     </body>
     </html>
@@ -1920,12 +1923,16 @@ const generateSaleContent = (data, t) => {
         <div class="receipt-row">
           <span>Total:</span>
           <span>${parseFloat(data.grand_total || data.total_amount || 0).toFixed(2)} MGA</span>
+        </div>        
+        <div class="receipt-row">
+          <span>----</span>
+          <span>(${5*parseFloat(data.grand_total || data.total_amount || 0).toFixed(0)} fmg)</span> 
         </div>
         <div class="receipt-row">
           <span>Paid:</span>
           <span>${parseFloat(data.paid_amount || 0).toFixed(2)} MGA</span>
         </div>
-        ${data.payment_status === 'partial' ? `
+        ${data.payment_status === 'partial' || 'pending' ? `
           <div class="receipt-row">
             <span>Due:</span>
             <span>${parseFloat(data.remaining_amount || 0).toFixed(2)} MGA</span>
@@ -1936,7 +1943,8 @@ const generateSaleContent = (data, t) => {
       </div>
       <div class="receipt-footer">
         <div class="thank-you">${t('print.thankings')}</div>
-        <div class="footer-text" style="text-align: center;">${t('common.created_by')}: ${(data.created_by_name || data.sold_by_name || data.user_name || 'N/A')} -- ${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}</div>
+        <div class="footer-text" style="text-align: center;">${t('common.created_by')}: ${(data.created_by_name || data.sold_by_name || data.user_name || 'N/A')} -- ${data.created_at ? new Date(data.created_at).toLocaleDateString() + ' ' + new Date(data.created_at).toLocaleTimeString() : 'N/A'}</div>
+        <div class="footer-text" style="text-align: center;">Printed: ${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}</div>
         <div class="terms">${t('messages.terms_of_sales')}</div>
       </div>
   `;
@@ -2073,7 +2081,7 @@ const generateSalesReportContent = (data, t) => {
     ${chartData.length > 0 ? `
       <div class="receipt-section">
         <div class="section-title">DAILY BREAKDOWN</div>
-        ${chartData.slice(0, 10).map(day => {
+        ${chartData.slice(0, 30).reverse().map(day => {
           const dayProfit = (day.total || 0) - (day.cost || 0);
           return `
             <div class="sale-summary" style="margin-bottom: 4px; padding: 2px 0; border-bottom: 1px dotted #ccc;">
@@ -2088,8 +2096,8 @@ const generateSalesReportContent = (data, t) => {
             </div>
           `;
         }).join('')}
-        ${chartData.length > 10 ? `
-          <div class="truncated-warning">... and ${chartData.length - 10} more days</div>
+        ${chartData.length > 30 ? `
+          <div class="truncated-warning">... and ${chartData.length - 30} more days</div>
         ` : ''}
       </div>
     ` : ''}
@@ -2123,7 +2131,7 @@ const generateSalesReportContent = (data, t) => {
     ${details.length > 0 ? `
       <div class="receipt-section">
         <div class="section-title">RECENT SALES (${Math.min(details.length, 5)} of ${details.length})</div>
-        ${details.slice(0, 5).map(sale => `
+        ${details.slice(0, 10).map(sale => `
           <div class="sale-summary" style="margin-bottom: 3px; padding: 2px 0;">
             <div class="sale-info">
               <span>${sale.sale_number || 'N/A'}</span>
@@ -2135,8 +2143,8 @@ const generateSalesReportContent = (data, t) => {
             </div>
           </div>
         `).join('')}
-        ${details.length > 5 ? `
-          <div class="truncated-warning">... and ${details.length - 5} more sales</div>
+        ${details.length > 10 ? `
+          <div class="truncated-warning">... and ${details.length - 10} more sales</div>
         ` : ''}
       </div>
     ` : ''}

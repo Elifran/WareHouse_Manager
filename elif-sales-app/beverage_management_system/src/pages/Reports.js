@@ -369,7 +369,7 @@ const Reports = () => {
           <div className="report-data">
             <h3>Sales Report Data</h3>
             <div className="sales-summary">
-              <div className="summary-card">
+              <div className="summary-card">Total R
                 <h4>Total Revenue</h4>
                 <p>{formatCurrency(data.summary?.total_sales || 0)}</p>
               </div>

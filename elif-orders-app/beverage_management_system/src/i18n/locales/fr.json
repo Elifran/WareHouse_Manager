@@ -499,5 +499,8 @@
     "no_pending_deliveries": "Aucune livraison en attente",
     "no_delivery_history": "Aucun historique de livraison trouvé",
     "no_printers_found": "Aucune imprimante trouvée"
+  },
+  "company": {
+    "name": "______ANTATSIMO______"
   }
 }
