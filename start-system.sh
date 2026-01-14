@@ -74,6 +74,16 @@ print_status "Updating nginx configuration with current IP..."
 sudo sed -i "s/server_name 10.10.1.1 600;/server_name $CURRENT_IP;/g" nginx.conf
 print_success "✅ nginx configuration updated"
 
+# Ensure Docker network exists
+print_status "Checking Docker network 'elif-network'..."
+if ! docker network inspect elif-network >/dev/null 2>&1; then
+    print_status "Docker network 'elif-network' not found, creating..."
+    docker network create elif-network
+    print_success "✅ Docker network 'elif-network' created"
+else
+    print_success "✅ Docker network 'elif-network' already exists"
+fi
+
 echo ""
 echo "📋 STARTUP SEQUENCE:"
 echo "===================="
@@ -92,23 +102,31 @@ docker stop nginx-proxy 2>/dev/null || true
 docker rm nginx-proxy 2>/dev/null || true
 
 print_status "Stopping Backend..."
-cd elif-shared-backend && docker compose down && cd ..
+cd elif-shared-backend
+docker-compose down || true
+cd ..
 
 print_status "Stopping Orders App..."
-cd elif-orders-app && docker compose down && cd ..
+cd elif-orders-app
+docker-compose down || true
+cd ..
 
 print_status "Stopping Sales App..."
-cd elif-sales-app && docker compose down && cd ..
+cd elif-sales-app
+docker-compose down || true
+cd ..
 
 print_status "Stopping Admin App..."
-cd elif-admin-app && docker compose down && cd ..
+cd elif-admin-app
+docker-compose down || true
+cd ..
 
 print_success "✅ All services stopped"
 
 # Step 2: Start Backend
 print_status "Step 2: Starting Backend..."
 cd elif-shared-backend
-docker compose up -d
+docker-compose up -d
 print_status "Waiting for backend to be ready..."
 sleep 3
 
@@ -126,13 +144,19 @@ print_success "✅ Backend started"
 print_status "Step 3: Starting Frontend Applications..."
 
 print_status "Starting Orders App..."
-cd elif-orders-app && docker compose up -d && cd ..
+cd elif-orders-app
+docker-compose up -d
+cd ..
 
 print_status "Starting Sales App..."
-cd elif-sales-app && docker compose up -d && cd ..
+cd elif-sales-app
+docker-compose up -d
+cd ..
 
 print_status "Starting Admin App..."
-cd elif-admin-app && docker compose up -d && cd ..
+cd elif-admin-app
+docker-compose up -d
+cd ..
 
 print_success "✅ All frontend applications started"
 

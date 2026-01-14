@@ -1,4 +1,10 @@
 #!/bin/bash
+#sudo apt install nodejs npm -y
+#sudo apt update
+#sudo apt install -y docker.io
+#sudo systemctl start docker
+#sudo systemctl enable docker
+
 
 # Full Rebuild Script for ELIF Applications
 # This script performs a complete rebuild of all applications without running them
@@ -53,6 +59,28 @@ rm -rf */__pycache__/
 rm -rf */migrations/__pycache__/
 find . -name "*.pyc" -delete
 
+# --------------------------------------------------
+# Python Virtual Environment Setup
+# --------------------------------------------------
+print_status "   Setting up Python virtual environment..."
+
+# Detect Python version
+if command -v python3.13 >/dev/null 2>&1; then
+    PYTHON_BIN=python3.13
+elif command -v python3 >/dev/null 2>&1; then
+    PYTHON_BIN=python3
+else
+    print_error "   Python 3 not found"
+    exit 1
+fi
+
+# Create venv if missing
+if [ ! -d "venv" ]; then
+    print_warning "   Virtual environment not found, creating one..."
+    $PYTHON_BIN -m venv venv
+    print_success "   Virtual environment created"
+fi
+
 # Activate virtual environment
 print_status "   Activating Python virtual environment..."
 if [ -f "venv/bin/activate" ]; then
@@ -62,6 +90,24 @@ else
     print_error "   Virtual environment not found at venv/bin/activate"
     print_error "   Please ensure the virtual environment is set up correctly"
     exit 1
+fi
+
+# Install dependencies (force install)
+print_status "   Installing backend dependencies..."
+pip install --upgrade pip setuptools wheel
+
+REQ_FILE="requirements.txt"
+if [ ! -f "$REQ_FILE" ]; then
+    # If not in current dir, try parent
+    REQ_FILE="../requirements.txt"
+fi
+
+if [ -f "$REQ_FILE" ]; then
+    pip install -r "$REQ_FILE"
+    print_success "   Backend dependencies installed"
+else
+    print_warning "   requirements.txt not found, installing Django manually"
+    pip install django
 fi
 
 # Run Django migrations (if needed)
@@ -149,27 +195,27 @@ echo ""
 
 # Backend Docker image
 print_status "   Building backend Docker image..."
-cd elif-shared-backend
+cd elif-shared-backend/backend
 docker build -t elif-shared-backend-elif-backend .
-cd ..
+cd ../..
 
 # Sales App Docker image
 print_status "   Building sales app Docker image..."
-cd elif-sales-app
+cd elif-sales-app/beverage_management_system
 docker build -t elif-sales-app-elif-sales-app .
-cd ..
+cd ../..
 
 # Orders App Docker image
 print_status "   Building orders app Docker image..."
-cd elif-orders-app
+cd elif-orders-app/beverage_management_system
 docker build -t elif-orders-app-elif-orders-app .
-cd ..
+cd ../..
 
 # Admin App Docker image
 print_status "   Building admin app Docker image..."
-cd elif-admin-app
+cd elif-admin-app/beverage_management_system
 docker build -t elif-admin-app-elif-admin-app .
-cd ..
+cd ../..
 
 print_success "   All Docker images rebuilt"
 echo ""
