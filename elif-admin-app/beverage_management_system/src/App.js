@@ -13,6 +13,7 @@ import StockMovement from './pages/StockMovement';
 import PurchaseOrders from './pages/PurchaseOrders';
 import Suppliers from './pages/Suppliers';
 import PackagingManagement from './pages/PackagingManagement';
+import StoreManagement from './pages/StoreManagement';
 import AllPages from './pages/AllPages';
 import AccessDenied from './pages/AccessDenied';
 import './i18n'; // Initialize i18n
@@ -160,6 +161,14 @@ const AppRoutes = () => {
               element={
                 <RoleProtectedRoute allowedRoles={['admin', 'manager']}>
                   <PackagingManagement />
+                </RoleProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/store-management" 
+              element={
+                <RoleProtectedRoute allowedRoles={['admin', 'manager']}>
+                  <StoreManagement />
                 </RoleProtectedRoute>
               } 
             />

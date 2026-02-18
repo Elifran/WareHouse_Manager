@@ -1,6 +1,7 @@
 {
   "common": {
     "loading": "Chargement...",
+    "saving": "Enregistrement...",
     "save": "Enregistrer",
     "cancel": "Annuler",
     "delete": "Supprimer",
@@ -59,6 +60,8 @@
     "sales_management": "Gestion des ventes",
     "purchase_orders": "Commandes d'achat",
     "suppliers": "Fournisseurs",
+    "packaging_management": "Gestion des emballages",
+    "store_management": "Gestion des magasins",
     "reports": "Rapports",
     "users": "Utilisateurs",
     "system_management": "Gestion du système",
@@ -676,5 +679,57 @@
     "no_pending_deliveries": "Aucune livraison en attente",
     "no_delivery_history": "Aucun historique de livraison trouvé",
     "no_printers_found": "Aucune imprimante trouvée"
+  },
+  "store_management": {
+    "title": "Gestion des Magasins",
+    "stores": "Magasins",
+    "description": "Gérez les informations du magasin, y compris le nom, le propriétaire et l'adresse. Ces informations sont utilisées dans tout le système pour les reçus et les rapports.",
+    "add_new": "Ajouter un Nouveau Magasin",
+    "edit_store": "Modifier le Magasin",
+    "add_store": "Ajouter un Nouveau Magasin",
+    "update": "Mettre à jour",
+    "create": "Créer",
+    "store": "Magasin",
+    "no_stores": "Aucun magasin trouvé",
+    "columns": {
+      "name": "Nom",
+      "owner": "Propriétaire",
+      "address": "Adresse",
+      "phone": "Téléphone",
+      "email": "Email",
+      "status": "Statut"
+    },
+    "form": {
+      "name": "Nom du Magasin",
+      "name_placeholder": "ex: ANTATSIMO",
+      "owner": "Propriétaire du Magasin",
+      "owner_placeholder": "Nom du propriétaire",
+      "address": "Adresse",
+      "address_placeholder": "Adresse du magasin",
+      "phone": "Téléphone",
+      "phone_placeholder": "Numéro de téléphone",
+      "email": "Email",
+      "email_placeholder": "email@exemple.com"
+    },
+    "validation": {
+      "name_required": "Le nom du magasin est requis",
+      "name_exists": "Un magasin avec ce nom existe déjà",
+      "invalid_email": "Format d'email invalide"
+    },
+    "errors": {
+      "failed_to_load": "Échec du chargement des informations du magasin",
+      "failed_to_save": "Échec de l'enregistrement des informations du magasin",
+      "failed_to_delete": "Échec de la suppression du magasin"
+    },
+    "success": {
+      "created": "Informations du magasin créées avec succès",
+      "updated": "Informations du magasin mises à jour avec succès"
+    },
+    "store_information": "Informations du Magasin",
+    "confirm_delete": "Êtes-vous sûr de vouloir supprimer \"{{name}}\" ?",
+    "access_denied": {
+      "title": "Accès Refusé",
+      "message": "Vous n'avez pas la permission de gérer les magasins. Seuls les gestionnaires et les administrateurs peuvent accéder à cette page."
+    }
   }
 }

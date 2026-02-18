@@ -1,5 +1,3 @@
-GIT USING SSH – BASIC COMMANDS
-
 --------------------------------
 CHECK REPOSITORY STATUS (LOCAL CHANGES)
 --------------------------------

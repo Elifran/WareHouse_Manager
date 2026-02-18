@@ -1,6 +1,7 @@
 {
   "common": {
     "loading": "Loading...",
+    "saving": "Saving...",
     "save": "Save",
     "cancel": "Cancel",
     "delete": "Delete",
@@ -61,6 +62,7 @@
     "purchase_orders": "Purchase Orders",
     "suppliers": "Suppliers",
     "packaging_management": "Packaging Management",
+    "store_management": "Store Management",
     "reports": "Reports",
     "users": "Users",
     "system_management": "System Management",
@@ -772,5 +774,57 @@
     "orders_app_description": "Point of sale and order processing",
     "sales_app_description": "Sales analytics and reporting",
     "admin_app_description": "Administration and management tools"
+  },
+  "store_management": {
+    "title": "Store Management",
+    "stores": "Stores",
+    "description": "Manage store information including name, owner, and address. This information is used throughout the system for receipts and reports.",
+    "add_new": "Add New Store",
+    "edit_store": "Edit Store",
+    "add_store": "Add New Store",
+    "update": "Update",
+    "create": "Create",
+    "store": "Store",
+    "no_stores": "No stores found",
+    "columns": {
+      "name": "Name",
+      "owner": "Owner",
+      "address": "Address",
+      "phone": "Phone",
+      "email": "Email",
+      "status": "Status"
+    },
+    "form": {
+      "name": "Store Name",
+      "name_placeholder": "e.g., ANTATSIMO",
+      "owner": "Store Owner",
+      "owner_placeholder": "Owner name",
+      "address": "Address",
+      "address_placeholder": "Store address",
+      "phone": "Phone",
+      "phone_placeholder": "Phone number",
+      "email": "Email",
+      "email_placeholder": "email@example.com"
+    },
+    "validation": {
+      "name_required": "Store name is required",
+      "name_exists": "A store with this name already exists",
+      "invalid_email": "Invalid email format"
+    },
+    "errors": {
+      "failed_to_load": "Failed to load store information",
+      "failed_to_save": "Failed to save store information",
+      "failed_to_delete": "Failed to delete store"
+    },
+    "success": {
+      "created": "Store information created successfully",
+      "updated": "Store information updated successfully"
+    },
+    "store_information": "Store Information",
+    "confirm_delete": "Are you sure you want to delete \"{{name}}\"?",
+    "access_denied": {
+      "title": "Access Denied",
+      "message": "You don't have permission to manage stores. Only managers and administrators can access this page."
+    }
   }
 }

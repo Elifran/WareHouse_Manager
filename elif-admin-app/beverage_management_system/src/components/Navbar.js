@@ -53,6 +53,7 @@ const Navbar = () => {
     { name: t('navigation.purchase_orders'), path: '/purchase-orders', icon: '📦' },
     { name: t('navigation.suppliers'), path: '/suppliers', icon: '🏢' },
     { name: t('navigation.packaging_management'), path: '/packaging-management', icon: '📦' },
+    { name: t('navigation.store_management'), path: '/store-management', icon: '🏪' },
     { name: t('navigation.users'), path: '/users', icon: '👥' },
     { name: t('navigation.system_management'), path: '/system-management', icon: '⚙️' },
     { name: t('navigation.stock_movement'), path: '/stock-movement', icon: '📊' },

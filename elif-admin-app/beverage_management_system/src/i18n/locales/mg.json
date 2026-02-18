@@ -1,6 +1,7 @@
 {
   "common": {
     "loading": "Miandry...",
+    "saving": "Eo am-pitehirizana...",
     "save": "Tehirizo",
     "cancel": "Ajanona",
     "delete": "Fafao",
@@ -59,6 +60,8 @@
     "sales_management": "Fitantanana varotra",
     "purchase_orders": "Baiko fividianana",
     "suppliers": "Mpamatsy",
+    "packaging_management": "Fitantanana fonosana",
+    "store_management": "Fitantanana fivarotana",
     "reports": "Tatitra",
     "users": "Mpampiasa",
     "system_management": "Fitantanana rafitra",
@@ -676,5 +679,57 @@
     "no_pending_deliveries": "Tsy misy fandefasana miandry",
     "no_delivery_history": "Tsy hita tantara fandefasana",
     "no_printers_found": "Tsy hita printy"
+  },
+  "store_management": {
+    "title": "Fitantanana Fivarotana",
+    "stores": "Fivarotana",
+    "description": "Tantano ny vaovao momba ny fivarotana, anisan'izany ny anarana, ny tompony, ary ny adiresy. Ampiasaina amin'ny rafitra manontolo ho an'ny fandraisana sy ny tatitra ireo vaovao ireo.",
+    "add_new": "Manampy Fivarotana Vaovao",
+    "edit_store": "Hanova Fivarotana",
+    "add_store": "Manampy Fivarotana Vaovao",
+    "update": "Manavao",
+    "create": "Mamorona",
+    "store": "Fivarotana",
+    "no_stores": "Tsy hita fivarotana",
+    "columns": {
+      "name": "Anarana",
+      "owner": "Tompony",
+      "address": "Adiresy",
+      "phone": "Finday",
+      "email": "Email",
+      "status": "Sata"
+    },
+    "form": {
+      "name": "Anaran'ny Fivarotana",
+      "name_placeholder": "ohatra: ANTATSIMO",
+      "owner": "Tompon'ny Fivarotana",
+      "owner_placeholder": "Anaran'ny tompony",
+      "address": "Adiresy",
+      "address_placeholder": "Adiresin'ny fivarotana",
+      "phone": "Finday",
+      "phone_placeholder": "Laharana finday",
+      "email": "Email",
+      "email_placeholder": "email@ohatra.com"
+    },
+    "validation": {
+      "name_required": "Ilaina ny anaran'ny fivarotana",
+      "name_exists": "Efa misy fivarotana manana anarana toy izany",
+      "invalid_email": "Tsy mety ny endrika email"
+    },
+    "errors": {
+      "failed_to_load": "Tsy nahomby ny famakiana ny vaovao momba ny fivarotana",
+      "failed_to_save": "Tsy nahomby ny fitahirizana ny vaovao momba ny fivarotana",
+      "failed_to_delete": "Tsy nahomby ny famongorana ny fivarotana"
+    },
+    "success": {
+      "created": "Nahomby ny famoronana ny vaovao momba ny fivarotana",
+      "updated": "Nahomby ny fanavaozana ny vaovao momba ny fivarotana"
+    },
+    "store_information": "Vaovao momba ny Fivarotana",
+    "confirm_delete": "Azo antoka fa te-hamafa \"{{name}}\" ve ianao?",
+    "access_denied": {
+      "title": "Tsy nahazo alalana",
+      "message": "Tsy manana alalana hikarakara ny fivarotana ianao. Ny mpitantana sy ny mpandrindra ihany no afaka miditra amin'ity pejy ity."
+    }
   }
 }

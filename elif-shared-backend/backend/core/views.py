@@ -4,8 +4,8 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.contrib.auth import authenticate
-from .models import User
-from .serializers import UserSerializer, UserRegistrationSerializer, LoginSerializer, AdminUserEditSerializer
+from .models import User, Store
+from .serializers import UserSerializer, UserRegistrationSerializer, LoginSerializer, AdminUserEditSerializer, StoreSerializer
 
 class UserListCreateView(generics.ListCreateAPIView):
     queryset = User.objects.all()
@@ -77,3 +77,31 @@ def profile(request):
 def health_check(request):
     """Simple health check endpoint that doesn't require authentication"""
     return Response({'status': 'ok', 'message': 'Server is running'})
+
+
+class StoreListCreateView(generics.ListCreateAPIView):
+    """View for listing and creating stores"""
+    queryset = Store.objects.all()
+    serializer_class = StoreSerializer
+    permission_classes = [IsAuthenticated]
+    
+    def get_queryset(self):
+        # Only admins and managers can see all stores
+        if self.request.user.role in ['admin', 'manager']:
+            return Store.objects.all()
+        # Others see only active stores
+        return Store.objects.filter(is_active=True)
+
+
+class StoreDetailView(generics.RetrieveUpdateDestroyAPIView):
+    """View for retrieving, updating, and deleting a store"""
+    queryset = Store.objects.all()
+    serializer_class = StoreSerializer
+    permission_classes = [IsAuthenticated]
+    
+    def get_queryset(self):
+        # Only admins and managers can modify stores
+        if self.request.user.role in ['admin', 'manager']:
+            return Store.objects.all()
+        # Others can only view active stores
+        return Store.objects.filter(is_active=True)

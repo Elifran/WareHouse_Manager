@@ -1,7 +1,7 @@
 from rest_framework import serializers
 from django.contrib.auth import authenticate
 from django.contrib.auth.password_validation import validate_password
-from .models import User
+from .models import User, Store
 
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
@@ -90,3 +90,16 @@ class LoginSerializer(serializers.Serializer):
             return attrs
         else:
             raise serializers.ValidationError('Must include username and password')
+
+
+class StoreSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Store
+        fields = ['id', 'name', 'owner', 'address', 'phone', 'email', 'is_active', 'created_at', 'updated_at']
+        read_only_fields = ['id', 'created_at', 'updated_at']
+    
+    def validate_name(self, value):
+        """Ensure store name is not empty"""
+        if not value or not value.strip():
+            raise serializers.ValidationError("Store name cannot be empty")
+        return value.strip()

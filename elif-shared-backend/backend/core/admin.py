@@ -2,7 +2,7 @@ from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 from django.contrib.auth.forms import UserChangeForm, UserCreationForm
 from django.utils.translation import gettext_lazy as _
-from .models import User
+from .models import User, Store
 
 
 class CustomUserCreationForm(UserCreationForm):
@@ -44,3 +44,18 @@ class UserAdmin(BaseUserAdmin):
     )
     
     filter_horizontal = ('groups', 'user_permissions',)
+
+
+@admin.register(Store)
+class StoreAdmin(admin.ModelAdmin):
+    list_display = ('name', 'owner', 'phone', 'email', 'is_active', 'created_at', 'updated_at')
+    list_filter = ('is_active', 'created_at', 'updated_at')
+    search_fields = ('name', 'owner', 'address', 'phone', 'email')
+    ordering = ('name',)
+    readonly_fields = ('created_at', 'updated_at')
+    
+    fieldsets = (
+        (None, {'fields': ('name', 'is_active')}),
+        (_('Contact Information'), {'fields': ('owner', 'address', 'phone', 'email')}),
+        (_('Timestamps'), {'fields': ('created_at', 'updated_at')}),
+    )
